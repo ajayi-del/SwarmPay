@@ -141,3 +141,64 @@ export function getStatusDisplay(agentName: string, status: string): StatusDispl
     DEFAULT_STATUS[status] ?? { label: status.toUpperCase(), color: "#888" }
   );
 }
+
+// ── Office mode ────────────────────────────────────────────────────────
+
+export interface OfficePersona {
+  dept: string;
+  title: string;
+  clearance: string; // "LEVEL 3" etc.
+  officeSkills: [string, string, string];
+}
+
+export const OFFICE_PERSONAS: Record<string, OfficePersona> = {
+  ATLAS: {
+    dept: "Research Dept",
+    title: "Research Analyst",
+    clearance: "LEVEL 4",
+    officeSkills: ["Due Diligence", "Desk Research", "Sourcing"],
+  },
+  CIPHER: {
+    dept: "Analytics Dept",
+    title: "Senior Data Analyst",
+    clearance: "LEVEL 5",
+    officeSkills: ["Quant Models", "Risk Scoring", "Pattern Rec."],
+  },
+  FORGE: {
+    dept: "Publishing Dept",
+    title: "Content Director",
+    clearance: "LEVEL 4",
+    officeSkills: ["Drafting", "Publishing", "Formatting"],
+  },
+  BISHOP: {
+    dept: "Compliance",
+    title: "Compliance Officer",
+    clearance: "LEVEL 4",
+    officeSkills: ["Policy Review", "Audit", "Sign-off"],
+  },
+  "SØN": {
+    dept: "Operations",
+    title: "Junior Associate",
+    clearance: "LEVEL 3",
+    officeSkills: ["Logistics", "Errands", "Support"],
+  },
+};
+
+export const OFFICE_COORDINATOR = {
+  title: "Chief Treasury Officer",
+  dept: "Executive Office",
+  clearance: "EXECUTIVE",
+};
+
+const OFFICE_STATUS: Record<string, StatusDisplay> = {
+  spawned: { label: "STANDBY", color: "#6c63ff" },
+  working: { label: "IN PROGRESS", color: "#60a5fa", animate: "pulse" },
+  complete: { label: "SUBMITTED", color: "#22c55e" },
+  paid: { label: "APPROVED ✓", color: "#22c55e" },
+  blocked: { label: "COMPLIANCE REJECTED", color: "#ef4444" },
+  failed: { label: "ERROR", color: "#555" },
+};
+
+export function getOfficeStatusDisplay(status: string): StatusDisplay {
+  return OFFICE_STATUS[status] ?? { label: status.toUpperCase(), color: "#888" };
+}

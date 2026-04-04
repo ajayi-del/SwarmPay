@@ -2,7 +2,8 @@
 
 import { motion } from "framer-motion";
 import type { Wallet, Task } from "@/lib/api";
-import { COORDINATOR_PERSONA } from "@/lib/personas";
+import { COORDINATOR_PERSONA, OFFICE_COORDINATOR } from "@/lib/personas";
+import { useModeStore } from "@/lib/modeStore";
 
 function Stars({ n }: { n: number }) {
   return (
@@ -49,8 +50,19 @@ const TASK_STATUS_COLOR: Record<string, string> = {
 };
 
 export default function CoordinatorCard({ wallet, task }: Props) {
+  const { mode } = useModeStore();
+  const isOffice = mode === "office";
   const p = COORDINATOR_PERSONA;
   const statusColor = TASK_STATUS_COLOR[task.status] ?? "#888";
+
+  const accentColor = isOffice ? "#60a5fa" : "#FFD700";
+  const roleLabel = isOffice ? OFFICE_COORDINATOR.title : p.role;
+  const locationLabel = isOffice
+    ? `${OFFICE_COORDINATOR.dept} · ${OFFICE_COORDINATOR.clearance}`
+    : `${p.city} · ${p.language}`;
+  const treasuryLabel = isOffice ? "Operating Budget" : "Royal Vault";
+  const statusLabel = isOffice ? "OVERSEEING" : "MANAGING";
+  const taskPrefix = isOffice ? "Mandate:" : "Task:";
 
   return (
     <motion.div
@@ -59,25 +71,31 @@ export default function CoordinatorCard({ wallet, task }: Props) {
       className="rounded-2xl p-5"
       style={{
         background: "var(--surface)",
-        border: "1px solid #2a2400",
-        boxShadow: "0 0 32px rgba(255,215,0,0.04)",
+        border: isOffice ? "1px solid #2563eb22" : "1px solid #2a2400",
+        boxShadow: isOffice
+          ? "0 0 32px rgba(37,99,235,0.04)"
+          : "0 0 32px rgba(255,215,0,0.04)",
       }}
     >
       <div className="flex flex-wrap items-start justify-between gap-4">
         {/* Identity */}
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <span className="text-xl">{p.flag}</span>
+            <span className="text-xl">{isOffice ? "🏛️" : p.flag}</span>
             <span className="text-xl font-bold tracking-tight">{p.name}</span>
             <span
               className="text-xs px-2.5 py-0.5 rounded-md font-semibold"
-              style={{ background: "#FFD70018", color: "#FFD700", border: "1px solid #FFD70035" }}
+              style={{
+                background: `${accentColor}18`,
+                color: accentColor,
+                border: `1px solid ${accentColor}35`,
+              }}
             >
-              {p.role}
+              {roleLabel}
             </span>
           </div>
           <p className="text-xs font-jb" style={{ color: "var(--text-muted)" }}>
-            {p.city} · {p.language}
+            {locationLabel}
           </p>
         </div>
 
@@ -85,11 +103,17 @@ export default function CoordinatorCard({ wallet, task }: Props) {
         <div className="flex items-center gap-2">
           <span
             className="text-xs px-3 py-1 rounded-full font-semibold font-jb animate-status-pulse"
-            style={{ background: `${statusColor}18`, color: statusColor, border: `1px solid ${statusColor}30` }}
+            style={{
+              background: `${statusColor}18`,
+              color: statusColor,
+              border: `1px solid ${statusColor}30`,
+            }}
           >
-            <span className="inline-block w-1.5 h-1.5 rounded-full mr-1.5 align-middle"
-              style={{ background: statusColor, boxShadow: `0 0 4px ${statusColor}` }} />
-            MANAGING
+            <span
+              className="inline-block w-1.5 h-1.5 rounded-full mr-1.5 align-middle"
+              style={{ background: statusColor, boxShadow: `0 0 4px ${statusColor}` }}
+            />
+            {statusLabel}
           </span>
         </div>
       </div>
@@ -112,17 +136,21 @@ export default function CoordinatorCard({ wallet, task }: Props) {
             <span
               key={skill}
               className="text-xs px-2 py-0.5 rounded-md font-jb"
-              style={{ background: "#FFD70012", color: "#FFD700", border: "1px solid #FFD70030" }}
+              style={{
+                background: `${accentColor}12`,
+                color: accentColor,
+                border: `1px solid ${accentColor}30`,
+              }}
             >
               {skill}
             </span>
           ))}
         </div>
 
-        {/* Treasury */}
+        {/* Treasury / Budget */}
         <div className="ml-auto text-right space-y-0.5">
-          <p className="text-xs" style={{ color: "var(--text-muted)" }}>Treasury</p>
-          <p className="text-2xl font-bold font-jb" style={{ color: "#FFD700" }}>
+          <p className="text-xs" style={{ color: "var(--text-muted)" }}>{treasuryLabel}</p>
+          <p className="text-2xl font-bold font-jb" style={{ color: accentColor }}>
             {Number(wallet.budget_cap).toFixed(2)}{" "}
             <span className="text-sm font-normal" style={{ color: "var(--text-muted)" }}>ETH</span>
           </p>
@@ -135,7 +163,7 @@ export default function CoordinatorCard({ wallet, task }: Props) {
       {/* Task description */}
       <div className="mt-3 pt-3 border-t" style={{ borderColor: "var(--border)" }}>
         <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-          <span style={{ color: "var(--text-dim)" }}>Task: </span>
+          <span style={{ color: "var(--text-dim)" }}>{taskPrefix} </span>
           {task.description}
         </p>
       </div>

@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import type { TaskState } from "@/lib/api";
+import { useModeStore } from "@/lib/modeStore";
 
 interface Props {
   taskState: TaskState;
@@ -23,6 +24,8 @@ function Stat({ label, value, color }: { label: string; value: string; color?: s
 
 export default function MetricsBar({ taskState }: Props) {
   const { task, sub_tasks, payments } = taskState;
+  const { mode } = useModeStore();
+  const isOffice = mode === "office";
 
   const signed = payments.filter((p) => p.status === "signed");
   const blocked = payments.filter((p) => p.status === "blocked");
@@ -58,17 +61,17 @@ export default function MetricsBar({ taskState }: Props) {
       {/* Stats row */}
       <div className="flex flex-wrap gap-6 items-end mb-3">
         <Stat label="Total Budget" value={`${Number(task.total_budget).toFixed(2)} ETH`} />
-        <Stat label="Spent" value={`${totalSpent.toFixed(4)} ETH`} color="var(--signed)" />
-        <Stat label="Blocked" value={`${totalBlocked.toFixed(4)} ETH`} color="var(--blocked)" />
+        <Stat label={isOffice ? "Disbursed" : "Spent"} value={`${totalSpent.toFixed(4)} ETH`} color="var(--signed)" />
+        <Stat label={isOffice ? "Held" : "Blocked"} value={`${totalBlocked.toFixed(4)} ETH`} color="var(--blocked)" />
 
         <div className="h-8 w-px" style={{ background: "var(--border)" }} />
 
         <Stat
-          label="Swarm Efficiency"
+          label={isOffice ? "Clearance Rate" : "Swarm Efficiency"}
           value={efficiency > 0 ? `${efficiency}%` : "—"}
           color={efficiency >= 70 ? "var(--signed)" : efficiency > 0 ? "var(--working)" : undefined}
         />
-        <Stat label="Active Agents" value={String(activeCount)} color="var(--working)" />
+        <Stat label={isOffice ? "Active Staff" : "Active Agents"} value={String(activeCount)} color="var(--working)" />
         <Stat label="Completed" value={`${completedCount} / ${sub_tasks.length}`} />
       </div>
 

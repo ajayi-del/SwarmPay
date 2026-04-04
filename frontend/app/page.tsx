@@ -1,14 +1,22 @@
 "use client";
 
+import { useEffect } from "react";
 import TaskForm from "@/components/TaskForm";
 import Dashboard from "@/components/Dashboard";
 import AuditLog from "@/components/AuditLog";
+import ModeToggle from "@/components/ModeToggle";
 import { useSwarmStore } from "@/lib/store";
-import { motion } from "framer-motion";
+import { useModeStore } from "@/lib/modeStore";
+import { motion, AnimatePresence } from "framer-motion";
 
 export default function Home() {
   const { phase, reset } = useSwarmStore();
+  const { mode } = useModeStore();
   const isActive = phase !== "idle";
+
+  useEffect(() => {
+    document.body.classList.toggle("office-mode", mode === "office");
+  }, [mode]);
 
   return (
     <div className="min-h-screen px-5 py-8 max-w-7xl mx-auto space-y-6">
@@ -32,6 +40,7 @@ export default function Home() {
             <span>③ no double-pay</span>
             <span style={{ color: "var(--blocked)" }}>FORGE +50% → BLOCKED</span>
           </div>
+          <ModeToggle />
           {isActive && (
             <button
               onClick={reset}
@@ -53,14 +62,23 @@ export default function Home() {
 
       {/* Main content: dashboard + audit log side by side */}
       {isActive && (
-        <div className="flex flex-col xl:flex-row gap-4 items-start">
-          <div className="flex-1 min-w-0">
-            <Dashboard />
-          </div>
-          <div className="w-full xl:w-72 shrink-0">
-            <AuditLog />
-          </div>
-        </div>
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={mode}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+            className="flex flex-col xl:flex-row gap-4 items-start"
+          >
+            <div className="flex-1 min-w-0">
+              <Dashboard />
+            </div>
+            <div className="w-full xl:w-72 shrink-0">
+              <AuditLog />
+            </div>
+          </motion.div>
+        </AnimatePresence>
       )}
 
       <p className="text-xs text-center pb-2 font-jb" style={{ color: "var(--text-dim)" }}>

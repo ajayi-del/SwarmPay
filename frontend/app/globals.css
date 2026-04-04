@@ -20,6 +20,23 @@
   --text-dim: #444455;
 }
 
+/* ── Office mode overrides ───────────────────────────────────────────── */
+.office-mode {
+  --background: #0D1117;
+  --surface: #161B22;
+  --surface-2: #1C2128;
+  --border: #30363D;
+  --border-hover: #484F58;
+  --accent: #2563eb;
+  --accent-glow: rgba(37, 99, 235, 0.2);
+  --signed: #22c55e;
+  --blocked: #ef4444;
+  --working: #60a5fa;
+  --text: #e6edf3;
+  --text-muted: #8b949e;
+  --text-dim: #6e7681;
+}
+
 * { box-sizing: border-box; }
 
 body {
@@ -27,6 +44,21 @@ body {
   color: var(--text);
   font-family: 'Bricolage Grotesque', sans-serif;
   -webkit-font-smoothing: antialiased;
+}
+
+/* Mode transition — only colour/background properties, not dimensions */
+body, body * {
+  transition:
+    background-color 0.3s ease,
+    border-color 0.3s ease,
+    color 0.3s ease,
+    box-shadow 0.3s ease;
+}
+
+/* Opt-out: don't transition transforms or opacity (breaks Framer Motion) */
+.framer-no-transition,
+.framer-no-transition * {
+  transition: none !important;
 }
 
 .font-jb {

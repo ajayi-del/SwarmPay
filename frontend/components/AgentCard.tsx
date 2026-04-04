@@ -2,7 +2,13 @@
 
 import { motion, AnimatePresence } from "framer-motion";
 import type { SubTask, Payment } from "@/lib/api";
-import { AGENT_PERSONAS, getStatusDisplay } from "@/lib/personas";
+import {
+  AGENT_PERSONAS,
+  OFFICE_PERSONAS,
+  getStatusDisplay,
+  getOfficeStatusDisplay,
+} from "@/lib/personas";
+import { useModeStore } from "@/lib/modeStore";
 
 /* ── Helpers ─────────────────────────────────────────────────────────── */
 
@@ -111,11 +117,14 @@ interface Props {
 }
 
 export default function AgentCard({ subTask, payment, index, reputation }: Props) {
+  const { mode } = useModeStore();
+  const isOffice = mode === "office";
+
   const persona = AGENT_PERSONAS[subTask.agent_id];
+  const officePers = OFFICE_PERSONAS[subTask.agent_id];
   const liveRep = reputation ?? persona?.reputation ?? 3;
   const { text: outputText, ms: latencyMs } = parseOutput(subTask.output);
 
-  // Skill visibility: all 3 show by terminal states, 3rd unlocks on complete/paid/blocked
   const terminalStatuses = ["complete", "paid", "blocked", "failed"];
   const isTerminal = terminalStatuses.includes(subTask.status);
   const visibleSkillCount = subTask.status === "spawned" ? 2 : isTerminal ? 3 : 2;
@@ -132,8 +141,19 @@ export default function AgentCard({ subTask, payment, index, reputation }: Props
 
   const approxTokens = outputText ? Math.ceil(outputText.length / 4) : 0;
 
+  // Mode-specific labels
+  const displayRole = isOffice && officePers ? officePers.dept : persona?.role ?? subTask.agent_id;
+  const displaySubtitle = isOffice && officePers
+    ? `${officePers.title} · ${officePers.clearance}`
+    : persona?.language ?? "";
+  const displaySkills = isOffice && officePers
+    ? officePers.officeSkills
+    : persona?.skills ?? ["—", "—", "—"];
+  const statusDisplay = isOffice
+    ? getOfficeStatusDisplay(subTask.status)
+    : getStatusDisplay(subTask.agent_id, subTask.status);
+
   if (!persona) {
-    // Graceful fallback for unknown agent names
     return (
       <div className="rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
         <p className="font-jb text-xs" style={{ color: "var(--text-muted)" }}>{subTask.agent_id}</p>
@@ -161,22 +181,22 @@ export default function AgentCard({ subTask, payment, index, reputation }: Props
       <div className="flex items-start justify-between gap-2">
         <div>
           <div className="flex items-center gap-1.5 mb-0.5">
-            <span className="text-base">{persona.flag}</span>
+            <span className="text-base">{isOffice ? "👤" : persona.flag}</span>
             <span className="font-bold tracking-tight text-sm">{persona.name}</span>
             <span style={{ color: "var(--text-dim)" }} className="text-xs">·</span>
             <span className="text-xs font-jb" style={{ color: "var(--text-muted)" }}>
-              {persona.city}
+              {isOffice ? (officePers?.dept ?? persona.city) : persona.city}
             </span>
           </div>
           <p className="text-xs" style={{ color: "var(--text-dim)" }}>
-            {persona.language}
+            {displaySubtitle}
           </p>
         </div>
         <span
           className="text-xs px-2 py-0.5 rounded-md font-semibold shrink-0"
           style={{ background: `${rc}18`, color: rc, border: `1px solid ${rc}30` }}
         >
-          {persona.role}
+          {displayRole}
         </span>
       </div>
 
@@ -184,18 +204,20 @@ export default function AgentCard({ subTask, payment, index, reputation }: Props
       <div className="flex items-center gap-3 flex-wrap">
         <Stars n={liveRep} />
         <span className="text-xs font-jb" style={{ color: "var(--text-muted)" }}>
-          T:{persona.stats.tasks} · {persona.stats.successRate}%
+          {isOffice ? `CLR: ${officePers?.clearance ?? "LEVEL ?"}` : `T:${persona.stats.tasks} · ${persona.stats.successRate}%`}
         </span>
         <Sparkline data={persona.stats.sparkline} color={rc} />
-        <span className="text-xs font-jb" style={{ color: "var(--text-dim)" }}>
-          {persona.stats.avgSpeed}s avg
-        </span>
+        {!isOffice && (
+          <span className="text-xs font-jb" style={{ color: "var(--text-dim)" }}>
+            {persona.stats.avgSpeed}s avg
+          </span>
+        )}
       </div>
 
       {/* ── Skills (unlock on terminal) ── */}
       <div className="flex flex-wrap gap-1.5">
         <AnimatePresence>
-          {persona.skills.slice(0, visibleSkillCount).map((skill, i) => (
+          {displaySkills.slice(0, visibleSkillCount).map((skill, i) => (
             <motion.span
               key={skill}
               initial={{ opacity: 0, scale: 0.7 }}
@@ -210,7 +232,7 @@ export default function AgentCard({ subTask, payment, index, reputation }: Props
             >
               {skill}
               {i === 2 && isTerminal && (
-                <span className="ml-1 text-xs" style={{ color: rc }}>★</span>
+                <span className="ml-1 text-xs" style={{ color: rc }}>{isOffice ? "✓" : "★"}</span>
               )}
             </motion.span>
           ))}
@@ -219,7 +241,24 @@ export default function AgentCard({ subTask, payment, index, reputation }: Props
 
       {/* ── Status ── */}
       <div>
-        <StatusPill agentName={persona.name} status={subTask.status} />
+        {isOffice ? (
+          <span
+            className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold font-jb tracking-wide ${
+              statusDisplay.animate === "pulse" ? "animate-status-pulse" : ""
+            }`}
+            style={{
+              background: `${statusDisplay.color}18`,
+              color: statusDisplay.color,
+              border: `1px solid ${statusDisplay.color}33`,
+            }}
+          >
+            <span className="w-1.5 h-1.5 rounded-full"
+              style={{ background: statusDisplay.color, boxShadow: `0 0 4px ${statusDisplay.color}` }} />
+            {statusDisplay.label}
+          </span>
+        ) : (
+          <StatusPill agentName={persona.name} status={subTask.status} />
+        )}
       </div>
 
       {/* ── Output area ── */}
@@ -280,7 +319,9 @@ export default function AgentCard({ subTask, payment, index, reputation }: Props
             <span
               style={{ color: payment.status === "signed" ? "var(--signed)" : "var(--blocked)" }}
             >
-              {payment.status === "signed" ? "✓ SIGNED" : "✗ BLOCKED"}
+              {payment.status === "signed"
+                ? isOffice ? "✓ APPROVED TRANSFER" : "✓ SIGNED"
+                : isOffice ? "✗ COMPLIANCE REJECTED" : "✗ BLOCKED"}
             </span>
             <span style={{ color: "var(--text)" }}>{Number(payment.amount).toFixed(4)} ETH</span>
           </div>
