@@ -8,6 +8,7 @@ import {
   getStatusDisplay,
   getOfficeStatusDisplay,
 } from "@/lib/personas";
+import OWSProofPanel from "@/components/OWSProofPanel";
 import { useModeStore } from "@/lib/modeStore";
 
 /* ── Helpers ─────────────────────────────────────────────────────────── */
@@ -303,6 +304,11 @@ export default function AgentCard({ subTask, payment, index, reputation }: Props
           {subTask.wallet_id ? `${subTask.wallet_id.slice(0, 6)}…${subTask.wallet_id.slice(-4)}` : "—"}
         </span>
       </div>
+
+      {/* ── OWS Proof Panel ── */}
+      {isTerminal && (
+        <OWSProofPanel subTask={subTask} payment={payment} />
+      )}
 
       {/* ── Payment overlay ── */}
       {payment && (
