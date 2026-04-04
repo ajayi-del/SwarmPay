@@ -1,0 +1,53 @@
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,200..800&family=JetBrains+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #080808;
+  --surface: #111111;
+  --surface-2: #181818;
+  --border: #222222;
+  --border-hover: #333333;
+  --accent: #6c63ff;
+  --accent-glow: rgba(108, 99, 255, 0.2);
+  --signed: #22c55e;
+  --blocked: #ef4444;
+  --working: #f59e0b;
+  --text: #e8e8f0;
+  --text-muted: #666677;
+  --text-dim: #444455;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  background: var(--background);
+  color: var(--text);
+  font-family: 'Bricolage Grotesque', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.font-jb {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-hover); border-radius: 2px; }
+
+/* Pulse animation for status pills */
+@keyframes status-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+.animate-status-pulse { animation: status-pulse 1.8s ease-in-out infinite; }
+
+/* Blink animation (SØN training) */
+@keyframes status-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.2; }
+}
+.animate-status-blink { animation: status-blink 1.2s step-end infinite; }

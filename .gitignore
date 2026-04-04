@@ -1,0 +1,26 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Environment — NEVER commit secrets
+backend/.env
+
+# PocketBase binary + data
+pocketbase/pocketbase
+pocketbase/pocketbase.zip
+pocketbase/CHANGELOG.md
+pocketbase/LICENSE.md
+pocketbase/pb_data/
+
+# Next.js
+frontend/.next/
+frontend/node_modules/
+frontend/.env.local
+
+# OS
+.DS_Store
+*.swp
