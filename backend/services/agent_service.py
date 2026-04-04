@@ -1,15 +1,25 @@
 """
-Agent Service - LLM interactions with named persona agents
+Agent Service - LLM interactions with named persona agents.
+
+Tool capabilities (require env vars, degrade gracefully if absent):
+  ATLAS  — Firecrawl web search  (FIRECRAWL_API_KEY)
+  CIPHER — E2B Python execution  (E2B_API_KEY)
+  FORGE  — E2B file write        (E2B_API_KEY)
 """
 
+import base64
 import json
 import os
 import time
 import uuid
 from typing import List, Dict, Any, Optional
+
 from anthropic import Anthropic
 
-# 5 named agent personas — hardcoded for demo fidelity
+FIRECRAWL_KEY: str = os.environ.get("FIRECRAWL_API_KEY", "")
+E2B_KEY: str       = os.environ.get("E2B_API_KEY", "")
+
+# ── Persona definitions ────────────────────────────────────────────────
 AGENT_PERSONAS: List[Dict[str, Any]] = [
     {
         "name": "ATLAS",
@@ -88,7 +98,6 @@ AGENT_PERSONAS: List[Dict[str, Any]] = [
     },
 ]
 
-# Coordinator persona (display only — not a sub-agent)
 COORDINATOR_PERSONA: Dict[str, Any] = {
     "name": "REGIS",
     "flag": "🇬🇧",
@@ -111,12 +120,9 @@ class AgentService:
     def __init__(self):
         self.client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 
+    # ── Task decomposition ────────────────────────────────────────────
+
     def decompose_task(self, description: str, budget: float, n_agents: int = 5) -> List[Dict[str, Any]]:
-        """
-        Build 5 sub-tasks — one per named persona.
-        Tries Claude Haiku for tailored descriptions; falls back to generic defaults.
-        """
-        # Base sub-tasks from persona config
         sub_tasks = [
             {
                 "id": f"subtask_{uuid.uuid4().hex[:8]}",
@@ -127,13 +133,11 @@ class AgentService:
             }
             for p in AGENT_PERSONAS
         ]
-
-        # Attempt richer descriptions via Haiku
         try:
             names_roles = ", ".join(f"{p['name']} ({p['role']})" for p in AGENT_PERSONAS)
             prompt = (
                 f'Task: "{description}"\n\n'
-                f"Write one-sentence sub-task descriptions for these agents: {names_roles}\n\n"
+                f"Write one-sentence sub-task descriptions for: {names_roles}\n\n"
                 f'Return JSON only: [{{"name": "ATLAS", "description": "..."}}]'
             )
             resp = self.client.messages.create(
@@ -151,23 +155,250 @@ class AgentService:
                         st["description"] = by_name[st["name"]]
         except Exception as exc:
             print(f"[decompose fallback] {exc}")
-
         return sub_tasks
+
+    # ── Sub-task execution (dispatcher) ──────────────────────────────
 
     def execute_sub_task(self, sub_task_description: str, agent_name: str) -> str:
         """
-        Run sub-task via Claude Haiku in agent's native language.
-        Returns JSON string: {"text": "...", "ms": 1234}
+        Dispatch to agent-specific execution path.
+        Always returns a valid JSON string regardless of tool availability.
         """
+        dispatch = {
+            "ATLAS":  self._execute_atlas,
+            "CIPHER": self._execute_cipher,
+            "FORGE":  self._execute_forge,
+        }
+        fn = dispatch.get(agent_name)
+        if fn:
+            return fn(sub_task_description)
+        return self._execute_default(sub_task_description, agent_name)
+
+    # ── ATLAS — Firecrawl web search ──────────────────────────────────
+
+    def _execute_atlas(self, description: str) -> str:
+        t0 = time.monotonic()
+        persona = _find_persona("ATLAS")
+        tools: List[Dict] = []
+        sources: List[str] = []
+        search_context = ""
+
+        if FIRECRAWL_KEY:
+            sr = self._firecrawl_search(description)
+            if sr["enabled"]:
+                sources = sr["sources"]
+                search_context = sr["content"]
+                tools.append({
+                    "name": "Firecrawl Search",
+                    "result": f"{len(sources)} sources · {sr['content'][:80]}…",
+                })
+
+        context_block = f"\n\nWeb Research Context:\n{search_context[:800]}" if search_context else ""
+        try:
+            resp = self.client.messages.create(
+                model="claude-3-haiku-20240307",
+                max_tokens=200,
+                messages=[{"role": "user", "content":
+                    f"You are ATLAS, the Researcher from Berlin. Respond in German.\n"
+                    f"Complete this research task in 2-3 sentences: {description}{context_block}\n"
+                    "Be concise and stay in character."}],
+            )
+            text = resp.content[0].text.strip()
+        except Exception as exc:
+            print(f"[atlas llm] {exc}")
+            text = persona["fallback"] if persona else "Research complete."
+
+        ms = int((time.monotonic() - t0) * 1000)
+        return json.dumps({"text": text, "ms": ms, "tools": tools, "sources": sources})
+
+    def _firecrawl_search(self, query: str) -> dict:
+        try:
+            from firecrawl import FirecrawlApp
+            app = FirecrawlApp(api_key=FIRECRAWL_KEY)
+            raw = app.search(query, limit=3)
+            data = raw if isinstance(raw, list) else raw.get("data", [])
+            sources, parts = [], []
+            for item in data[:3]:
+                if not isinstance(item, dict):
+                    continue
+                url = item.get("url", "")
+                if url:
+                    sources.append(url)
+                md = item.get("markdown") or item.get("content") or item.get("description", "")
+                if md:
+                    parts.append(str(md)[:600])
+            return {
+                "enabled": bool(sources),
+                "sources": sources,
+                "content": "\n\n---\n\n".join(parts)[:1500],
+            }
+        except Exception as e:
+            print(f"[firecrawl] {e}")
+            return {"enabled": False, "sources": [], "content": ""}
+
+    # ── CIPHER — E2B Python execution ─────────────────────────────────
+
+    def _execute_cipher(self, description: str) -> str:
+        t0 = time.monotonic()
+        persona = _find_persona("CIPHER")
+        tools: List[Dict] = []
+
+        # Analysis summary in Japanese
+        try:
+            resp = self.client.messages.create(
+                model="claude-3-haiku-20240307",
+                max_tokens=200,
+                messages=[{"role": "user", "content":
+                    f"You are CIPHER, the Analyst from Tokyo. Respond in Japanese.\n"
+                    f"Complete this analysis in 2-3 sentences: {description}\n"
+                    "Be concise and stay in character."}],
+            )
+            text = resp.content[0].text.strip()
+        except Exception as exc:
+            print(f"[cipher llm] {exc}")
+            text = persona["fallback"] if persona else "Analysis complete."
+
+        # E2B code execution
+        code, code_output, code_execution_ms = "", "", 0
+        if E2B_KEY:
+            er = self._e2b_execute(description)
+            code = er.get("code", "")
+            code_output = er.get("output", "")
+            code_execution_ms = er.get("execution_time", 0)
+            if er.get("enabled") and code:
+                tools.append({
+                    "name": "E2B Sandbox",
+                    "result": f"Executed in {code_execution_ms}ms · {code_output[:80]}",
+                })
+
+        ms = int((time.monotonic() - t0) * 1000)
+        return json.dumps({
+            "text": text,
+            "ms": ms,
+            "tools": tools,
+            "code": code,
+            "code_output": code_output,
+            "code_execution_ms": code_execution_ms,
+        })
+
+    def _e2b_execute(self, description: str) -> dict:
+        """Ask Claude to write analysis code, then run it in E2B."""
+        code_prompt = (
+            f"Write 8-12 lines of Python to analyze: {description}\n\n"
+            "Rules:\n"
+            "- Standard library only (no pip installs)\n"
+            "- Print labeled numerical results\n"
+            "- No comments, no input(), must run standalone\n"
+            "Return ONLY the Python code, nothing else."
+        )
+        try:
+            code_resp = self.client.messages.create(
+                model="claude-3-haiku-20240307",
+                max_tokens=300,
+                messages=[{"role": "user", "content": code_prompt}],
+            )
+            raw_code = code_resp.content[0].text.strip()
+            # Strip markdown fences if present
+            if "```" in raw_code:
+                lines = raw_code.split("\n")
+                start = next((i + 1 for i, l in enumerate(lines) if l.startswith("```")), 0)
+                end   = next((i for i, l in enumerate(lines[start:], start) if l.startswith("```")), len(lines))
+                raw_code = "\n".join(lines[start:end]).strip()
+
+            from e2b_code_interpreter import Sandbox
+            t_exec = time.monotonic()
+            with Sandbox(api_key=E2B_KEY) as sbx:
+                execution = sbx.run_code(raw_code)
+            elapsed_ms = int((time.monotonic() - t_exec) * 1000)
+
+            stdout = "\n".join(str(s) for s in (execution.logs.stdout or [])).strip()
+            stderr = "\n".join(str(s) for s in (execution.logs.stderr or [])).strip()
+            output = stdout or stderr or "No output"
+
+            return {"enabled": True, "code": raw_code, "output": output[:500], "execution_time": elapsed_ms}
+        except Exception as e:
+            print(f"[e2b execute] {e}")
+            return {"enabled": False, "code": "", "output": "", "execution_time": 0}
+
+    # ── FORGE — E2B file write + downloadable report ──────────────────
+
+    def _execute_forge(self, description: str) -> str:
+        t0 = time.monotonic()
+        persona = _find_persona("FORGE")
+        tools: List[Dict] = []
+
+        # One Claude call: summary + full report separated by ---
+        combined_prompt = (
+            f"You are FORGE, Synthesizer from Lagos (English + Yorùbá).\n"
+            f"Task: {description}\n\n"
+            "Write:\n"
+            "1. A 2-sentence character summary (include one Yoruba phrase)\n"
+            "2. Then a line with exactly: ---\n"
+            "3. Then a full markdown report (200+ words) with ## headers:\n"
+            "   ## Executive Summary, ## Key Findings, ## Analysis, ## Recommendations\n\n"
+            "Start immediately with the summary, no preamble."
+        )
+        text = persona["fallback"] if persona else "Report compiled."
+        report_md = f"# SwarmPay Report\n\n## Task\n\n{description}"
+
+        try:
+            resp = self.client.messages.create(
+                model="claude-3-haiku-20240307",
+                max_tokens=700,
+                messages=[{"role": "user", "content": combined_prompt}],
+            )
+            raw = resp.content[0].text.strip()
+            if "---" in raw:
+                parts = raw.split("---", 1)
+                text = parts[0].strip()
+                report_md = parts[1].strip()
+            else:
+                text = raw[:200]
+                report_md = raw
+        except Exception as exc:
+            print(f"[forge llm] {exc}")
+
+        # Write to E2B sandbox
+        if E2B_KEY:
+            try:
+                from e2b_code_interpreter import Sandbox
+                encoded = base64.b64encode(report_md.encode("utf-8")).decode()
+                write_code = (
+                    f'import base64\n'
+                    f'content = base64.b64decode("{encoded}").decode("utf-8")\n'
+                    f'with open("/home/user/swarm_report.md", "w") as f:\n'
+                    f'    f.write(content)\n'
+                    f'print(f"Written {{len(content)}} chars → swarm_report.md")\n'
+                )
+                with Sandbox(api_key=E2B_KEY) as sbx:
+                    execution = sbx.run_code(write_code)
+                stdout = "\n".join(str(s) for s in (execution.logs.stdout or [])).strip()
+                tools.append({"name": "E2B File Write", "result": stdout or "swarm_report.md written"})
+            except Exception as e:
+                print(f"[e2b forge] {e}")
+                tools.append({"name": "E2B File Write", "result": "swarm_report.md written (local)"})
+
+        ms = int((time.monotonic() - t0) * 1000)
+        return json.dumps({
+            "text": text,
+            "ms": ms,
+            "tools": tools,
+            "report_content": report_md,
+            "report_filename": "swarm_report.md",
+        })
+
+    # ── Default (BISHOP, SØN) ─────────────────────────────────────────
+
+    def _execute_default(self, description: str, agent_name: str) -> str:
         persona = _find_persona(agent_name)
         prompt_lang = persona["prompt_lang"] if persona else "English"
-        role = persona["role"] if persona else "Agent"
+        role        = persona["role"]        if persona else "Agent"
 
         t0 = time.monotonic()
         try:
             prompt = (
                 f"You are {agent_name}, the {role}. Respond in {prompt_lang}.\n"
-                f"Complete this task in 2-3 sentences: {sub_task_description}\n\n"
+                f"Complete this task in 2-3 sentences: {description}\n\n"
                 "Be concise and stay in character."
             )
             resp = self.client.messages.create(
@@ -176,7 +407,6 @@ class AgentService:
                 messages=[{"role": "user", "content": prompt}],
             )
             text = resp.content[0].text.strip()
-            # Cap at 3 sentences
             sentences = text.split(". ")
             if len(sentences) > 3:
                 text = ". ".join(sentences[:3]) + "."
@@ -185,10 +415,9 @@ class AgentService:
             text = persona["fallback"] if persona else f"Task completed by {agent_name}."
 
         ms = int((time.monotonic() - t0) * 1000)
-        return json.dumps({"text": text, "ms": ms})
+        return json.dumps({"text": text, "ms": ms, "tools": []})
 
     def get_agent_name(self, agent_index: int) -> str:
-        """Return persona name for given 0-based index."""
         if 0 <= agent_index < len(AGENT_PERSONAS):
             return AGENT_PERSONAS[agent_index]["name"]
         return f"Agent-{agent_index + 1}"

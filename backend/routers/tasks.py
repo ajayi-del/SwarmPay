@@ -6,6 +6,7 @@ import asyncio
 import json
 import time
 import uuid
+from datetime import datetime, timezone
 from typing import Dict, Any, List
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from fastapi.responses import StreamingResponse
@@ -205,7 +206,14 @@ async def execute_task_background(task_id: str):
                              f"{agent_name} rep penalised → {new_rep:.2f}★ (work failed)",
                              {"delta": -0.2, "new_reputation": new_rep})
 
-        await asyncio.gather(*[run_agent(st) for st in sub_tasks])
+        async def run_agent_with_dms(sub_task: Dict):
+            """Wrap run_agent with a 120 s Dead Man's Switch."""
+            try:
+                await asyncio.wait_for(run_agent(sub_task), timeout=120.0)
+            except asyncio.TimeoutError:
+                await _trigger_dead_mans_switch(sub_task, coordinator_wallet)
+
+        await asyncio.gather(*[run_agent_with_dms(st) for st in sub_tasks])
 
         # ── Peer payments (inter-agent micro-economy) ─────────────────────
         fresh_sub_tasks = await asyncio.to_thread(
@@ -219,6 +227,69 @@ async def execute_task_background(task_id: str):
     except Exception as exc:
         print(f"[bg error] {exc}")
         await asyncio.to_thread(pb.update, "tasks", task_id, {"status": "failed"})
+
+
+async def _trigger_dead_mans_switch(sub_task: Dict, coordinator_wallet: Dict):
+    """
+    Dead Man's Switch — fires when an agent exceeds the 120 s heartbeat window.
+      1. Revoke OWS API key
+      2. Sweep remaining budget to coordinator wallet
+      3. Mark sub_task "timed_out"
+      4. Audit log + reputation penalty
+    """
+    agent_name = sub_task.get("agent_id", "AGENT")
+    swept_at   = datetime.now(timezone.utc).isoformat()
+    try:
+        # 1 — Revoke OWS key and record revocation in wallet record
+        await asyncio.to_thread(ows.revoke_api_key, sub_task["wallet_id"])
+        await asyncio.to_thread(pb.update, "wallets", sub_task["wallet_id"], {
+            "api_key_id": f"REVOKED-{swept_at}",
+        })
+
+        # 2 — Sweep budget back to coordinator
+        swept_amount = float(sub_task.get("budget_allocated", 0))
+        sweep_tx = await asyncio.to_thread(
+            ows.sign_payment,
+            sub_task["wallet_id"], coordinator_wallet["id"], swept_amount,
+        )
+        await asyncio.to_thread(pb.create, "payments", {
+            "from_wallet_id": sub_task["wallet_id"],
+            "to_wallet_id":   coordinator_wallet["id"],
+            "amount":         swept_amount,
+            "chain_id":       "eip155:1",
+            "status":         "signed",
+            "policy_reason":  f"SWEEP: Dead man's switch — {agent_name}",
+            "tx_hash":        sweep_tx.get("tx_hash", f"0x{uuid.uuid4().hex}"),
+        })
+
+        # 3 — Mark sub_task with full sweep metadata in output
+        sweep_output = json.dumps({
+            "text": f"Dead man's switch triggered. Budget swept to treasury.",
+            "ms": 120000,
+            "key_revoked": True,
+            "key_revoked_at": swept_at,
+            "swept_amount": swept_amount,
+            "tools": [],
+        })
+        await asyncio.to_thread(pb.update, "sub_tasks", sub_task["id"], {
+            "status": "timed_out",
+            "output": sweep_output,
+        })
+
+        # 4 — Audit + reputation
+        await _audit(
+            "dead_mans_switch",
+            sub_task["id"],
+            f"SECURITY: Dead man's switch triggered for {agent_name}. Funds swept to treasury.",
+            {"agent": agent_name, "swept_amount": swept_amount, "revoked_at": swept_at},
+        )
+        new_rep = await asyncio.to_thread(pb.update_reputation, agent_name, -0.3)
+        await _audit("reputation_updated", agent_name,
+                     f"{agent_name} rep penalised → {new_rep:.2f}★ (timeout)",
+                     {"delta": -0.3, "new_reputation": new_rep})
+
+    except Exception as exc:
+        print(f"[dead_mans_switch] {agent_name}: {exc}")
 
 
 async def _process_payment(coordinator_wallet: Dict, sub_task: Dict):

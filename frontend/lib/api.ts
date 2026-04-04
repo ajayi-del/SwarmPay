@@ -16,7 +16,7 @@ export interface SubTask {
   wallet_id: string;
   description: string;
   budget_allocated: number;
-  status: "spawned" | "working" | "complete" | "paid" | "blocked" | "failed";
+  status: "spawned" | "working" | "complete" | "paid" | "blocked" | "failed" | "timed_out";
   output: string;
   created: string;
 }

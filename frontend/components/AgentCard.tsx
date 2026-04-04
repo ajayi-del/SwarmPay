@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { SubTask, Payment } from "@/lib/api";
 import {
@@ -11,16 +12,117 @@ import {
 import OWSProofPanel from "@/components/OWSProofPanel";
 import { useModeStore } from "@/lib/modeStore";
 
-/* ── Helpers ─────────────────────────────────────────────────────────── */
+/* ── Extended output type ────────────────────────────────────────────── */
 
-function parseOutput(raw: string): { text: string; ms?: number } {
+interface ParsedOutput {
+  text: string;
+  ms?: number;
+  tools?: { name: string; result: string }[];
+  sources?: string[];
+  code?: string;
+  code_output?: string;
+  code_execution_ms?: number;
+  report_content?: string;
+  report_filename?: string;
+  key_revoked?: boolean;
+  key_revoked_at?: string;
+  swept_amount?: number;
+}
+
+function parseOutput(raw: string): ParsedOutput {
   if (!raw) return { text: "" };
   try {
     const p = JSON.parse(raw);
-    return { text: p.text ?? raw, ms: p.ms };
+    return {
+      text: p.text ?? raw,
+      ms: p.ms,
+      tools: p.tools,
+      sources: p.sources,
+      code: p.code,
+      code_output: p.code_output,
+      code_execution_ms: p.code_execution_ms,
+      report_content: p.report_content,
+      report_filename: p.report_filename,
+      key_revoked: p.key_revoked,
+      key_revoked_at: p.key_revoked_at,
+      swept_amount: p.swept_amount,
+    };
   } catch {
     return { text: raw };
   }
+}
+
+/* ── Countdown hook ──────────────────────────────────────────────────── */
+
+function useCountdown(createdAt: string, limitSeconds: number, active: boolean): number | null {
+  const [remaining, setRemaining] = useState<number | null>(null);
+  useEffect(() => {
+    if (!active) { setRemaining(null); return; }
+    const deadline = new Date(createdAt).getTime() + limitSeconds * 1000;
+    const tick = () => setRemaining(Math.floor((deadline - Date.now()) / 1000));
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [createdAt, limitSeconds, active]);
+  return remaining;
+}
+
+function fmtCountdown(s: number): string {
+  const clamped = Math.max(0, s);
+  return `${Math.floor(clamped / 60)}:${(clamped % 60).toString().padStart(2, "0")}`;
+}
+
+/* ── Download helper ─────────────────────────────────────────────────── */
+
+function triggerDownload(content: string, filename: string) {
+  const blob = new Blob([content], { type: "text/markdown" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
+/* ── Collapsible code block ──────────────────────────────────────────── */
+
+function CodeBlock({ code, output, rc }: { code: string; output: string; rc: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div>
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="flex items-center gap-1.5 text-xs font-jb w-full text-left"
+        style={{ color: "var(--text-dim)" }}
+      >
+        <motion.span animate={{ rotate: open ? 90 : 0 }} transition={{ duration: 0.2 }} className="inline-block">▶</motion.span>
+        <span style={{ color: rc }}>Code Executed</span>
+      </button>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            key="code"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden mt-1.5"
+          >
+            <pre
+              className="text-xs font-jb rounded-lg p-3 overflow-x-auto"
+              style={{ background: "#0d0d14", color: "#c9d1d9", border: "1px solid var(--border)" }}
+            >
+              {code}
+            </pre>
+            {output && (
+              <div className="mt-1 text-xs font-jb px-3 py-2 rounded-lg"
+                style={{ background: "var(--surface-2)", color: "#a78bfa", border: "1px solid var(--border)" }}>
+                {output}
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
 }
 
 function Stars({ n }: { n: number }) {
@@ -125,9 +227,9 @@ export default function AgentCard({ subTask, payment, peerPayment, index, reputa
   const persona = AGENT_PERSONAS[subTask.agent_id];
   const officePers = OFFICE_PERSONAS[subTask.agent_id];
   const liveRep = reputation ?? persona?.reputation ?? 3;
-  const { text: outputText, ms: latencyMs } = parseOutput(subTask.output);
+  // parsed is defined below alongside approxTokens
 
-  const terminalStatuses = ["complete", "paid", "blocked", "failed"];
+  const terminalStatuses = ["complete", "paid", "blocked", "failed", "timed_out"];
   const isTerminal = terminalStatuses.includes(subTask.status);
   const visibleSkillCount = subTask.status === "spawned" ? 2 : isTerminal ? 3 : 2;
 
@@ -141,7 +243,11 @@ export default function AgentCard({ subTask, payment, peerPayment, index, reputa
     ? "rgba(34,197,94,0.2)"
     : "var(--border)";
 
-  const approxTokens = outputText ? Math.ceil(outputText.length / 4) : 0;
+  const parsed = parseOutput(subTask.output);
+  const approxTokens = parsed.text ? Math.ceil(parsed.text.length / 4) : 0;
+
+  const isLive = subTask.status === "spawned" || subTask.status === "working";
+  const countdown = useCountdown(subTask.created, 120, isLive);
 
   // Mode-specific labels
   const displayRole = isOffice && officePers ? officePers.dept : persona?.role ?? subTask.agent_id;
@@ -263,8 +369,20 @@ export default function AgentCard({ subTask, payment, peerPayment, index, reputa
         )}
       </div>
 
+      {/* ── Countdown timer ── */}
+      {isLive && countdown !== null && (
+        <div className="flex items-center gap-1.5 text-xs font-jb"
+          style={{ color: countdown <= 30 ? "#ef4444" : "var(--text-dim)" }}>
+          <span>⏱</span>
+          <span>{fmtCountdown(countdown)} remaining</span>
+          {countdown <= 30 && (
+            <span className="animate-status-pulse" style={{ color: "#ef4444" }}>· DMS ARMED</span>
+          )}
+        </div>
+      )}
+
       {/* ── Output area ── */}
-      {outputText && (
+      {parsed.text && (
         <motion.div
           initial={{ opacity: 0, height: 0 }}
           animate={{ opacity: 1, height: "auto" }}
@@ -272,13 +390,63 @@ export default function AgentCard({ subTask, payment, peerPayment, index, reputa
           style={{ background: "var(--surface-2)", border: "1px solid var(--border)" }}
         >
           <p className="text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
-            {outputText}
+            {parsed.text}
           </p>
+          {/* ATLAS — sources */}
+          {parsed.sources && parsed.sources.length > 0 && (
+            <div className="space-y-0.5">
+              <span className="text-xs" style={{ color: "var(--text-dim)" }}>Sources:</span>
+              {parsed.sources.map((url, i) => (
+                <div key={i} className="text-xs font-jb truncate" style={{ color: "#3b82f6" }}>
+                  {url}
+                </div>
+              ))}
+            </div>
+          )}
           <div className="flex gap-3 text-xs font-jb" style={{ color: "var(--text-dim)" }}>
-            {latencyMs !== undefined && <span>{latencyMs}ms</span>}
+            {parsed.ms !== undefined && <span>{parsed.ms}ms</span>}
             {approxTokens > 0 && <span>~{approxTokens} tokens</span>}
+            {parsed.code_execution_ms !== undefined && parsed.code_execution_ms > 0 && (
+              <span style={{ color: "#a78bfa" }}>E2B: {parsed.code_execution_ms}ms</span>
+            )}
           </div>
         </motion.div>
+      )}
+
+      {/* ── Tools used ── */}
+      {parsed.tools && parsed.tools.length > 0 && (
+        <div className="space-y-1">
+          <p className="text-xs" style={{ color: "var(--text-dim)" }}>🔧 Tools Used</p>
+          {parsed.tools.map((tool, i) => (
+            <div key={i} className="flex gap-2 text-xs font-jb rounded px-2 py-1"
+              style={{ background: "var(--surface-2)", border: "1px solid var(--border)" }}>
+              <span className="shrink-0" style={{ color: "#a78bfa" }}>{tool.name}</span>
+              <span className="truncate" style={{ color: "var(--text-muted)" }}>{tool.result}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── CIPHER — collapsible code block ── */}
+      {parsed.code && parsed.code.trim() && (
+        <CodeBlock code={parsed.code} output={parsed.code_output ?? ""} rc={rc} />
+      )}
+
+      {/* ── FORGE — download report ── */}
+      {parsed.report_content && parsed.report_filename && (
+        <button
+          onClick={() => triggerDownload(parsed.report_content!, parsed.report_filename!)}
+          className="flex items-center gap-2 text-xs font-jb px-3 py-1.5 rounded-lg w-full text-left"
+          style={{
+            background: `${rc}10`,
+            border: `1px solid ${rc}30`,
+            color: rc,
+          }}
+        >
+          <span>📄</span>
+          <span>Download Report</span>
+          <span className="ml-auto" style={{ color: "var(--text-dim)" }}>{parsed.report_filename}</span>
+        </button>
       )}
 
       {/* ── Footer: budget + rep limit + wallet ── */}

@@ -13,7 +13,8 @@ const EVENT_COLORS: Record<string, string> = {
   payment_blocked: "#ef4444",
   task_complete: "#6c63ff",
   reputation_updated: "#FFD700",
-  peer_payment: "#a78bfa",
+  peer_payment:      "#a78bfa",
+  dead_mans_switch:  "#ef4444",
 };
 
 function LogRow({ entry }: { entry: AuditEntry }) {

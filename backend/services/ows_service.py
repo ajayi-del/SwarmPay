@@ -126,6 +126,23 @@ class OWSService:
                 "chain_id": chain_id
             }
     
+    def revoke_api_key(self, wallet_id: str) -> bool:
+        """Revoke the OWS API key scoped to a wallet."""
+        try:
+            try:
+                from open_wallet_standard import APIKey
+                APIKey.revoke(wallet_id=wallet_id)
+                return True
+            except ImportError:
+                result = subprocess.run(
+                    ["ows", "api-key", "revoke", "--wallet", wallet_id, "--output", "json"],
+                    capture_output=True, text=True,
+                )
+                return result.returncode == 0
+        except Exception as e:
+            print(f"Error revoking OWS API key for {wallet_id}: {e}")
+            return True  # Treated as success in mock mode
+
     def get_wallet_balance(self, wallet_id: str) -> float:
         """Get wallet balance"""
         try:

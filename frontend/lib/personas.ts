@@ -93,12 +93,13 @@ export interface StatusDisplay {
 }
 
 const DEFAULT_STATUS: Record<string, StatusDisplay> = {
-  spawned: { label: "IDLE", color: "#6c63ff" },
-  working: { label: "WORKING", color: "#f59e0b", animate: "pulse" },
-  complete: { label: "COMPLETE", color: "#22c55e" },
-  paid: { label: "PAID ✓", color: "#22c55e" },
-  blocked: { label: "BLOCKED ✗", color: "#ef4444" },
-  failed: { label: "FAILED", color: "#555" },
+  spawned:   { label: "IDLE",      color: "#6c63ff" },
+  working:   { label: "WORKING",   color: "#f59e0b", animate: "pulse" },
+  complete:  { label: "COMPLETE",  color: "#22c55e" },
+  paid:      { label: "PAID ✓",    color: "#22c55e" },
+  blocked:   { label: "BLOCKED ✗", color: "#ef4444" },
+  failed:    { label: "FAILED",    color: "#555" },
+  timed_out: { label: "SWEPT ⟳",  color: "#555" },
 };
 
 const PERSONA_STATUS: Record<string, Record<string, StatusDisplay>> = {
@@ -191,12 +192,13 @@ export const OFFICE_COORDINATOR = {
 };
 
 const OFFICE_STATUS: Record<string, StatusDisplay> = {
-  spawned: { label: "STANDBY", color: "#6c63ff" },
-  working: { label: "IN PROGRESS", color: "#60a5fa", animate: "pulse" },
-  complete: { label: "SUBMITTED", color: "#22c55e" },
-  paid: { label: "APPROVED ✓", color: "#22c55e" },
-  blocked: { label: "COMPLIANCE REJECTED", color: "#ef4444" },
-  failed: { label: "ERROR", color: "#555" },
+  spawned:   { label: "STANDBY",             color: "#6c63ff" },
+  working:   { label: "IN PROGRESS",          color: "#60a5fa", animate: "pulse" },
+  complete:  { label: "SUBMITTED",            color: "#22c55e" },
+  paid:      { label: "APPROVED ✓",           color: "#22c55e" },
+  blocked:   { label: "COMPLIANCE REJECTED",  color: "#ef4444" },
+  failed:    { label: "ERROR",                color: "#555" },
+  timed_out: { label: "ACCESS REVOKED",       color: "#555" },
 };
 
 export function getOfficeStatusDisplay(status: string): StatusDisplay {

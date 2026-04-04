@@ -76,6 +76,17 @@ function RuleIcon({ status }: { status: RuleStatus }) {
 
 /* ── Main ─────────────────────────────────────────────────────────────── */
 
+/* ── Parse revocation from sub_task output ───────────────────────────── */
+
+function parseRevocation(output: string): { revoked: boolean; revokedAt?: string } {
+  if (!output) return { revoked: false };
+  try {
+    const p = JSON.parse(output);
+    if (p.key_revoked) return { revoked: true, revokedAt: p.key_revoked_at };
+  } catch { /* ignore */ }
+  return { revoked: false };
+}
+
 interface Props {
   subTask: SubTask;
   payment?: Payment;
@@ -93,9 +104,17 @@ export default function OWSProofPanel({ subTask, payment }: Props) {
   const isBlocked = payment?.status === "blocked";
   const isSigned = payment?.status === "signed";
 
-  const accentColor = isBlocked ? "#ef4444" : isSigned ? "#22c55e" : "#6c63ff";
-  const keyStatus = isBlocked ? (isOffice ? "REVOKED" : "SUSPENDED") : "ACTIVE";
-  const keyStatusColor = isBlocked ? "#ef4444" : "#22c55e";
+  // Dead Man's Switch revocation takes precedence
+  const { revoked: dmsRevoked, revokedAt } = parseRevocation(subTask.output ?? "");
+  const keyRevoked = dmsRevoked || isBlocked;
+
+  const accentColor = keyRevoked ? "#ef4444" : isSigned ? "#22c55e" : "#6c63ff";
+  const keyStatus = dmsRevoked
+    ? "REVOKED"
+    : isBlocked
+    ? (isOffice ? "REVOKED" : "SUSPENDED")
+    : "ACTIVE";
+  const keyStatusColor = keyRevoked ? "#ef4444" : "#22c55e";
 
   const panelLabel = isOffice ? "COMPLIANCE PROOF" : "OWS PROOF";
 
@@ -177,6 +196,14 @@ export default function OWSProofPanel({ subTask, payment }: Props) {
                     <span style={{ color: "var(--text-dim)", minWidth: 80 }}>sign_hash</span>
                     <span className="truncate" style={{ color: isSigned ? "#22c55e" : "var(--text-muted)" }}>
                       {hash}
+                    </span>
+                  </div>
+                )}
+                {revokedAt && (
+                  <div className="flex gap-2">
+                    <span style={{ color: "var(--text-dim)", minWidth: 80 }}>revoked_at</span>
+                    <span className="truncate" style={{ color: "#ef4444" }}>
+                      {new Date(revokedAt).toLocaleTimeString()}
                     </span>
                   </div>
                 )}

@@ -7,3 +7,5 @@ python-multipart==0.0.20
 websockets==14.2
 aiofiles==24.1.0
 python-dotenv==1.1.0
+e2b-code-interpreter>=0.0.10
+firecrawl-py>=1.0.0
