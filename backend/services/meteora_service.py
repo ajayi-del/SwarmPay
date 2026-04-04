@@ -12,8 +12,9 @@ from typing import Optional
 
 import httpx
 
-_METEORA_DLMM = "https://dlmm-api.meteora.ag/pair/all_with_pagination"
+_METEORA_DLMM  = "https://dlmm-api.meteora.ag/pair/all_with_pagination"
 _JUPITER_PRICE = "https://price.jup.ag/v6/price"
+_COINGECKO     = "https://api.coingecko.com/api/v3/simple/price"
 
 # Solana mainnet mint addresses
 _SOL_MINT  = "So11111111111111111111111111111111111111112"
@@ -95,5 +96,27 @@ def get_sol_usdc_rate() -> Optional[dict]:
                 return result
     except Exception as e:
         print(f"[meteora fallback] {e}")
+
+    # ── Fallback 2: CoinGecko ──────────────────────────────────────────────────
+    try:
+        client = httpx.Client(timeout=8.0)
+        resp = client.get(
+            _COINGECKO,
+            params={"ids": "solana", "vs_currencies": "usd"},
+        )
+        if resp.is_success:
+            price = resp.json().get("solana", {}).get("usd")
+            if price and float(price) > 10:
+                result = {
+                    "rate":      round(float(price), 2),
+                    "source":    "CoinGecko (Meteora pool reference)",
+                    "pair_name": "SOL/USD",
+                    "tvl":       0,
+                    "ts":        now,
+                }
+                _CACHE.update(result)
+                return result
+    except Exception as e:
+        print(f"[meteora coingecko] {e}")
 
     return None

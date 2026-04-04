@@ -141,7 +141,7 @@ class AgentService:
                 f'Return JSON only: [{{"name": "ATLAS", "description": "..."}}]'
             )
             resp = self.client.messages.create(
-                model="claude-3-haiku-20240307",
+                model="claude-haiku-4-5-20251001",
                 max_tokens=400,
                 messages=[{"role": "user", "content": prompt}],
             )
@@ -211,7 +211,7 @@ class AgentService:
         context_block = f"\n\nWeb Research Context:\n{search_context[:800]}" if search_context else ""
         try:
             resp = self.client.messages.create(
-                model="claude-3-haiku-20240307",
+                model="claude-haiku-4-5-20251001",
                 max_tokens=200,
                 messages=[{"role": "user", "content":
                     f"You are ATLAS, the Researcher from Berlin. Respond in German.\n"
@@ -276,7 +276,7 @@ class AgentService:
         # Analysis summary in Japanese
         try:
             resp = self.client.messages.create(
-                model="claude-3-haiku-20240307",
+                model="claude-haiku-4-5-20251001",
                 max_tokens=200,
                 messages=[{"role": "user", "content":
                     f"You are CIPHER, the Analyst from Tokyo. Respond in Japanese.\n"
@@ -324,7 +324,7 @@ class AgentService:
         )
         try:
             code_resp = self.client.messages.create(
-                model="claude-3-haiku-20240307",
+                model="claude-haiku-4-5-20251001",
                 max_tokens=300,
                 messages=[{"role": "user", "content": code_prompt}],
             )
@@ -388,7 +388,7 @@ class AgentService:
 
         try:
             resp = self.client.messages.create(
-                model="claude-3-haiku-20240307",
+                model="claude-haiku-4-5-20251001",
                 max_tokens=700,
                 messages=[{"role": "user", "content": combined_prompt}],
             )
@@ -448,7 +448,7 @@ class AgentService:
                 "Be concise and stay in character."
             )
             resp = self.client.messages.create(
-                model="claude-3-haiku-20240307",
+                model="claude-haiku-4-5-20251001",
                 max_tokens=200,
                 messages=[{"role": "user", "content": prompt}],
             )

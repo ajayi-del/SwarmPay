@@ -67,7 +67,7 @@ async def probe_regis(request: ProbeRequest):
 
         resp = await asyncio.to_thread(
             claude.messages.create,
-            model="claude-3-haiku-20240307",
+            model="claude-haiku-4-5-20251001",
             max_tokens=400,
             system=f"{REGIS_SYSTEM}\n\nYour memory:\n{context}",
             messages=[{"role": "user", "content": request.question}],
@@ -122,7 +122,7 @@ async def audit_regis():
 
         resp = await asyncio.to_thread(
             claude.messages.create,
-            model="claude-3-haiku-20240307",
+            model="claude-haiku-4-5-20251001",
             max_tokens=250,
             messages=[{"role": "user", "content": eval_prompt}],
         )
@@ -193,7 +193,7 @@ async def punish_regis(request: PunishRequest):
             )
             rpt_resp = await asyncio.to_thread(
                 claude.messages.create,
-                model="claude-3-haiku-20240307",
+                model="claude-haiku-4-5-20251001",
                 max_tokens=300,
                 system=f"{REGIS_SYSTEM}\n\nYour memory:\n{brain}",
                 messages=[{"role": "user", "content": rpt_prompt}],
@@ -208,7 +208,7 @@ async def punish_regis(request: PunishRequest):
         )
         ack_resp = await asyncio.to_thread(
             claude.messages.create,
-            model="claude-3-haiku-20240307",
+            model="claude-haiku-4-5-20251001",
             max_tokens=200,
             system=f"{REGIS_SYSTEM}\n\nYour memory:\n{brain}",
             messages=[{"role": "user", "content": ack_prompt}],
