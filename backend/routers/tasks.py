@@ -207,6 +207,12 @@ async def execute_task_background(task_id: str):
 
         await asyncio.gather(*[run_agent(st) for st in sub_tasks])
 
+        # ── Peer payments (inter-agent micro-economy) ─────────────────────
+        fresh_sub_tasks = await asyncio.to_thread(
+            pb.list, "sub_tasks", filter_params=f"task_id='{task_id}'"
+        )
+        await _do_peer_payments(fresh_sub_tasks)
+
         await asyncio.to_thread(pb.update, "tasks", task_id, {"status": "complete"})
         await _audit("task_complete", task_id, "REGIS closed the treasury. All agents settled.")
 
@@ -286,6 +292,54 @@ async def _process_payment(coordinator_wallet: Dict, sub_task: Dict):
 
     except Exception as exc:
         print(f"[payment error] {exc}")
+
+
+async def _do_peer_payments(sub_tasks: List[Dict]):
+    """
+    Inter-agent micro-economy — fires after all agents settle.
+      ATLAS  → CIPHER  0.005 ETH  (research handoff fee)
+      CIPHER → FORGE   0.003 ETH  (analysis delivery fee)
+    Peer payments bypass the coordinator policy engine.
+    Both routes only fire when the sending agent completed (paid / complete).
+    """
+    wallet_map = {st["agent_id"]: st["wallet_id"] for st in sub_tasks}
+    status_map = {st["agent_id"]: st["status"] for st in sub_tasks}
+
+    routes = [
+        ("ATLAS",  "CIPHER", 0.005, "research handoff"),
+        ("CIPHER", "FORGE",  0.003, "analysis delivery"),
+    ]
+
+    for sender, receiver, amount, label in routes:
+        sender_wallet  = wallet_map.get(sender)
+        receiver_wallet = wallet_map.get(receiver)
+        if not sender_wallet or not receiver_wallet:
+            continue
+        # Only send if the originating agent wasn't blocked/failed
+        if status_map.get(sender) not in ("paid", "complete"):
+            continue
+        try:
+            tx = await asyncio.to_thread(
+                ows.sign_payment, sender_wallet, receiver_wallet, amount
+            )
+            payment_rec = await asyncio.to_thread(pb.create, "payments", {
+                "from_wallet_id": sender_wallet,
+                "to_wallet_id":   receiver_wallet,
+                "amount":         amount,
+                "chain_id":       "eip155:1",
+                "status":         "signed",
+                "policy_reason":  f"PEER: {label}",
+                "tx_hash":        tx.get("tx_hash", ""),
+            })
+            await _audit(
+                "peer_payment",
+                payment_rec["id"],
+                f"⇄ {sender} → {receiver}  {amount:.3f} ETH  [{label}]",
+                {"from_agent": sender, "to_agent": receiver,
+                 "amount": amount, "label": label},
+            )
+        except Exception as exc:
+            print(f"[peer payment] {sender}→{receiver}: {exc}")
 
 
 @router.get("/{task_id}/status")

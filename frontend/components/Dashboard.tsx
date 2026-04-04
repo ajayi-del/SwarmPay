@@ -48,12 +48,24 @@ export default function Dashboard() {
       {sub_tasks.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {sub_tasks.map((st, i) => {
-            const payment = payments.find((p) => p.to_wallet_id === st.wallet_id);
+            // Coordinator payment — excludes peer payments (which start with "PEER:")
+            const payment = payments.find(
+              (p) =>
+                p.to_wallet_id === st.wallet_id &&
+                !p.policy_reason?.startsWith("PEER:")
+            );
+            // Peer payment received by this agent
+            const peerPayment = payments.find(
+              (p) =>
+                p.to_wallet_id === st.wallet_id &&
+                p.policy_reason?.startsWith("PEER:")
+            );
             return (
               <ErrorBoundary key={st.id}>
                 <AgentCard
                   subTask={st}
                   payment={payment}
+                  peerPayment={peerPayment}
                   index={i}
                   reputation={reputations[st.agent_id]}
                 />

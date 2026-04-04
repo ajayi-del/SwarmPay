@@ -113,11 +113,12 @@ function repLimit(rep: number): number {
 interface Props {
   subTask: SubTask;
   payment?: Payment;
+  peerPayment?: Payment;
   index: number;
   reputation?: number;
 }
 
-export default function AgentCard({ subTask, payment, index, reputation }: Props) {
+export default function AgentCard({ subTask, payment, peerPayment, index, reputation }: Props) {
   const { mode } = useModeStore();
   const isOffice = mode === "office";
 
@@ -304,6 +305,27 @@ export default function AgentCard({ subTask, payment, index, reputation }: Props
           {subTask.wallet_id ? `${subTask.wallet_id.slice(0, 6)}…${subTask.wallet_id.slice(-4)}` : "—"}
         </span>
       </div>
+
+      {/* ── Peer payment received badge ── */}
+      {peerPayment && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="flex items-center gap-2 rounded-lg px-3 py-1.5"
+          style={{
+            background: "rgba(167,139,250,0.08)",
+            border: "1px solid rgba(167,139,250,0.25)",
+          }}
+        >
+          <span style={{ color: "#a78bfa", fontSize: "0.65rem" }}>⇄ PEER IN</span>
+          <span className="text-xs font-jb" style={{ color: "#a78bfa" }}>
+            {Number(peerPayment.amount).toFixed(3)} ETH
+          </span>
+          <span className="text-xs" style={{ color: "var(--text-dim)" }}>
+            {peerPayment.policy_reason?.replace("PEER: ", "") ?? ""}
+          </span>
+        </motion.div>
+      )}
 
       {/* ── OWS Proof Panel ── */}
       {isTerminal && (
