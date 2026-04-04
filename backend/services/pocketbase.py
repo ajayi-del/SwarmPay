@@ -77,6 +77,7 @@ class PocketBaseService:
     # Seed values matching frontend personas
     _REP_DEFAULTS: Dict[str, float] = {
         "ATLAS": 4.0, "CIPHER": 5.0, "FORGE": 4.0, "BISHOP": 4.0, "SØN": 3.0,
+        "REGIS": 5.0,
     }
 
     def get_reputation(self, agent_id: str) -> float:

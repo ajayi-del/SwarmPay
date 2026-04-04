@@ -16,6 +16,7 @@ from services.pocketbase import PocketBaseService
 from services.ows_service import OWSService
 from services.agent_service import AgentService, AGENT_PERSONAS
 from services.policy_service import PolicyService
+from services.brain_service import brain_service
 
 router = APIRouter(prefix="/task", tags=["tasks"])
 
@@ -220,6 +221,20 @@ async def execute_task_background(task_id: str):
             pb.list, "sub_tasks", filter_params=f"task_id='{task_id}'"
         )
         await _do_peer_payments(fresh_sub_tasks)
+
+        # ── Sync REGIS sovereign brain ────────────────────────────────────
+        try:
+            all_payments = await asyncio.to_thread(pb.list, "payments", limit=50, sort="-created")
+            task_payments = [
+                p for p in all_payments
+                if any(st["wallet_id"] in (p.get("from_wallet_id", ""), p.get("to_wallet_id", ""))
+                       for st in fresh_sub_tasks)
+            ]
+            await asyncio.to_thread(
+                brain_service.update_after_task, task, fresh_sub_tasks, task_payments
+            )
+        except Exception as exc:
+            print(f"[brain sync] {exc}")
 
         await asyncio.to_thread(pb.update, "tasks", task_id, {"status": "complete"})
         await _audit("task_complete", task_id, "REGIS closed the treasury. All agents settled.")

@@ -7,6 +7,7 @@ import { useSwarmStore } from "@/lib/store";
 import AgentCard from "./AgentCard";
 import CoordinatorCard from "./CoordinatorCard";
 import MetricsBar from "./MetricsBar";
+import RegisConsole from "./RegisConsole";
 import { ErrorBoundary } from "./ErrorBoundary";
 
 export default function Dashboard() {
@@ -41,6 +42,7 @@ export default function Dashboard() {
       {coordinator_wallet && (
         <ErrorBoundary>
           <CoordinatorCard wallet={coordinator_wallet} task={task} />
+          <RegisConsole coordinatorWalletId={coordinator_wallet.id} />
         </ErrorBoundary>
       )}
 

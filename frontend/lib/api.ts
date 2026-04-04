@@ -119,3 +119,64 @@ export async function getSwarmStats(): Promise<SwarmStats> {
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
+
+// ── REGIS ─────────────────────────────────────────────────────────────────
+
+export interface ProbeResponse {
+  response: string;
+}
+
+export interface AuditResult {
+  score: number;
+  verdict: "PASSED" | "MARGINAL" | "FAILED";
+  reason: string;
+  improvement: string;
+  rep_delta: number;
+}
+
+export interface PunishResult {
+  punishment_type: string;
+  response: string;
+  new_budget_cap?: number;
+  new_reputation?: number;
+  report?: string;
+}
+
+export async function probeRegis(question: string): Promise<ProbeResponse> {
+  const res = await fetch(`${API}/regis/probe`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ question }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function auditRegis(): Promise<AuditResult> {
+  const res = await fetch(`${API}/regis/audit`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({}),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function punishRegis(
+  punishment_type: string,
+  coordinator_wallet_id?: string
+): Promise<PunishResult> {
+  const res = await fetch(`${API}/regis/punish`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ punishment_type, coordinator_wallet_id }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function getRegisBrain(): Promise<{ content: string; last_updated: string | null }> {
+  const res = await fetch(`${API}/regis/brain`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}

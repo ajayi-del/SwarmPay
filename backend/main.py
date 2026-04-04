@@ -12,7 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import uvicorn
 
-from routers import tasks, audit
+from routers import tasks, audit, regis
 
 app = FastAPI(
     title="SwarmPay API",
@@ -31,6 +31,7 @@ app.add_middleware(
 
 app.include_router(tasks.router)
 app.include_router(audit.router)
+app.include_router(regis.router)
 
 
 @app.get("/")
