@@ -17,11 +17,26 @@ function parseOutput(raw: string): { text: string; ms?: number } {
 }
 
 function Stars({ n }: { n: number }) {
+  const filled = Math.floor(n);
+  const half = n - filled >= 0.5;
   return (
-    <span className="flex gap-px text-xs" aria-label={`${n} of 5 stars`}>
+    <span className="flex items-center gap-px text-xs" aria-label={`${n} of 5 stars`}>
       {Array.from({ length: 5 }, (_, i) => (
-        <span key={i} style={{ color: i < n ? "#FFD700" : "var(--border-hover)" }}>★</span>
+        <span
+          key={i}
+          style={{
+            color:
+              i < filled
+                ? "#FFD700"
+                : i === filled && half
+                ? "#FFD70066"
+                : "var(--border-hover)",
+          }}
+        >★</span>
       ))}
+      <span className="ml-1 font-jb" style={{ color: "var(--text-dim)", fontSize: "0.6rem" }}>
+        {n.toFixed(1)}
+      </span>
     </span>
   );
 }
@@ -79,14 +94,25 @@ function StatusPill({ agentName, status }: { agentName: string; status: string }
 
 /* ── Main card ───────────────────────────────────────────────────────── */
 
+// Spend limit derived from reputation score — mirrors policy_service.py _REP_TIERS
+function repLimit(rep: number): number {
+  if (rep >= 5.0) return 0.20;
+  if (rep >= 4.0) return 0.12;
+  if (rep >= 3.0) return 0.06;
+  if (rep >= 2.0) return 0.02;
+  return 0.0;
+}
+
 interface Props {
   subTask: SubTask;
   payment?: Payment;
   index: number;
+  reputation?: number;
 }
 
-export default function AgentCard({ subTask, payment, index }: Props) {
+export default function AgentCard({ subTask, payment, index, reputation }: Props) {
   const persona = AGENT_PERSONAS[subTask.agent_id];
+  const liveRep = reputation ?? persona?.reputation ?? 3;
   const { text: outputText, ms: latencyMs } = parseOutput(subTask.output);
 
   // Skill visibility: all 3 show by terminal states, 3rd unlocks on complete/paid/blocked
@@ -156,7 +182,7 @@ export default function AgentCard({ subTask, payment, index }: Props) {
 
       {/* ── Stars + stats + sparkline ── */}
       <div className="flex items-center gap-3 flex-wrap">
-        <Stars n={persona.reputation} />
+        <Stars n={liveRep} />
         <span className="text-xs font-jb" style={{ color: "var(--text-muted)" }}>
           T:{persona.stats.tasks} · {persona.stats.successRate}%
         </span>
@@ -214,15 +240,24 @@ export default function AgentCard({ subTask, payment, index }: Props) {
         </motion.div>
       )}
 
-      {/* ── Footer: budget + wallet ── */}
+      {/* ── Footer: budget + rep limit + wallet ── */}
       <div
         className="flex items-center justify-between text-xs font-jb pt-1 border-t"
         style={{ borderColor: "var(--border)", color: "var(--text-dim)" }}
       >
-        <span>
-          Budget:{" "}
-          <span style={{ color: "var(--text-muted)" }}>
-            {Number(subTask.budget_allocated).toFixed(4)} ETH
+        <span className="flex gap-2">
+          <span>
+            Alloc:{" "}
+            <span style={{ color: "var(--text-muted)" }}>
+              {Number(subTask.budget_allocated).toFixed(4)}
+            </span>
+          </span>
+          <span style={{ color: "var(--border-hover)" }}>·</span>
+          <span>
+            Limit:{" "}
+            <span style={{ color: rc }}>
+              {repLimit(liveRep).toFixed(2)} ETH
+            </span>
           </span>
         </span>
         <span className="truncate ml-2">

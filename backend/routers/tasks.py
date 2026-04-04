@@ -199,6 +199,11 @@ async def execute_task_background(task_id: str):
             except Exception as exc:
                 print(f"[agent error] {agent_name}: {exc}")
                 await asyncio.to_thread(pb.update, "sub_tasks", sub_task["id"], {"status": "failed"})
+                # Reputation penalty for failed work
+                new_rep = await asyncio.to_thread(pb.update_reputation, agent_name, -0.2)
+                await _audit("reputation_updated", agent_name,
+                             f"{agent_name} rep penalised → {new_rep:.2f}★ (work failed)",
+                             {"delta": -0.2, "new_reputation": new_rep})
 
         await asyncio.gather(*[run_agent(st) for st in sub_tasks])
 
@@ -212,19 +217,25 @@ async def execute_task_background(task_id: str):
 
 async def _process_payment(coordinator_wallet: Dict, sub_task: Dict):
     """
-    Policy engine gate.
-    FORGE (index 2) attempts +50% quality bonus → budget-cap rule fires → BLOCKED.
-    All others pay exactly their budget_allocated → SIGNED.
+    Reputation-gated policy engine.
+    FORGE attempts +50% quality bonus → REP BLOCK (4★ limit is 0.10 ETH).
+    All others pay exactly budget_allocated → SIGNED.
+    Reputation updated after every outcome.
     """
+    agent_name = sub_task.get("agent_id", "AGENT")
     try:
         base = sub_task["budget_allocated"]
-        attempted = round(base * 1.5, 6) if sub_task.get("agent_id") == "FORGE" else base
+        attempted = round(base * 1.5, 6) if agent_name == "FORGE" else base
+
+        # Fetch live reputation score before evaluating policy
+        reputation = await asyncio.to_thread(pb.get_reputation, agent_name)
 
         policy_result = policy_service.evaluate_payment(
             from_wallet=coordinator_wallet,
             to_wallet={"id": sub_task["wallet_id"], "role": "sub-agent"},
             amount=attempted,
             sub_task=sub_task,
+            reputation=reputation,
         )
 
         payload: Dict[str, Any] = {
@@ -243,8 +254,12 @@ async def _process_payment(coordinator_wallet: Dict, sub_task: Dict):
             )
             payload["tx_hash"] = tx.get("tx_hash", "")
             await asyncio.to_thread(pb.update, "sub_tasks", sub_task["id"], {"status": "paid"})
+            # Reputation reward for successful payment
+            new_rep = await asyncio.to_thread(pb.update_reputation, agent_name, +0.1)
         else:
             await asyncio.to_thread(pb.update, "sub_tasks", sub_task["id"], {"status": "blocked"})
+            # Reputation penalty for blocked payment
+            new_rep = await asyncio.to_thread(pb.update_reputation, agent_name, -0.2)
 
         payment_rec = await asyncio.to_thread(pb.create, "payments", payload)
 
@@ -258,7 +273,16 @@ async def _process_payment(coordinator_wallet: Dict, sub_task: Dict):
             "from": coordinator_wallet["id"],
             "to": sub_task["wallet_id"],
             "amount": attempted,
+            "reputation_before": reputation,
+            "reputation_after": new_rep,
         })
+
+        # Log reputation change
+        delta = +0.1 if policy_result.allow else -0.2
+        direction = "rewarded" if policy_result.allow else "penalised"
+        await _audit("reputation_updated", agent_name,
+                     f"{agent_name} rep {direction} → {new_rep:.2f}★ (was {reputation:.2f}★)",
+                     {"delta": delta, "new_reputation": new_rep})
 
     except Exception as exc:
         print(f"[payment error] {exc}")

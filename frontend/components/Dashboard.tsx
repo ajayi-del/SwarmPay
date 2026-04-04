@@ -33,7 +33,7 @@ export default function Dashboard() {
 
   if (!taskId || !taskState) return null;
 
-  const { task, coordinator_wallet, sub_tasks, payments } = taskState;
+  const { task, coordinator_wallet, sub_tasks, payments, reputations = {} } = taskState;
 
   return (
     <div className="w-full space-y-4">
@@ -51,7 +51,12 @@ export default function Dashboard() {
             const payment = payments.find((p) => p.to_wallet_id === st.wallet_id);
             return (
               <ErrorBoundary key={st.id}>
-                <AgentCard subTask={st} payment={payment} index={i} />
+                <AgentCard
+                  subTask={st}
+                  payment={payment}
+                  index={i}
+                  reputation={reputations[st.agent_id]}
+                />
               </ErrorBoundary>
             );
           })}

@@ -47,6 +47,7 @@ export interface TaskState {
   coordinator_wallet: Wallet;
   sub_tasks: SubTask[];
   payments: Payment[];
+  reputations: Record<string, number>;
 }
 
 export interface AuditEntry {

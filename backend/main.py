@@ -17,46 +17,39 @@ from routers import tasks, audit
 app = FastAPI(
     title="SwarmPay API",
     description="Agent swarm dispatcher with OWS wallet integration",
-    version="1.0.0"
+    version="2.0.0",
 )
 
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # Next.js frontend
+    allow_origins=["http://localhost:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Include routers
 app.include_router(tasks.router)
 app.include_router(audit.router)
 
+
 @app.get("/")
 async def root():
-    """Root endpoint"""
-    return {
-        "message": "SwarmPay API",
-        "version": "1.0.0",
-        "status": "running"
-    }
+    return {"message": "SwarmPay API", "version": "2.0.0", "status": "running"}
+
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint"""
-    return {
-        "status": "healthy",
-        "timestamp": "2024-01-01T00:00:00Z"
-    }
+    return {"status": "healthy"}
+
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request, exc):
-    """Global exception handler"""
     return JSONResponse(
         status_code=500,
-        content={"detail": f"Internal server error: {str(exc)}"}
+        content={"detail": f"Internal server error: {str(exc)}"},
     )
+
 
 if __name__ == "__main__":
     uvicorn.run(
@@ -64,5 +57,5 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=8000,
         reload=True,
-        log_level="info"
+        log_level="info",
     )

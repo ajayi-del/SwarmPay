@@ -72,8 +72,68 @@ class PocketBaseService:
             print(f"PocketBase delete error in {collection}: {e}")
             return False
     
+    # ── Reputation ────────────────────────────────────────────────────────
+
+    # Seed values matching frontend personas
+    _REP_DEFAULTS: Dict[str, float] = {
+        "ATLAS": 4.0, "CIPHER": 5.0, "FORGE": 4.0, "BISHOP": 4.0, "SØN": 3.0,
+    }
+
+    def get_reputation(self, agent_id: str) -> float:
+        """Return current reputation score, initialising from defaults if absent."""
+        try:
+            records = self.list("agent_reputation",
+                                filter_params=f"agent_id='{agent_id}'", limit=1)
+            if records:
+                return float(records[0]["current_reputation"])
+            # First time seen — seed from persona defaults
+            default = self._REP_DEFAULTS.get(agent_id, 3.0)
+            self.create("agent_reputation", {
+                "agent_id": agent_id,
+                "current_reputation": default,
+                "tasks_completed": 0,
+                "tasks_failed": 0,
+            })
+            return default
+        except Exception as e:
+            print(f"[rep] get error for {agent_id}: {e}")
+            return self._REP_DEFAULTS.get(agent_id, 3.0)
+
+    def update_reputation(self, agent_id: str, delta: float) -> float:
+        """Apply delta to reputation, clamp to [1.0, 5.0]. Returns new value."""
+        try:
+            records = self.list("agent_reputation",
+                                filter_params=f"agent_id='{agent_id}'", limit=1)
+            if not records:
+                self.get_reputation(agent_id)
+                records = self.list("agent_reputation",
+                                    filter_params=f"agent_id='{agent_id}'", limit=1)
+            rec = records[0]
+            old_rep = float(rec["current_reputation"])
+            new_rep = round(max(1.0, min(5.0, old_rep + delta)), 2)
+            count_field = "tasks_completed" if delta > 0 else "tasks_failed"
+            self.update("agent_reputation", rec["id"], {
+                "current_reputation": new_rep,
+                count_field: int(rec.get(count_field, 0)) + 1,
+            })
+            return new_rep
+        except Exception as e:
+            print(f"[rep] update error for {agent_id}: {e}")
+            return self._REP_DEFAULTS.get(agent_id, 3.0)
+
+    def get_all_reputations(self) -> Dict[str, float]:
+        """Return {agent_id: reputation} for every tracked agent."""
+        try:
+            records = self.list("agent_reputation", limit=20)
+            return {r["agent_id"]: float(r["current_reputation"]) for r in records}
+        except Exception as e:
+            print(f"[rep] get_all error: {e}")
+            return dict(self._REP_DEFAULTS)
+
+    # ── Full task ──────────────────────────────────────────────────────────
+
     def get_full_task(self, task_id: str) -> Dict[str, Any]:
-        """Get task with coordinator_wallet, sub_tasks, and payments."""
+        """Get task with coordinator_wallet, sub_tasks, payments, and reputations."""
         try:
             task = self.get("tasks", task_id)
             coordinator_wallet = self.get("wallets", task["coordinator_wallet_id"])
@@ -92,6 +152,7 @@ class PocketBaseService:
                 "coordinator_wallet": coordinator_wallet,
                 "sub_tasks": sub_tasks,
                 "payments": payments,
+                "reputations": self.get_all_reputations(),
             }
         except Exception as e:
             print(f"Error getting full task: {e}")

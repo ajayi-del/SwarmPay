@@ -12,6 +12,7 @@ const EVENT_COLORS: Record<string, string> = {
   payment_signed: "#22c55e",
   payment_blocked: "#ef4444",
   task_complete: "#6c63ff",
+  reputation_updated: "#FFD700",
 };
 
 function LogRow({ entry }: { entry: AuditEntry }) {
