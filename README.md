@@ -1,213 +1,446 @@
 # SwarmPay
 
-**Open Wallet Standard Hackathon · Category 04: Multi-Agent Systems & Autonomous Economies**
+**Open Wallet Standard Hackathon · Category 04 — Multi-Agent Systems & Autonomous Economies**
 
-A production-architecture demonstration of policy-gated, multi-agent economic coordination. A coordinator wallet (REGIS) decomposes tasks across five specialised sub-agents, each operating with a scoped OWS wallet and budget cap. Payments are signed or blocked in real time by a deterministic policy engine. Every event is streamed live to a terminal-aesthetic dashboard.
-
----
-
-## Table of Contents
-
-1. [Architecture Overview](#architecture-overview)
-2. [Agent Roster](#agent-roster)
-3. [Policy Engine](#policy-engine)
-4. [Demo Flow](#demo-flow)
-5. [Tech Stack](#tech-stack)
-6. [Project Structure](#project-structure)
-7. [Prerequisites](#prerequisites)
-8. [Installation](#installation)
-9. [Environment Variables](#environment-variables)
-10. [Running the Application](#running-the-application)
-11. [API Reference](#api-reference)
-12. [Database Schema](#database-schema)
-13. [Frontend Architecture](#frontend-architecture)
-14. [Key Design Decisions](#key-design-decisions)
-15. [Hackathon Submission Notes](#hackathon-submission-notes)
+> A coordinator wallet (REGIS) decomposes tasks across five specialised sub-agents, each operating with a scoped OWS wallet, reputation score, and 120-second heartbeat. Payments are signed or blocked by a four-rule policy engine. Every decision is audited, every key can be revoked.
 
 ---
 
-## Architecture Overview
+## What Was Built
+
+| Phase | Feature | Status |
+|-------|---------|--------|
+| 1 | Reputation-Gated Policy Engine (4-rule chain, live rep scores) | ✅ |
+| 2 | Kingdom / Office Mode Toggle (dual persona system, 0.3 s fade) | ✅ |
+| 3 | OWS Proof Panel — per-agent collapsible cryptographic audit | ✅ |
+| 4 | Inter-Agent Peer Payments — ATLAS→CIPHER→FORGE micro-economy | ✅ |
+| 5 | Swarm Intelligence Panel — economy health score + leaderboard | ✅ |
+| + | Dead Man's Switch — 120 s heartbeat, key revocation, budget sweep | ✅ |
+| + | Real Agent Tools — Firecrawl web search, E2B Python sandboxes | ✅ |
+
+---
+
+## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                         USER BROWSER                                │
-│                    Next.js 14 + TypeScript                          │
-│         TaskForm → Dashboard → AgentCards → MetricsBar              │
-│              TanStack Query (1.2s poll) · Zustand store             │
-└───────────────────────────┬─────────────────────────────────────────┘
-                            │ REST + SSE
-                            ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│                      FastAPI (port 8000)                            │
-│                                                                     │
-│  POST /task/submit    →  create REGIS coordinator wallet            │
-│  POST /task/decompose →  spawn 5 agent wallets (parallel)           │
-│  POST /task/execute   →  run agents via Claude Haiku (parallel)     │
-│  GET  /task/:id/status→  full task state snapshot                   │
-│  GET  /task/:id/stream→  SSE live event stream                      │
-│  GET  /audit          →  chronological audit log                    │
-│                                                                     │
-│  ┌─────────────┐  ┌──────────────┐  ┌────────────────────────┐    │
-│  │ OWSService  │  │ AgentService │  │    PolicyService        │    │
-│  │  (wallets,  │  │ (Claude Haiku│  │  3-rule chain:          │    │
-│  │   signing)  │  │  per agent)  │  │  budget·auth·dedup      │    │
-│  └─────────────┘  └──────────────┘  └────────────────────────┘    │
-└──────────┬──────────────────────────────────────────────────────────┘
-           │ httpx
-           ▼
-┌──────────────────────────┐
-│   PocketBase (port 8090) │
-│                          │
-│  wallets   sub_tasks     │
-│  tasks     payments      │
-│  audit_log               │
-└──────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────┐
+│  BROWSER  Next.js 14 + TypeScript                                       │
+│                                                                         │
+│  TaskForm ──▶ CoordinatorCard (REGIS)                                   │
+│               AgentCard × 5                                             │
+│               ├─ ⏱ countdown  · 🔧 tools used · ▶ OWS Proof           │
+│               ├─ ⇄ peer badge · 📄 download report (FORGE)             │
+│               └─ collapsible code block (CIPHER) · sources (ATLAS)     │
+│               MetricsBar · AuditLog · SwarmPanel                        │
+│               ModeToggle (⚔️ Kingdom  ↔  🏢 Office)                    │
+│                                                                         │
+│  TanStack Query (1.2 s poll) · Zustand (phase + mode) · Framer Motion  │
+└───────────────────────────────┬─────────────────────────────────────────┘
+                                │ REST
+                                ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│  FastAPI  port 8000                                                     │
+│                                                                         │
+│  POST /task/submit      create REGIS coordinator wallet (OWS)          │
+│  POST /task/decompose   spawn 5 agent wallets in parallel              │
+│  POST /task/execute     background: run agents + policy + payments      │
+│  GET  /task/:id/status  full snapshot (task, wallets, payments, reps)  │
+│  GET  /audit            chronological event stream                      │
+│  GET  /swarm/stats      lifetime economy metrics + health score         │
+│                                                                         │
+│  ┌──────────────────┐  ┌────────────────────┐  ┌───────────────────┐  │
+│  │   OWSService     │  │   AgentService     │  │  PolicyService    │  │
+│  │  create_wallet   │  │  ATLAS Firecrawl   │  │  1. REP GATE      │  │
+│  │  create_api_key  │  │  CIPHER E2B exec   │  │  2. BUDGET CAP    │  │
+│  │  sign_payment    │  │  FORGE  E2B write  │  │  3. COORD AUTH    │  │
+│  │  revoke_api_key  │  │  BISHOP/SØN Haiku  │  │  4. DOUBLE PAY    │  │
+│  └──────────────────┘  └────────────────────┘  └───────────────────┘  │
+│                                                                         │
+│  Dead Man's Switch  asyncio.wait_for(run_agent, timeout=120 s)         │
+│  → revoke OWS key → sweep budget → status: timed_out → audit           │
+│                                                                         │
+│  Peer Payments (post-settle):  ATLAS → CIPHER  0.005 ETH               │
+│                                CIPHER → FORGE  0.003 ETH               │
+└────────────────────────────────┬────────────────────────────────────────┘
+                                 │ httpx
+                                 ▼
+                   ┌─────────────────────────┐
+                   │  PocketBase  port 8090  │
+                   │  wallets  tasks         │
+                   │  sub_tasks  payments    │
+                   │  audit_log              │
+                   │  agent_reputation       │
+                   └─────────────────────────┘
 ```
 
-### Execution Flow
+---
+
+## Execution Flow
 
 ```
-submit_task()
-    └─▶ create REGIS wallet (OWS mock/real)
-    └─▶ persist task + wallet to PocketBase
-    └─▶ write audit: task_submitted
+submit()
+  └─▶ OWS: create coordinator wallet (REGIS)
+  └─▶ PB:  persist task + wallet
+  └─▶ audit: task_submitted
 
-decompose_task()
-    └─▶ Claude Haiku: generate 5 persona-specific sub-task descriptions
-    └─▶ asyncio.gather() — all 5 agent bundles in parallel:
-         ├─ create OWS wallet per agent
-         ├─ create PocketBase wallet record
-         └─ create PocketBase sub_task record
-    └─▶ write audit: agent_spawned × 5
+decompose()
+  └─▶ Haiku: generate 5 persona sub-task descriptions
+  └─▶ asyncio.gather() — all 5 bundles in parallel (~2 s vs ~10 s sequential)
+       ├─ OWS: create_wallet + create_api_key(budget_cap)
+       └─ PB:  wallet record + sub_task record
+       └─▶ audit: agent_spawned × 5
 
-execute_task()  [background]
-    └─▶ asyncio.gather() — all 5 agents in parallel:
-         ├─ Claude Haiku: respond in agent's native language
-         ├─ measure latency, store output as {text, ms}
-         └─ _process_payment():
-              ├─ PolicyService.evaluate_payment()  ← 3-rule chain
-              ├─ if ALLOW → OWS.sign_payment() → status: signed
-              └─ if DENY  → status: blocked + policy_reason logged
-    └─▶ write audit: work_started / work_complete / payment_signed|blocked × 5
-    └─▶ update task status: complete
+execute()  [background]
+  └─▶ asyncio.gather() — 5 agents + DMS wrappers in parallel:
+       ├─ ATLAS:  Firecrawl.search() → feed real content to Haiku (German)
+       ├─ CIPHER: Haiku writes Python → E2B sandbox executes → stdout captured
+       ├─ FORGE:  Haiku writes report+summary → E2B writes .md → return content
+       ├─ BISHOP: Haiku in Italian with Latin phrases
+       └─ SØN:    Haiku in Swedish
+       Per agent:
+         reputation = PB.get_reputation(agent)
+         policy     = PolicyService.evaluate_payment(amount, rep, sub_task)
+         ALLOW  → OWS.sign_payment() → status: paid  → rep +0.1
+         DENY   → status: blocked    → rep −0.2 → policy_reason logged
+         TIMEOUT (120 s):
+           OWS.revoke_api_key() → PB wallet: api_key_id = "REVOKED-<ts>"
+           sweep payment (agent → coordinator)
+           sub_task: status = timed_out
+           audit: dead_mans_switch + reputation_updated (−0.3)
+  └─▶ peer payments (post-settle):
+       ATLAS wallet → CIPHER wallet  0.005 ETH  [research handoff]
+       CIPHER wallet → FORGE wallet  0.003 ETH  [analysis delivery]
+       audit: peer_payment × 2
+  └─▶ task: status = complete
 ```
 
 ---
 
 ## Agent Roster
 
-| Agent | Flag | City | Language | Role | Budget Share | Rep |
-|-------|------|------|----------|------|-------------|-----|
-| **REGIS** | 🇬🇧 | London | English | Monarch (Coordinator) | Full treasury | ★★★★★ |
-| **ATLAS** | 🇩🇪 | Berlin | Deutsch | Researcher | 10.31% | ★★★★☆ |
-| **CIPHER** | 🇯🇵 | Tokyo | 日本語 | Analyst | 10.31% | ★★★★★ |
-| **FORGE** | 🇳🇬 | Lagos | English/Yorùbá | Synthesizer | 10.31% | ★★★★☆ |
-| **BISHOP** | 🇻🇦 | Vatican | Latin/Italiano | Bishop | 12.37% | ★★★★☆ |
-| **SØN** | 🇸🇪 | Stockholm | Svenska | Heir | 5.15% | ★★★☆☆ |
-
-Each agent responds in their native language via Claude Haiku. FORGE always attempts a +50% quality bonus payment, which trips the budget-cap policy rule — demonstrating the policy engine live during the demo.
+| Agent | Flag | City | Role | Budget | Rep | Live Tools |
+|-------|------|------|------|--------|-----|------------|
+| **REGIS** | 🇬🇧 | London | Monarch · Coordinator | Full treasury | ★★★★★ | — |
+| **ATLAS** | 🇩🇪 | Berlin | Researcher | 10.31% | ★★★★☆ | Firecrawl web search |
+| **CIPHER** | 🇯🇵 | Tokyo | Analyst | 10.31% | ★★★★★ | E2B Python sandbox |
+| **FORGE** | 🇳🇬 | Lagos | Synthesizer | 10.31% | ★★★★☆ | E2B file write + download |
+| **BISHOP** | 🇻🇦 | Vatican | Compliance | 12.37% | ★★★★☆ | — |
+| **SØN** | 🇸🇪 | Stockholm | Heir | 5.15% | ★★★☆☆ | — |
 
 ### Budget Breakdown (0.97 ETH default)
 
 ```
-REGIS  treasury:  0.97 ETH  (manages full budget)
-├─ ATLAS   cap:   0.10 ETH  → paid  0.10 ETH  ✓ SIGNED
-├─ CIPHER  cap:   0.10 ETH  → paid  0.10 ETH  ✓ SIGNED
-├─ FORGE   cap:   0.10 ETH  → attempted 0.15 ETH  ✗ BLOCKED
-├─ BISHOP  cap:   0.12 ETH  → paid  0.12 ETH  ✓ SIGNED
-└─ SØN     cap:   0.05 ETH  → paid  0.05 ETH  ✓ SIGNED
+REGIS  treasury  0.97 ETH
+├─ ATLAS   0.10 ETH  →  paid  0.1000 ETH  ✓ SIGNED    (4★ limit: 0.12)
+├─ CIPHER  0.10 ETH  →  paid  0.1000 ETH  ✓ SIGNED    (5★ limit: 0.20)
+├─ FORGE   0.10 ETH  →  atmp  0.1500 ETH  ✗ REP BLOCK (4★ limit: 0.12)
+├─ BISHOP  0.12 ETH  →  paid  0.1200 ETH  ✓ SIGNED    (4★ limit: 0.12)
+└─ SØN     0.05 ETH  →  paid  0.0500 ETH  ✓ SIGNED    (3★ limit: 0.06)
 
-Spent: 0.37 ETH  |  Blocked: 0.15 ETH  |  Efficiency: 71%
+Peer payments (post-settle):
+  ATLAS  → CIPHER   0.005 ETH  [research handoff]
+  CIPHER → FORGE    0.003 ETH  [analysis delivery]
+
+Coordinator paid: 0.370 ETH  ·  Blocked: 0.150 ETH  ·  Peer: 0.008 ETH
+Approval rate: 71%  ·  Economy health: ~82 / 100
 ```
 
 ---
 
 ## Policy Engine
 
-Three deterministic rules evaluated in sequence. First failure short-circuits evaluation and returns a human-readable reason.
+Four deterministic rules evaluated in sequence. First failure short-circuits and returns a human-readable reason.
 
 ```python
-# Rule 1 — Budget Cap
-if payment_amount > sub_task.budget_allocated:
-    BLOCK: "Policy violation: amount {x} exceeds cap {y}"
+# services/policy_service.py
 
-# Rule 2 — Coordinator Authorization
-if from_wallet.role != "coordinator":
-    BLOCK: "Unauthorized signer: only coordinator can pay"
+_REP_TIERS = [(5.0, 0.20), (4.0, 0.12), (3.0, 0.06), (2.0, 0.02)]
 
-# Rule 3 — Double Payment Guard
-if sub_task.status == "paid":
-    BLOCK: "Double payment attempt blocked by policy engine"
+def evaluate_payment(self, from_wallet, to_wallet, amount, sub_task, reputation=3.0):
+    for check in (
+        self._check_reputation_gate,   # Rule 1: rep score → spend limit
+        self._check_budget_cap,        # Rule 2: coordinator allocation ceiling
+        self._check_coordinator_auth,  # Rule 3: only coordinator wallet may sign
+        self._check_double_payment,    # Rule 4: no duplicate settlement
+    ):
+        result = check(amount=amount, sub_task=sub_task,
+                       from_wallet=from_wallet, reputation=reputation)
+        if not result.allow:
+            return result
+    return PolicyResult(allow=True)
 ```
 
-All decisions — allow and deny — are written to the `audit_log` collection with full metadata.
-
----
-
-## Demo Flow
-
-The full demo completes in approximately **8–12 seconds** depending on Claude API latency.
+Block reasons are prefixed for frontend parsing:
 
 ```
-1. User enters task description + 0.97 ETH budget
-2. REGIS coordinator wallet created (OWS)
-3. Five agent wallets spawned in parallel (~2s vs ~10s sequential)
-4. Claude Haiku decomposes task into 5 persona-specific sub-tasks
-5. All 5 agents work simultaneously:
-   - ATLAS  → responds in German
-   - CIPHER → responds in Japanese
-   - FORGE  → responds in English/Yorùbá
-   - BISHOP → responds in Italian with Latin phrases
-   - SØN    → responds in Swedish
-6. Policy engine evaluates each payment:
-   - ATLAS:  0.10 ETH → ✓ SIGNED   (tx hash generated)
-   - CIPHER: 0.10 ETH → ✓ SIGNED
-   - BISHOP: 0.12 ETH → ✓ SIGNED
-   - SØN:    0.05 ETH → ✓ SIGNED
-   - FORGE:  0.15 ETH → ✗ BLOCKED  (exceeds 0.10 cap)
-7. Dashboard updates live — audit log streams every event
-8. MetricsBar finalises: 71% efficiency, budget fill animation
+REP BLOCK:     FORGE reputation 4.0★ insufficient for 0.1500 ETH (limit: 0.12 ETH)
+BUDGET BLOCK:  requested 0.1500 ETH exceeds allocation 0.1000 ETH
+AUTH BLOCK:    only coordinator wallet may sign payments
+DOUBLE PAY:    sub-task already settled
+SWEEP:         Dead man's switch — ATLAS
+PEER:          research handoff
 ```
 
 ---
 
-## Tech Stack
+## Reputation System
 
-### Backend
+Scores persist in PocketBase and update live after every outcome:
 
-| Package | Version | Purpose |
-|---------|---------|---------|
-| FastAPI | 0.115.12 | REST API framework |
-| Uvicorn | 0.34.0 | ASGI server with hot reload |
-| Anthropic SDK | 0.49.0 | Claude Haiku API client |
-| httpx | 0.28.1 | Sync HTTP client for PocketBase |
-| Pydantic | 2.11.1 | Request/response validation |
-| python-dotenv | 1.1.0 | Environment variable loading |
-| aiofiles | 24.1.0 | Async file I/O |
+```python
+# services/pocketbase.py — spend limits per tier mirror policy_service._REP_TIERS
 
-### Frontend
+_REP_DEFAULTS = {"ATLAS": 4.0, "CIPHER": 5.0, "FORGE": 4.0, "BISHOP": 4.0, "SØN": 3.0}
 
-| Package | Version | Purpose |
-|---------|---------|---------|
-| Next.js | 14.2.35 | React framework (App Router) |
-| TypeScript | ^5 | Type safety |
-| TanStack Query | ^5.96.2 | Server state + polling |
-| Zustand | ^5.0.12 | Client state (phase, taskId) |
-| Framer Motion | ^12.38.0 | Animations (skill unlock, card entry) |
-| Tailwind CSS | ^3.4.1 | Utility-first styling |
+# payment signed    → +0.1  (capped   5.0)
+# payment blocked   → −0.2  (floored  1.0)
+# DMS timeout       → −0.3
+# work exception    → −0.2
+```
 
-### Infrastructure
+The live score is fetched before every policy call. Consecutive blocked payments reduce an agent's tier and tighten future spend limits — the system self-enforces over time.
 
-| Component | Version | Purpose |
-|-----------|---------|---------|
-| PocketBase | 0.22.20 | SQLite-backed persistence + REST API |
-| Python | 3.13 | Runtime (3.9+ required for asyncio.to_thread) |
-| Node.js | 18+ | Frontend runtime |
+---
 
-### Fonts
+## Dead Man's Switch
 
-- **Bricolage Grotesque** — display text, headings, body
-- **JetBrains Mono** — wallet addresses, numeric data, status labels
+```python
+# routers/tasks.py
+
+async def run_agent_with_dms(sub_task):
+    try:
+        await asyncio.wait_for(run_agent(sub_task), timeout=120.0)
+    except asyncio.TimeoutError:
+        await _trigger_dead_mans_switch(sub_task, coordinator_wallet)
+
+async def _trigger_dead_mans_switch(sub_task, coordinator_wallet):
+    swept_at = datetime.now(timezone.utc).isoformat()
+
+    # 1 — Revoke OWS API key
+    ows.revoke_api_key(sub_task["wallet_id"])
+    pb.update("wallets", sub_task["wallet_id"], {"api_key_id": f"REVOKED-{swept_at}"})
+
+    # 2 — Sweep budget back to coordinator
+    ows.sign_payment(sub_task["wallet_id"], coordinator_wallet["id"], budget_allocated)
+
+    # 3 — Mark sub_task, embed revocation metadata in output JSON
+    pb.update("sub_tasks", sub_task["id"], {
+        "status": "timed_out",
+        "output": json.dumps({"key_revoked": True, "key_revoked_at": swept_at, ...}),
+    })
+
+    # 4 — Audit + reputation penalty
+    audit("dead_mans_switch",
+          f"SECURITY: Dead man's switch triggered for {agent}. Funds swept to treasury.")
+    pb.update_reputation(agent, -0.3)
+```
+
+The frontend shows a live countdown on each active card. At ≤ 30 s the pill pulses red — **DMS ARMED**.
+
+---
+
+## OWS Integration
+
+```python
+# services/ows_service.py  (SDK → subprocess → mock fallback chain)
+
+# Create wallet
+wallet = ows.create_wallet("atlas-a3f9b2")
+# {"id": "...", "eth_address": "0x...", "sol_address": "..."}
+
+# Scoped API key
+api_key = ows.create_api_key(wallet["id"], budget_cap=0.10)
+# "ows_mock_a3f9b2c1d4e5f6a7b8c9d0e1f2a3b4c5"
+
+# Sign payment
+tx = ows.sign_payment(from_id, to_id, amount, chain_id="eip155:1")
+# {"status": "signed", "tx_hash": "0x4a3f...", "chain_id": "eip155:1"}
+
+# Revoke key (Dead Man's Switch)
+ows.revoke_api_key(wallet_id)
+```
+
+### OWS Proof Panel
+
+Each terminal agent card has a collapsible **▶ OWS PROOF** section:
+
+```
+OWS-XXXX-XXXXXXXX          ← api_key_id derived from wallet_id
+wallet_id  ab12cd34…ef78
+sign_hash  0x4a3f…d9e2
+revoked_at 14:23:07        ← only when DMS fires
+
+Policy chain:
+  ✓  1. REP GATE
+  ✓  2. BUDGET CAP
+  ✗  3. COORD AUTH     ← inline failure detail
+  ·  4. DOUBLE PAY     ← skipped (short-circuit)
+
+KEY  REVOKED            ← ACTIVE / SUSPENDED / REVOKED
+⚠ OWS key revoked · budget swept to coordinator vault
+```
+
+---
+
+## Real Agent Tools
+
+All tool integrations degrade gracefully — absent API key produces `tools: []`, the card renders unchanged.
+
+### ATLAS — Firecrawl Web Search
+
+```python
+# FIRECRAWL_API_KEY required
+from firecrawl import FirecrawlApp
+result = FirecrawlApp(api_key=key).search(task_description, limit=3)
+# → real source URLs and markdown content fed into Claude prompt
+```
+
+ATLAS's card shows source URLs under the output. The Haiku analysis is grounded in actual scraped content.
+
+### CIPHER — E2B Python Execution
+
+```python
+# E2B_API_KEY required
+from e2b_code_interpreter import Sandbox
+
+# Step 1: Haiku writes analysis code
+code = haiku("Write 8-12 lines of Python to analyze: " + description)
+
+# Step 2: Execute in sandbox
+with Sandbox(api_key=key) as sbx:
+    execution = sbx.run_code(code)
+stdout = "\n".join(execution.logs.stdout)
+```
+
+CIPHER's card shows "Executed in E2B sandbox: 1240ms" and a collapsible dark code block with stdout.
+
+### FORGE — E2B File Write + Download
+
+```python
+# Single Haiku call produces summary + full markdown report (split on ---)
+# Report is base64-encoded and written to E2B sandbox:
+write_code = f'''
+import base64
+content = base64.b64decode("{encoded}").decode("utf-8")
+with open("/home/user/swarm_report.md", "w") as f:
+    f.write(content)
+'''
+with Sandbox(api_key=key) as sbx:
+    sbx.run_code(write_code)
+```
+
+FORGE's card shows a **📄 Download Report** button. The report is embedded in the output JSON and downloaded client-side via `URL.createObjectURL` — no additional API endpoint.
+
+---
+
+## Mode Toggle
+
+Two complete presentation layers over identical live data:
+
+| Element | ⚔️ Kingdom | 🏢 Office |
+|---------|-----------|----------|
+| REGIS role | Monarch | Chief Treasury Officer |
+| Treasury label | Royal Vault | Operating Budget |
+| ATLAS dept | Researcher | Research Dept · LEVEL 4 |
+| Blocked payment | ✗ BLOCKED | ✗ COMPLIANCE REJECTED |
+| Metrics: spend | Spent | Disbursed |
+| Metrics: block | Blocked | Held |
+| Efficiency label | Swarm Efficiency | Clearance Rate |
+| Agents label | Active Agents | Active Staff |
+| OWS panel label | OWS PROOF | COMPLIANCE PROOF |
+| DMS key status | SUSPENDED | ACCESS REVOKED |
+
+Toggling applies `.office-mode` to `document.body` (CSS custom properties cascade), triggers 0.3 s AnimatePresence fade, and smooth colour transitions on all surfaces.
+
+---
+
+## Swarm Intelligence Panel
+
+Visible once any task has run. Polls `/swarm/stats` every 5 s.
+
+```
+Economy Health  82/100    ← approval_rate × 65 + (avg_rep / 5) × 35
+                          ← animated SVG ring, green ≥ 70, amber ≥ 40
+
+Tasks Run: 3   Signed: 12   Rejected: 3   ETH Processed: 1.110
+ETH Held: 0.450   Peer Transfers: 6 · 0.048 ETH
+
+Agent Leaderboard:
+  1. CIPHER  ★★★★★  5.0
+  2. ATLAS   ★★★★☆  4.3
+  3. BISHOP  ★★★★☆  4.1
+  4. FORGE   ★★★½☆  3.6
+  5. SØN     ★★★☆☆  3.0
+```
+
+---
+
+## Setup
+
+### Prerequisites
+
+- Python 3.9+
+- Node.js 18+
+- Anthropic API key — [console.anthropic.com](https://console.anthropic.com)
+
+**Optional (real agent tools):**
+- E2B API key — [e2b.dev](https://e2b.dev) (free tier)
+- Firecrawl API key — [firecrawl.dev](https://firecrawl.dev) (free tier)
+
+### Install
+
+```bash
+git clone https://github.com/ajayi-del/SwarmPay.git
+cd SwarmPay
+
+# Python environment
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r backend/requirements.txt
+
+# Node dependencies
+cd frontend && npm install && cd ..
+```
+
+### Configure
+
+```bash
+cp backend/.env.example backend/.env
+# Edit backend/.env — set at minimum ANTHROPIC_API_KEY
+```
+
+```env
+ANTHROPIC_API_KEY=sk-ant-...
+POCKETBASE_URL=http://localhost:8090
+
+# Optional — activates real agent tools
+E2B_API_KEY=e2b_...
+FIRECRAWL_API_KEY=fc-...
+```
+
+### Run
+
+```bash
+# Terminal 1 — PocketBase
+cd pocketbase && ./pocketbase serve
+
+# Terminal 2 — Backend
+source .venv/bin/activate && cd backend && python3 main.py
+
+# Terminal 3 — Frontend
+cd frontend && npm run dev
+```
+
+Open **[http://localhost:3000](http://localhost:3000)**
+
+### First run — create collections
+
+```bash
+# With PocketBase running:
+source .venv/bin/activate
+python backend/setup_pocketbase.py
+# Creates admin@swarmpay.local / password123456
+# Creates: wallets · tasks · sub_tasks · payments · audit_log · agent_reputation
+```
 
 ---
 
@@ -218,476 +451,73 @@ SwarmPay/
 ├── backend/
 │   ├── main.py                    # FastAPI app, CORS, router mounting
 │   ├── requirements.txt
-│   ├── .env.example               # Environment variable template
-│   ├── setup_pocketbase.py        # One-shot collection creation script
+│   ├── .env.example
 │   ├── routers/
-│   │   ├── tasks.py               # /task/* endpoints + background execution
-│   │   └── audit.py               # /audit, /wallets endpoints
+│   │   ├── tasks.py               # submit · decompose · execute · DMS · peer payments
+│   │   └── audit.py               # audit log · wallets · /swarm/stats
 │   └── services/
-│       ├── agent_service.py       # Claude Haiku + AGENT_PERSONAS config
-│       ├── ows_service.py         # OWS wallet creation + payment signing
-│       ├── policy_service.py      # 3-rule policy evaluation chain
-│       └── pocketbase.py          # PocketBase HTTP client wrapper
+│       ├── agent_service.py       # ATLAS/CIPHER/FORGE tools + BISHOP/SØN Haiku
+│       ├── ows_service.py         # wallet · api_key · sign · revoke (SDK→mock)
+│       ├── policy_service.py      # 4-rule reputation-gated evaluation chain
+│       └── pocketbase.py          # httpx wrapper + reputation CRUD
 │
 ├── frontend/
 │   ├── app/
-│   │   ├── layout.tsx             # Root layout, font imports
-│   │   ├── page.tsx               # Main page: form / dashboard split
+│   │   ├── page.tsx               # root page, .office-mode on body, SwarmPanel
 │   │   ├── providers.tsx          # TanStack Query provider
-│   │   └── globals.css            # CSS vars, Bricolage + JetBrains Mono
+│   │   └── globals.css            # CSS vars, .office-mode overrides, animations
 │   ├── components/
-│   │   ├── TaskForm.tsx           # Task submission form
-│   │   ├── Dashboard.tsx          # Orchestrates all cards + metrics
-│   │   ├── CoordinatorCard.tsx    # REGIS full-width card
-│   │   ├── AgentCard.tsx          # Per-agent card (sparkline, skills, output)
-│   │   ├── MetricsBar.tsx         # Swarm efficiency + budget fill bar
-│   │   └── AuditLog.tsx           # Real-time event stream
+│   │   ├── AgentCard.tsx          # countdown · tools · code block · download
+│   │   ├── CoordinatorCard.tsx
+│   │   ├── MetricsBar.tsx
+│   │   ├── AuditLog.tsx
+│   │   ├── OWSProofPanel.tsx      # policy chain · key status · revocation ts
+│   │   ├── SwarmPanel.tsx         # health ring · leaderboard · lifetime stats
+│   │   ├── ModeToggle.tsx
+│   │   └── ErrorBoundary.tsx
 │   └── lib/
-│       ├── api.ts                 # Typed fetch wrappers + interfaces
-│       ├── personas.ts            # Agent persona config + status label map
-│       └── store.ts               # Zustand store (taskId, phase)
+│       ├── api.ts                 # typed fetch wrappers + interfaces
+│       ├── personas.ts            # agent personas · office personas · status maps
+│       ├── modeStore.ts           # Zustand: kingdom | office
+│       └── store.ts               # Zustand: taskId · phase
 │
 └── pocketbase/
-    ├── pb_migrations/             # Auto-generated collection migrations
-    └── setup_collections.py       # Alternative Python setup script
+    ├── pb_migrations/
+    └── setup_collections.py
 ```
-
----
-
-## Prerequisites
-
-- **Python 3.13** (3.9+ minimum for `asyncio.to_thread`)
-- **Node.js 18+**
-- **Anthropic API key** — [console.anthropic.com](https://console.anthropic.com)
-- ~500 MB disk space (PocketBase binary + node_modules)
-
----
-
-## Installation
-
-### 1. Clone
-
-```bash
-git clone https://github.com/ajayi-del/SwarmPay.git
-cd SwarmPay
-```
-
-### 2. Python virtual environment
-
-```bash
-python3.13 -m venv .venv
-source .venv/bin/activate        # Windows: .venv\Scripts\activate
-pip install -r backend/requirements.txt
-```
-
-### 3. Environment variables
-
-```bash
-cp backend/.env.example backend/.env
-```
-
-Edit `backend/.env` and set your Anthropic API key:
-
-```env
-ANTHROPIC_API_KEY=sk-ant-...
-POCKETBASE_URL=http://localhost:8090
-ENVIRONMENT=development
-```
-
-### 4. PocketBase
-
-Download the binary for your platform from [pocketbase.io/docs](https://pocketbase.io/docs) and place it at `pocketbase/pocketbase` (already done if cloning from a machine that ran setup). Then:
-
-```bash
-cd pocketbase && ./pocketbase serve
-```
-
-On first run, create the admin account and collections:
-
-```bash
-# In a second terminal (from project root):
-source .venv/bin/activate
-python backend/setup_pocketbase.py
-```
-
-This creates the admin at `admin@swarmpay.local / password123456` and all five collections.
-
-### 5. Frontend dependencies
-
-```bash
-cd frontend && npm install
-```
-
----
-
-## Environment Variables
-
-### Backend (`backend/.env`)
-
-| Variable | Default | Required | Description |
-|----------|---------|----------|-------------|
-| `ANTHROPIC_API_KEY` | — | **Yes** | Claude Haiku API key |
-| `POCKETBASE_URL` | `http://localhost:8090` | No | PocketBase base URL |
-| `OWS_DAEMON_URL` | `http://localhost:8080` | No | OWS daemon (falls back to mock) |
-| `ENVIRONMENT` | `development` | No | Runtime environment label |
-
-### Frontend (`frontend/.env.local`)
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `NEXT_PUBLIC_API_URL` | `http://localhost:8000` | FastAPI backend URL |
-
----
-
-## Running the Application
-
-Open three terminal tabs from the project root:
-
-```bash
-# Terminal 1 — PocketBase
-cd pocketbase && ./pocketbase serve
-
-# Terminal 2 — FastAPI backend
-source .venv/bin/activate
-cd backend && python3 main.py
-
-# Terminal 3 — Next.js frontend
-cd frontend && npm run dev
-```
-
-Open **http://localhost:3000** in your browser.
-
-### Production build (frontend)
-
-```bash
-cd frontend && npm run build && npm start
-```
-
----
-
-## API Reference
-
-Base URL: `http://localhost:8000`
-
-### `POST /task/submit`
-
-Create a task and initialise the REGIS coordinator wallet.
-
-**Request**
-```json
-{
-  "description": "Analyse cross-chain liquidity for DeFi protocols",
-  "budget": 0.97
-}
-```
-
-**Response**
-```json
-{
-  "task_id": "q5x9fq35qefcklk",
-  "coordinator_wallet": {
-    "id": "rcnrnzjk2hjk65a",
-    "name": "REGIS-9a36fa",
-    "role": "coordinator",
-    "eth_address": "0xfa1a4ff600000000000000000000000000000000",
-    "budget_cap": 0.97,
-    "balance": 0.97
-  }
-}
-```
-
----
-
-### `POST /task/decompose`
-
-Decompose the task into 5 sub-tasks and spawn agent wallets in parallel.
-
-**Request**
-```json
-{ "task_id": "q5x9fq35qefcklk" }
-```
-
-**Response**
-```json
-{
-  "sub_tasks": [
-    {
-      "id": "hjisp671m23o8s8",
-      "agent_id": "ATLAS",
-      "description": "Research DeFi liquidity sources across chains",
-      "budget_allocated": 0.1,
-      "status": "spawned",
-      "wallet_id": "rf0qel0ay66nlib"
-    }
-    // ... 4 more
-  ],
-  "agent_wallets": [ /* wallet records */ ]
-}
-```
-
----
-
-### `POST /task/execute`
-
-Start parallel agent execution in the background. Returns immediately.
-
-**Request**
-```json
-{ "task_id": "q5x9fq35qefcklk" }
-```
-
-**Response**
-```json
-{ "status": "running" }
-```
-
----
-
-### `GET /task/{task_id}/status`
-
-Full task snapshot including coordinator wallet, all sub-tasks, and payments.
-
-**Response**
-```json
-{
-  "task": {
-    "id": "q5x9fq35qefcklk",
-    "description": "...",
-    "total_budget": 0.97,
-    "status": "complete",
-    "coordinator_wallet_id": "rcnrnzjk2hjk65a"
-  },
-  "coordinator_wallet": { /* wallet record */ },
-  "sub_tasks": [
-    {
-      "agent_id": "FORGE",
-      "status": "blocked",
-      "output": "{\"text\": \"Ẹ jẹ ká! The synthesis...\", \"ms\": 225}",
-      "budget_allocated": 0.1
-    }
-    // ...
-  ],
-  "payments": [
-    {
-      "amount": 0.15,
-      "status": "blocked",
-      "policy_reason": "Policy violation: amount 0.15 exceeds cap 0.1",
-      "to_wallet_id": "..."
-    }
-    // ...
-  ]
-}
-```
-
----
-
-### `GET /task/{task_id}/stream`
-
-Server-Sent Events stream. Emits the full task snapshot on every state change, closes when task reaches `complete` or `failed`.
-
-```
-Content-Type: text/event-stream
-
-data: {"task": {...}, "sub_tasks": [...], "payments": [...]}
-
-data: {"task": {...}, "sub_tasks": [...], "payments": [...]}
-```
-
----
-
-### `GET /audit?limit=50`
-
-Chronological audit log (newest first).
-
-**Response**
-```json
-{
-  "logs": [
-    {
-      "id": "cqelktxeioczlsp",
-      "event_type": "payment_blocked",
-      "entity_id": "payment_abc123",
-      "message": "Payment abc123 BLOCKED ✗ 0.1500 ETH — Policy violation: amount 0.15 exceeds cap 0.1",
-      "metadata": { "from": "...", "to": "...", "amount": 0.15 },
-      "created": "2026-04-04T03:16:11.711Z"
-    }
-    // ...
-  ]
-}
-```
-
-### Event Types
-
-| Event | Trigger |
-|-------|---------|
-| `task_submitted` | User submits a task |
-| `agent_spawned` | Sub-agent wallet + record created |
-| `work_started` | Agent begins Claude Haiku call |
-| `work_complete` | Agent output received |
-| `payment_signed` | Policy approved, OWS signed |
-| `payment_blocked` | Policy rejected, reason logged |
-| `task_complete` | All agents settled |
-
----
-
-## Database Schema
-
-All collections managed by PocketBase. Auto-fields: `id` (15-char), `created`, `updated`.
-
-### `wallets`
-
-| Field | Type | Notes |
-|-------|------|-------|
-| `name` | text | e.g. `REGIS-9a36fa`, `atlas-q5x9fq` |
-| `role` | text | `coordinator` or `sub-agent` |
-| `eth_address` | text | Mock or real OWS address |
-| `sol_address` | text | Mock or real OWS address |
-| `budget_cap` | number | ETH |
-| `balance` | number | ETH |
-| `api_key_id` | text | OWS scoped API key |
-
-### `tasks`
-
-| Field | Type | Notes |
-|-------|------|-------|
-| `description` | text | User-provided task |
-| `total_budget` | number | ETH |
-| `status` | text | `pending → decomposed → in_progress → complete | failed` |
-| `coordinator_wallet_id` | text | FK → wallets.id |
-
-### `sub_tasks`
-
-| Field | Type | Notes |
-|-------|------|-------|
-| `task_id` | text | FK → tasks.id |
-| `agent_id` | text | Persona name: `ATLAS`, `CIPHER`, etc. |
-| `wallet_id` | text | FK → wallets.id |
-| `description` | text | Haiku-generated or fallback |
-| `budget_allocated` | number | ETH cap for this agent |
-| `status` | text | `spawned → working → complete → paid | blocked | failed` |
-| `output` | text | JSON: `{"text": "...", "ms": 235}` |
-
-### `payments`
-
-| Field | Type | Notes |
-|-------|------|-------|
-| `from_wallet_id` | text | Always REGIS coordinator |
-| `to_wallet_id` | text | FK → wallets.id (sub-agent) |
-| `amount` | number | Attempted payment in ETH |
-| `chain_id` | text | `eip155:1` (Ethereum mainnet) |
-| `status` | text | `signed` or `blocked` |
-| `policy_reason` | text | Human-readable block reason |
-| `tx_hash` | text | OWS mock tx hash (if signed) |
-
-### `audit_log`
-
-| Field | Type | Notes |
-|-------|------|-------|
-| `event_type` | text | See event types above |
-| `entity_id` | text | ID of the affected record |
-| `message` | text | Human-readable description |
-| `metadata` | json | Structured context data |
-
----
-
-## Frontend Architecture
-
-### State Management
-
-```
-Zustand store (lib/store.ts)
-  taskId: string | null       ← PocketBase task ID after submit
-  phase: idle | submitted     ← Controls form ↔ dashboard transition
-        | decomposed | running | done
-
-TanStack Query (lib/api.ts)
-  queryKey: ["task", taskId]  ← Polls /task/:id/status every 1.2s
-  queryKey: ["audit"]         ← Polls /audit every 1.5s
-  Auto-stops polling on task complete/failed
-```
-
-### Component Tree
-
-```
-page.tsx
-├── TaskForm           (idle phase)
-└── Dashboard          (active phase)
-    ├── CoordinatorCard    REGIS · gold Monarch badge · treasury
-    ├── AgentCard × 5      per sub-task (grid: 1/2/3 cols)
-    │   ├── Header         flag · name · city · language | role badge
-    │   ├── Stats row      ★★★★☆ · sparkline · tasks/success/avgSpeed
-    │   ├── Skill badges   unlock animation: 2 → 3 on terminal state
-    │   ├── StatusPill     persona-specific label (PRAYING, FORGING…)
-    │   ├── Output area    native language text + latency + ~tokens
-    │   ├── Wallet footer  budget cap · truncated wallet address
-    │   └── PaymentOverlay signed/blocked with tx hash or policy reason
-    └── MetricsBar
-        ├── Spent / Blocked / Efficiency stats
-        └── Animated budget fill bar (green signed + red blocked)
-└── AuditLog           real-time event stream
-```
-
-### Persona Status Labels
-
-Each agent has character-appropriate status labels instead of generic states:
-
-| Agent | working | complete | blocked |
-|-------|---------|----------|---------|
-| ATLAS | WORKING | COMPLETE | BLOCKED ✗ |
-| CIPHER | ANALYZING | SOLVED ✓ | BLOCKED ✗ |
-| FORGE | FORGING | SMITHED | POLICY BLOCK ✗ |
-| BISHOP | PRAYING | BLESSED ✓ | EXCOMMUNICATED |
-| SØN | TRAINING | LEVELED UP | GROUNDED |
-| REGIS | MANAGING | — | — |
 
 ---
 
 ## Key Design Decisions
 
-**Why `asyncio.to_thread` instead of async PocketBase client?**
-The existing `httpx.Client` (sync) is thread-safe. Wrapping calls in `asyncio.to_thread` gives true parallelism via the thread pool without requiring a full async rewrite. This cut wallet creation time from ~10s sequential to ~2s parallel for 5 agents.
+**`asyncio.wait_for` for Dead Man's Switch** — atomic, cancellation-safe, no polling loop or separate process. `TimeoutError` surface is contained inside the existing gather.
 
-**Why output stored as `{"text": "...", "ms": 1234}`?**
-Embedding latency in the output field avoids a schema change to `sub_tasks` while delivering per-agent timing data to the frontend. The frontend parses with JSON.parse and falls back gracefully for any plain-text output.
+**Graceful tool degradation** — Firecrawl and E2B keys are checked at module load time. Absent key → `tools: []` in the output JSON, the card renders unchanged. The demo works fully offline.
 
-**Why hardcoded budget shares instead of LLM-derived?**
-Budget allocation is a financial policy decision, not a creative one. Hardcoding shares (ATLAS 10.31%, BISHOP 12.37%, SØN 5.15%) ensures the demo numbers are deterministic and the FORGE block fires reliably at exactly 0.15 ETH vs 0.10 cap regardless of LLM variance.
+**`timed_out` as plain text status** — PocketBase `sub_tasks.status` is a `text` field with no enum constraint. No schema migration required.
 
-**Why PocketBase over PostgreSQL/Supabase?**
-Single binary, zero config, auto-migrations, built-in REST API, and runs offline. Ideal for hackathon demos where infrastructure reliability is more important than horizontal scalability.
+**Client-side Blob download** — FORGE's report is embedded in the output JSON and downloaded via `URL.createObjectURL`. Zero additional API endpoint, works without a persistent file server.
 
-**Why no Inter / no Firebase / no Clerk?**
-Design constraint from the hackathon brief. Bricolage Grotesque + JetBrains Mono gives a distinct terminal-infrastructure aesthetic that differentiates from generic web apps.
+**Single combined Claude call for FORGE** — a `---` separator in the prompt yields both the card summary and the full report in one Haiku call, halving latency and API cost.
 
----
+**Peer payments bypass policy** — inter-agent micro-transactions are intentional. FORGE receives a peer payment from CIPHER even though the coordinator blocked FORGE's primary payment. Two distinct payment layers: policy-gated coordinator→agent and free-form agent→agent.
 
-## Hackathon Submission Notes
-
-**Category:** 04 — Multi-Agent Systems & Autonomous Economies
-
-**Core OWS primitives demonstrated:**
-- Wallet creation with scoped budget caps
-- Policy-gated payment signing
-- Coordinator-to-agent payment flows
-- Audit trail for every signing decision
-
-**What makes this different:**
-- Agents operate with genuine economic constraints — they cannot be overpaid regardless of coordinator intent
-- The policy engine is inspectable and its decisions are fully logged
-- Multilingual agent outputs demonstrate that autonomous agents can operate across cultural contexts without central translation
-- Parallel execution means the coordinator manages a real swarm, not a sequential queue
-
-**Limitations / future work:**
-- OWS wallet operations use a mock implementation (no on-chain settlement in demo)
-- Policy rules are hardcoded; a production system would load them from a governance contract
-- Agent reputation scores are static; a production system would update them based on task outcomes
-- No authentication on the API (appropriate for demo, not production)
+**`parseRevocation` reads `subTask.output` directly** — no prop drilling through Dashboard → AgentCard → OWSProofPanel. The panel already receives `subTask`.
 
 ---
 
-## License
+## Tech Stack
 
-MIT — see [LICENSE](LICENSE) for details.
+| Layer | Tech |
+|-------|------|
+| Backend | FastAPI 0.115 · Uvicorn · Python 3.9+ |
+| LLM | Anthropic Claude Haiku (claude-3-haiku-20240307) |
+| Real tools | e2b-code-interpreter · firecrawl-py |
+| Persistence | PocketBase 0.22 (SQLite, single binary) |
+| Frontend | Next.js 14 · TypeScript · Tailwind CSS |
+| State | TanStack Query v5 · Zustand v5 |
+| Animation | Framer Motion v12 |
+| Fonts | Bricolage Grotesque · JetBrains Mono |
 
 ---
 
