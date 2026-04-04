@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import TaskForm from "@/components/TaskForm";
 import Dashboard from "@/components/Dashboard";
 import AuditLog from "@/components/AuditLog";
 import ModeToggle from "@/components/ModeToggle";
 import SwarmPanel from "@/components/SwarmPanel";
+import StackDiagram from "@/components/StackDiagram";
 import { useSwarmStore } from "@/lib/store";
 import { useModeStore } from "@/lib/modeStore";
 import { motion, AnimatePresence } from "framer-motion";
@@ -13,6 +14,7 @@ import { motion, AnimatePresence } from "framer-motion";
 export default function Home() {
   const { phase, reset } = useSwarmStore();
   const { mode } = useModeStore();
+  const [showArch, setShowArch] = useState(false);
   const isActive = phase !== "idle";
 
   useEffect(() => {
@@ -41,6 +43,17 @@ export default function Home() {
             <span>③ no double-pay</span>
             <span style={{ color: "var(--blocked)" }}>FORGE +50% → BLOCKED</span>
           </div>
+          <button
+            onClick={() => setShowArch(true)}
+            className="text-xs px-3 py-1.5 rounded-lg transition-colors"
+            style={{
+              background: "var(--surface)",
+              border: "1px solid var(--border)",
+              color: "var(--text-muted)",
+            }}
+          >
+            📐 Architecture
+          </button>
           <ModeToggle />
           {isActive && (
             <button
@@ -88,6 +101,11 @@ export default function Home() {
       <p className="text-xs text-center pb-2 font-jb" style={{ color: "var(--text-dim)" }}>
         FastAPI · Claude Haiku · PocketBase · Next.js 14 · OWS Policy Engine
       </p>
+
+      {/* Architecture diagram modal */}
+      <AnimatePresence>
+        {showArch && <StackDiagram onClose={() => setShowArch(false)} />}
+      </AnimatePresence>
     </div>
   );
 }
