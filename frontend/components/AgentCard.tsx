@@ -222,7 +222,7 @@ export default function AgentCard({ subTask, payment, index }: Props) {
         <span>
           Budget:{" "}
           <span style={{ color: "var(--text-muted)" }}>
-            {subTask.budget_allocated.toFixed(4)} ETH
+            {Number(subTask.budget_allocated).toFixed(4)} ETH
           </span>
         </span>
         <span className="truncate ml-2">
@@ -247,7 +247,7 @@ export default function AgentCard({ subTask, payment, index }: Props) {
             >
               {payment.status === "signed" ? "✓ SIGNED" : "✗ BLOCKED"}
             </span>
-            <span style={{ color: "var(--text)" }}>{payment.amount.toFixed(4)} ETH</span>
+            <span style={{ color: "var(--text)" }}>{Number(payment.amount).toFixed(4)} ETH</span>
           </div>
           {payment.policy_reason && (
             <p className="text-xs" style={{ color: "var(--blocked)", opacity: 0.85 }}>

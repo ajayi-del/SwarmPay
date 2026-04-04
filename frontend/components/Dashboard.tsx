@@ -1,11 +1,13 @@
 "use client";
 
+import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getTaskStatus, type TaskState } from "@/lib/api";
 import { useSwarmStore } from "@/lib/store";
 import AgentCard from "./AgentCard";
 import CoordinatorCard from "./CoordinatorCard";
 import MetricsBar from "./MetricsBar";
+import { ErrorBoundary } from "./ErrorBoundary";
 
 export default function Dashboard() {
   const { taskId, setPhase } = useSwarmStore();
@@ -16,13 +18,18 @@ export default function Dashboard() {
     enabled: !!taskId,
     refetchInterval: (query) => {
       const status = (query.state.data as TaskState | undefined)?.task?.status;
-      if (status === "complete" || status === "failed") {
-        setPhase("done");
-        return false;
-      }
+      if (status === "complete" || status === "failed") return false;
       return 1200;
     },
   });
+
+  // Transition to "done" phase via effect, not inside a query callback
+  useEffect(() => {
+    const status = taskState?.task?.status;
+    if (status === "complete" || status === "failed") {
+      setPhase("done");
+    }
+  }, [taskState?.task?.status, setPhase]);
 
   if (!taskId || !taskState) return null;
 
@@ -32,7 +39,9 @@ export default function Dashboard() {
     <div className="w-full space-y-4">
       {/* REGIS — coordinator */}
       {coordinator_wallet && (
-        <CoordinatorCard wallet={coordinator_wallet} task={task} />
+        <ErrorBoundary>
+          <CoordinatorCard wallet={coordinator_wallet} task={task} />
+        </ErrorBoundary>
       )}
 
       {/* 5 agent cards — responsive grid */}
@@ -41,7 +50,9 @@ export default function Dashboard() {
           {sub_tasks.map((st, i) => {
             const payment = payments.find((p) => p.to_wallet_id === st.wallet_id);
             return (
-              <AgentCard key={st.id} subTask={st} payment={payment} index={i} />
+              <ErrorBoundary key={st.id}>
+                <AgentCard subTask={st} payment={payment} index={i} />
+              </ErrorBoundary>
             );
           })}
         </div>
@@ -49,7 +60,9 @@ export default function Dashboard() {
 
       {/* Metrics bar */}
       {sub_tasks.length > 0 && (
-        <MetricsBar taskState={taskState} />
+        <ErrorBoundary>
+          <MetricsBar taskState={taskState} />
+        </ErrorBoundary>
       )}
     </div>
   );

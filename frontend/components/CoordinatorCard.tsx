@@ -123,7 +123,7 @@ export default function CoordinatorCard({ wallet, task }: Props) {
         <div className="ml-auto text-right space-y-0.5">
           <p className="text-xs" style={{ color: "var(--text-muted)" }}>Treasury</p>
           <p className="text-2xl font-bold font-jb" style={{ color: "#FFD700" }}>
-            {wallet.budget_cap.toFixed(2)}{" "}
+            {Number(wallet.budget_cap).toFixed(2)}{" "}
             <span className="text-sm font-normal" style={{ color: "var(--text-muted)" }}>ETH</span>
           </p>
           <p className="text-xs font-jb truncate max-w-[200px]" style={{ color: "var(--text-dim)" }}>
