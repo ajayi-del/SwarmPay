@@ -5,6 +5,7 @@ import TaskForm from "@/components/TaskForm";
 import Dashboard from "@/components/Dashboard";
 import AuditLog from "@/components/AuditLog";
 import ModeToggle from "@/components/ModeToggle";
+import SwarmPanel from "@/components/SwarmPanel";
 import { useSwarmStore } from "@/lib/store";
 import { useModeStore } from "@/lib/modeStore";
 import { motion, AnimatePresence } from "framer-motion";
@@ -80,6 +81,9 @@ export default function Home() {
           </motion.div>
         </AnimatePresence>
       )}
+
+      {/* Swarm Intelligence / Economy Dashboard */}
+      <SwarmPanel />
 
       <p className="text-xs text-center pb-2 font-jb" style={{ color: "var(--text-dim)" }}>
         FastAPI · Claude Haiku · PocketBase · Next.js 14 · OWS Policy Engine

@@ -100,3 +100,22 @@ export async function getAuditLogs(): Promise<{ logs: AuditEntry[] }> {
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
+
+export interface SwarmStats {
+  health_score: number;
+  total_tasks: number;
+  total_signed: number;
+  total_blocked: number;
+  eth_processed: number;
+  eth_held: number;
+  peer_count: number;
+  eth_peer: number;
+  avg_reputation: number;
+  agent_rankings: { agent_id: string; reputation: number }[];
+}
+
+export async function getSwarmStats(): Promise<SwarmStats> {
+  const res = await fetch(`${API}/swarm/stats`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
