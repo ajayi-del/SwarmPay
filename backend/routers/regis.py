@@ -16,6 +16,7 @@ from anthropic import Anthropic
 
 from services.brain_service import brain_service
 from services.pocketbase import PocketBaseService
+from services.meteora_service import get_sol_usdc_rate
 
 router = APIRouter(prefix="/regis", tags=["regis"])
 
@@ -230,3 +231,23 @@ async def get_brain():
     lines   = content.splitlines()
     updated = next((ln for ln in reversed(lines) if ln.startswith("[")), None)
     return {"content": content, "last_updated": updated}
+
+
+# ── Meteora rate ────────────────────────────────────────────────────────────
+
+@router.get("/meteora")
+async def get_meteora_rate():
+    """Fetch live SOL/USDC rate from Meteora DLMM (with Jupiter fallback)."""
+    try:
+        result = await asyncio.to_thread(get_sol_usdc_rate)
+        if result:
+            return {
+                "rate":      result["rate"],
+                "source":    result["source"],
+                "pair_name": result.get("pair_name", "SOL/USDC"),
+                "tvl":       result.get("tvl", 0),
+                "available": True,
+            }
+        return {"rate": None, "source": "unavailable", "available": False}
+    except Exception as e:
+        return {"rate": None, "source": str(e), "available": False}

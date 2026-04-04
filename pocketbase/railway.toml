@@ -1,0 +1,11 @@
+[build]
+builder = "dockerfile"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+healthcheckPath = "/"
+healthcheckTimeout = 120
+restartPolicyType = "on_failure"
+
+# Attach a Railway volume to /pb/pb_data for persistent storage.
+# Without a volume, the database resets on each deploy.

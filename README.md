@@ -1,8 +1,8 @@
 # SwarmPay
 
-**Open Wallet Standard Hackathon · Category 04 — Multi-Agent Systems & Autonomous Economies**
+**Submitted to: OWS Hackathon (Category 04 — Multi-Agent Systems) · Solana x402 Hackathon (Track: Best Trustless Agent Economy)**
 
-> A coordinator wallet (REGIS) decomposes tasks across five specialised sub-agents, each operating with a scoped OWS wallet, reputation score, and 120-second heartbeat. Payments are signed or blocked by a four-rule policy engine. Every decision is audited, every key can be revoked.
+> A coordinator wallet (REGIS) decomposes tasks across five specialised sub-agents, each operating with a scoped OWS wallet, real Solana devnet keypair, reputation score, and 120-second heartbeat. Payments are signed or blocked by a four-rule policy engine. Every decision is audited, every key can be revoked. x402 micropayments gate real services on Solana devnet.
 
 ---
 
@@ -17,6 +17,11 @@
 | 5 | Swarm Intelligence Panel — economy health score + leaderboard | ✅ |
 | + | Dead Man's Switch — 120 s heartbeat, key revocation, budget sweep | ✅ |
 | + | Real Agent Tools — Firecrawl web search, E2B Python sandboxes | ✅ |
+| + | REGIS Sovereign Brain — append-only memory, probe/audit/punish system | ✅ |
+| + | x402 on Solana Devnet — real on-chain micropayments, Explorer links | ✅ |
+| + | Meteora Integration — live SOL/USDC rate displayed in treasury card | ✅ |
+| + | Stack Architecture Diagram — animated 6-layer overlay, hover tooltips | ✅ |
+| + | Railway Deployment — Dockerfile + railway.toml for backend + PocketBase | ✅ |
 
 ---
 
@@ -506,19 +511,122 @@ SwarmPay/
 
 ---
 
+---
+
+## x402 on Solana Devnet
+
+Every productive agent (ATLAS, CIPHER, FORGE) makes a real Solana devnet micropayment before accessing its gated microservice. The x402 two-phase protocol is fully implemented:
+
+```
+Phase 1  Server returns HTTP 402 with payment requirements
+         {x402Version:1, network:"solana-devnet", maxAmount:"1000",
+          asset:"4zMMC9srt5...", payTo:<treasury_pubkey>, nonce, expiry}
+
+Phase 2  Agent signs devnet SOL transfer (1000–2000 lamports ≈ $0.0001)
+         X-Payment: base64(solana:<sig>:<treasury>:<nonce>)
+         Server validates → issues receipt with tx signature
+
+Receipt  {txHash: "4xKj...", explorer_url: "https://explorer.solana.com/tx/4xKj...?cluster=devnet",
+          on_chain: true, amount: 0.001, currency: "USDC", network: "solana-devnet"}
+```
+
+| Agent | Endpoint | Amount | Gate |
+|-------|----------|--------|------|
+| ATLAS | /x402/search | 0.001 USDC | Search access |
+| CIPHER | /x402/analyze | 0.002 USDC | Analysis engine |
+| FORGE | /x402/publish | 0.001 USDC | Publish endpoint |
+
+Each agent card shows a **⚡ x402 Payments** section with the tx hash and a `Settled on Solana devnet ◎ →` link to Solana Explorer. Every keypair is generated fresh per task run, airdropped 0.5 SOL on devnet, and registered in-memory.
+
+---
+
+## REGIS Sovereign Brain
+
+REGIS maintains an append-only memory file (`backend/regis_brain.md`) that syncs after every task completion, probe, audit, and punishment:
+
+```
+[2026-04-04 14:23 UTC] [TASK_COMPLETE] Task 'Analyze DeFi yield trends' complete.
+                         Paid 4 agents 0.3700 ETH. BLOCKED FORGE: REP BLOCK.
+[2026-04-04 14:23 UTC] [TREASURY_CLOSE] SOL/USDC rate 148.32 (via Meteora DLMM) ·
+                         treasury 0.97 ETH ≈ $0.0449 USD
+[2026-04-04 14:24 UTC] [AUDIT] PASSED score=82/100 rep_delta=+0.1 [REPUTATION_UP]
+```
+
+Three interactive operations (accessible from the REGIS card below CoordinatorCard):
+
+- **Probe** — chat with REGIS in character; full brain + audit log + rep table as context
+- **Audit** — Claude evaluates last 5 payments, scores 0–100, updates REGIS reputation
+- **Punish** — slash treasury (−10% budget), demote reputation (−1★), or demand governance report
+
+---
+
+## Meteora Integration
+
+When REGIS closes the treasury after a task, the live SOL/USDC rate is fetched from Meteora DLMM (`dlmm-api.meteora.ag`) and displayed in the coordinator card:
+
+```
+Treasury valued at ≈ $X USD
+SOL/USDC 148.32 · Meteora DLMM
+```
+
+The rate is also appended to `regis_brain.md` so REGIS can reference it in future probes.
+
+---
+
+## Railway Deployment
+
+### Two services: FastAPI backend + PocketBase
+
+**1. Create a Railway project** at [railway.app](https://railway.app)
+
+**2. Add Backend service**
+- Source: this repo → Root Directory: `backend/`
+- Railway auto-detects `backend/Dockerfile`
+- Set environment variables:
+  ```
+  ANTHROPIC_API_KEY=sk-ant-...
+  POCKETBASE_URL=https://<your-pb-service>.railway.app
+  SOLANA_RPC_URL=https://api.devnet.solana.com
+  E2B_API_KEY=e2b_...          (optional)
+  FIRECRAWL_API_KEY=fc-...     (optional)
+  ```
+
+**3. Add PocketBase service**
+- Source: this repo → Root Directory: `pocketbase/`
+- Railway auto-detects `pocketbase/Dockerfile`
+- Attach a Railway Volume at `/pb/pb_data` for persistence
+- Run setup after first deploy:
+  ```bash
+  railway run --service pocketbase python backend/setup_pocketbase.py
+  ```
+
+**4. Update frontend**
+```bash
+# frontend/.env.local
+NEXT_PUBLIC_API_URL=https://<your-backend>.railway.app
+```
+
+Then deploy frontend to Vercel or Railway as a third service.
+
+---
+
 ## Tech Stack
 
 | Layer | Tech |
 |-------|------|
-| Backend | FastAPI 0.115 · Uvicorn · Python 3.9+ |
+| Backend | FastAPI 0.115 · Uvicorn · Python 3.11 |
 | LLM | Anthropic Claude Haiku (claude-3-haiku-20240307) |
 | Real tools | e2b-code-interpreter · firecrawl-py |
+| Blockchain | solders 0.21+ · Solana devnet RPC |
+| Payment Protocol | x402 (HTTP 402 two-phase, SOL micropayments) |
+| DEX Integration | Meteora DLMM (SOL/USDC rate) |
 | Persistence | PocketBase 0.22 (SQLite, single binary) |
 | Frontend | Next.js 14 · TypeScript · Tailwind CSS |
 | State | TanStack Query v5 · Zustand v5 |
 | Animation | Framer Motion v12 |
+| Deployment | Railway (Dockerfile + railway.toml) |
 | Fonts | Bricolage Grotesque · JetBrains Mono |
 
 ---
 
-*Built for the Open Wallet Standard Hackathon · April 2026*
+*Built for the Open Wallet Standard Hackathon + Solana x402 Hackathon · April 2026*

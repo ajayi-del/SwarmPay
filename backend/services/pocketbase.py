@@ -4,12 +4,14 @@ PocketBase Service - Handles all database operations
 
 import httpx
 import json
+import os
 from datetime import datetime
 from typing import Dict, List, Optional, Any
 from pydantic import BaseModel
 
 class PocketBaseService:
-    def __init__(self, base_url: str = "http://localhost:8090"):
+    def __init__(self, base_url: str = None):
+        base_url = base_url or os.environ.get("POCKETBASE_URL", "http://localhost:8090")
         self.base_url = base_url
         self.client = httpx.Client(base_url=base_url, timeout=30.0)
     

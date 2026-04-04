@@ -468,23 +468,36 @@ export default function AgentCard({ subTask, payment, peerPayment, index, reputa
           {parsed.x402_payments.map((xp, i) => (
             <div
               key={i}
-              className="text-xs font-jb rounded px-2 py-1.5 space-y-0.5"
-              style={{ background: "#0a1a1f", border: "1px solid #06b6d422" }}
+              className="text-xs font-jb rounded px-2 py-1.5 space-y-1"
+              style={{ background: "#051218", border: "1px solid #06b6d433" }}
             >
               <div className="flex items-center gap-2">
-                <span style={{ color: "#06b6d4" }}>◈ Solana</span>
-                <span style={{ color: "#888" }}>{xp.network}</span>
+                <span style={{ color: "#06b6d4" }}>◎ Solana devnet</span>
                 <span className="ml-auto font-bold" style={{ color: "#06b6d4" }}>
                   {xp.amount} {xp.currency}
                 </span>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
                 <span style={{ color: "#555" }}>tx</span>
-                <span className="truncate" style={{ color: "#9ca3af" }}>
-                  {xp.txHash.slice(0, 32)}…
+                <span className="truncate flex-1" style={{ color: "#6b7280" }}>
+                  {xp.txHash.slice(0, 28)}…
                 </span>
               </div>
-              <div style={{ color: "#555" }}>{xp.endpoint}</div>
+              <div className="flex items-center justify-between">
+                <span style={{ color: "#444" }}>{xp.endpoint}</span>
+                {(xp as unknown as { explorer_url?: string; on_chain?: boolean }).on_chain &&
+                 (xp as unknown as { explorer_url?: string }).explorer_url && (
+                  <a
+                    href={(xp as unknown as { explorer_url: string }).explorer_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[10px] font-semibold underline"
+                    style={{ color: "#06b6d4" }}
+                  >
+                    Settled on Solana devnet ◎ →
+                  </a>
+                )}
+              </div>
             </div>
           ))}
         </div>

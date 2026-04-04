@@ -1,0 +1,16 @@
+[build]
+builder = "dockerfile"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+healthcheckPath = "/health"
+healthcheckTimeout = 300
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
+
+# Required environment variables (set in Railway dashboard):
+# ANTHROPIC_API_KEY   — Claude Haiku
+# POCKETBASE_URL      — e.g. https://swarmpay-pb.railway.app
+# SOLANA_RPC_URL      — optional, defaults to https://api.devnet.solana.com
+# E2B_API_KEY         — optional, E2B code sandbox
+# FIRECRAWL_API_KEY   — optional, Firecrawl web search

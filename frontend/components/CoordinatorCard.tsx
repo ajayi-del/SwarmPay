@@ -1,7 +1,9 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import type { Wallet, Task } from "@/lib/api";
+import { getMeteoraRate } from "@/lib/api";
 import { COORDINATOR_PERSONA, OFFICE_COORDINATOR } from "@/lib/personas";
 import { useModeStore } from "@/lib/modeStore";
 
@@ -52,6 +54,16 @@ const TASK_STATUS_COLOR: Record<string, string> = {
 export default function CoordinatorCard({ wallet, task }: Props) {
   const { mode } = useModeStore();
   const isOffice = mode === "office";
+  const [meteoraRate, setMeteoraRate] = useState<number | null>(null);
+  const [meteoraSource, setMeteoraSource] = useState<string>("");
+
+  useEffect(() => {
+    if (task.status === "complete") {
+      getMeteoraRate()
+        .then((d) => { if (d.available && d.rate) { setMeteoraRate(d.rate); setMeteoraSource(d.source); } })
+        .catch(() => {});
+    }
+  }, [task.status]);
   const p = COORDINATOR_PERSONA;
   const statusColor = TASK_STATUS_COLOR[task.status] ?? "#888";
 
@@ -157,6 +169,14 @@ export default function CoordinatorCard({ wallet, task }: Props) {
           <p className="text-xs font-jb truncate max-w-[200px]" style={{ color: "var(--text-dim)" }}>
             {wallet.eth_address.slice(0, 10)}…{wallet.eth_address.slice(-6)}
           </p>
+          {meteoraRate && (
+            <p className="text-xs font-jb mt-1" style={{ color: "#06b6d4" }}>
+              Treasury valued at ≈ ${(Number(wallet.budget_cap) * meteoraRate / 3200).toFixed(0)} USD
+              <span className="block text-[10px]" style={{ color: "#555" }}>
+                SOL/USDC {meteoraRate} · {meteoraSource}
+              </span>
+            </p>
+          )}
         </div>
       </div>
 

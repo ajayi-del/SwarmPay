@@ -17,6 +17,7 @@ from services.ows_service import OWSService
 from services.agent_service import AgentService, AGENT_PERSONAS
 from services.policy_service import PolicyService
 from services.brain_service import brain_service
+from services.solana_service import solana_service
 
 router = APIRouter(prefix="/task", tags=["tasks"])
 
@@ -62,16 +63,18 @@ async def submit_task(request: TaskSubmitRequest):
     """Submit a new task and create REGIS coordinator wallet."""
     try:
         ows_wallet = await asyncio.to_thread(ows.create_wallet, f"REGIS-{uuid.uuid4().hex[:6]}")
+        sol_wallet = await asyncio.to_thread(solana_service.generate_and_fund)
 
         wallet_record = await asyncio.to_thread(pb.create, "wallets", {
             "name": ows_wallet["name"],
             "role": "coordinator",
             "eth_address": ows_wallet["eth_address"],
-            "sol_address": ows_wallet["sol_address"],
+            "sol_address": sol_wallet["pubkey"],
             "budget_cap": request.budget,
             "balance": request.budget,
             "api_key_id": f"regis_api_{uuid.uuid4().hex[:8]}",
         })
+        solana_service.register(wallet_record["id"], sol_wallet["privkey_hex"])
 
         task_record = await asyncio.to_thread(pb.create, "tasks", {
             "description": request.description,
@@ -103,22 +106,26 @@ async def decompose_task(request: TaskDecomposeRequest):
         )
 
         async def _create_bundle(i: int, st_data: Dict) -> tuple:
-            """Parallel: create OWS wallet + PocketBase wallet + sub_task for one agent."""
+            """Parallel: create OWS + Solana wallet + PocketBase record + sub_task."""
             persona = st_data["persona"]
             slug = request.task_id[-6:]
 
-            ows_w = await asyncio.to_thread(ows.create_wallet, f"{persona['name'].lower()}-{slug}")
+            ows_w, sol_w = await asyncio.gather(
+                asyncio.to_thread(ows.create_wallet, f"{persona['name'].lower()}-{slug}"),
+                asyncio.to_thread(solana_service.generate_and_fund),
+            )
             api_key = await asyncio.to_thread(ows.create_api_key, ows_w["id"], st_data["budget_allocated"])
 
             wallet_rec = await asyncio.to_thread(pb.create, "wallets", {
                 "name": ows_w["name"],
                 "role": "sub-agent",
                 "eth_address": ows_w["eth_address"],
-                "sol_address": ows_w["sol_address"],
+                "sol_address": sol_w["pubkey"],
                 "budget_cap": st_data["budget_allocated"],
                 "balance": 0,
                 "api_key_id": api_key,
             })
+            solana_service.register(wallet_rec["id"], sol_w["privkey_hex"])
 
             st_rec = await asyncio.to_thread(pb.create, "sub_tasks", {
                 "task_id": request.task_id,
@@ -251,6 +258,21 @@ async def execute_task_background(task_id: str):
             )
         except Exception as exc:
             print(f"[brain sync] {exc}")
+
+        # ── Meteora: log SOL/USDC rate at treasury close ─────────────────
+        try:
+            from services.meteora_service import get_sol_usdc_rate
+            rate_data = await asyncio.to_thread(get_sol_usdc_rate)
+            if rate_data:
+                eth_total = float(task.get("total_budget", 0))
+                usd_val   = round(eth_total * rate_data["rate"] / 3200, 4)  # rough ETH→USD
+                brain_service.append(
+                    "TREASURY_CLOSE",
+                    f"SOL/USDC rate {rate_data['rate']} (via {rate_data['source']}) · "
+                    f"treasury {eth_total:.2f} ETH ≈ ${usd_val} USD",
+                )
+        except Exception as exc:
+            print(f"[meteora log] {exc}")
 
         await asyncio.to_thread(pb.update, "tasks", task_id, {"status": "complete"})
         await _audit("task_complete", task_id, "REGIS closed the treasury. All agents settled.")

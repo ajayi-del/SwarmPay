@@ -180,3 +180,17 @@ export async function getRegisBrain(): Promise<{ content: string; last_updated: 
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
+
+export interface MeteoraRate {
+  rate: number | null;
+  source: string;
+  pair_name: string;
+  tvl: number;
+  available: boolean;
+}
+
+export async function getMeteoraRate(): Promise<MeteoraRate> {
+  const res = await fetch(`${API}/regis/meteora`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
