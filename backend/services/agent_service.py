@@ -159,7 +159,8 @@ class AgentService:
 
     # ── Sub-task execution (dispatcher) ──────────────────────────────
 
-    def execute_sub_task(self, sub_task_description: str, agent_name: str) -> str:
+    def execute_sub_task(self, sub_task_description: str, agent_name: str,
+                         wallet_id: str = "") -> str:
         """
         Dispatch to agent-specific execution path.
         Always returns a valid JSON string regardless of tool availability.
@@ -171,17 +172,31 @@ class AgentService:
         }
         fn = dispatch.get(agent_name)
         if fn:
-            return fn(sub_task_description)
+            return fn(sub_task_description, wallet_id=wallet_id)
         return self._execute_default(sub_task_description, agent_name)
 
     # ── ATLAS — Firecrawl web search ──────────────────────────────────
 
-    def _execute_atlas(self, description: str) -> str:
+    def _execute_atlas(self, description: str, wallet_id: str = "") -> str:
+        from services.x402_service import x402_service
         t0 = time.monotonic()
         persona = _find_persona("ATLAS")
         tools: List[Dict] = []
         sources: List[str] = []
         search_context = ""
+        x402_payments: List[Dict] = []
+
+        # x402 micropayment: pay for search access
+        if wallet_id:
+            try:
+                receipt = x402_service.pay_search(wallet_id)
+                x402_payments.append(receipt)
+                tools.append({
+                    "name": "x402 Search Gate",
+                    "result": f"Paid {receipt['amount']} {receipt['currency']} · tx {receipt['txHash'][:20]}…",
+                })
+            except Exception as e:
+                print(f"[x402 atlas] {e}")
 
         if FIRECRAWL_KEY:
             sr = self._firecrawl_search(description)
@@ -209,7 +224,8 @@ class AgentService:
             text = persona["fallback"] if persona else "Research complete."
 
         ms = int((time.monotonic() - t0) * 1000)
-        return json.dumps({"text": text, "ms": ms, "tools": tools, "sources": sources})
+        return json.dumps({"text": text, "ms": ms, "tools": tools, "sources": sources,
+                           "x402_payments": x402_payments})
 
     def _firecrawl_search(self, query: str) -> dict:
         try:
@@ -238,10 +254,24 @@ class AgentService:
 
     # ── CIPHER — E2B Python execution ─────────────────────────────────
 
-    def _execute_cipher(self, description: str) -> str:
+    def _execute_cipher(self, description: str, wallet_id: str = "") -> str:
+        from services.x402_service import x402_service
         t0 = time.monotonic()
         persona = _find_persona("CIPHER")
         tools: List[Dict] = []
+        x402_payments: List[Dict] = []
+
+        # x402 micropayment: pay for analysis engine access
+        if wallet_id:
+            try:
+                receipt = x402_service.pay_analyze(wallet_id)
+                x402_payments.append(receipt)
+                tools.append({
+                    "name": "x402 Analysis Gate",
+                    "result": f"Paid {receipt['amount']} {receipt['currency']} · tx {receipt['txHash'][:20]}…",
+                })
+            except Exception as e:
+                print(f"[x402 cipher] {e}")
 
         # Analysis summary in Japanese
         try:
@@ -279,6 +309,7 @@ class AgentService:
             "code": code,
             "code_output": code_output,
             "code_execution_ms": code_execution_ms,
+            "x402_payments": x402_payments,
         })
 
     def _e2b_execute(self, description: str) -> dict:
@@ -322,10 +353,24 @@ class AgentService:
 
     # ── FORGE — E2B file write + downloadable report ──────────────────
 
-    def _execute_forge(self, description: str) -> str:
+    def _execute_forge(self, description: str, wallet_id: str = "") -> str:
+        from services.x402_service import x402_service
         t0 = time.monotonic()
         persona = _find_persona("FORGE")
         tools: List[Dict] = []
+        x402_payments: List[Dict] = []
+
+        # x402 micropayment: pay for publish endpoint access
+        if wallet_id:
+            try:
+                receipt = x402_service.pay_publish(wallet_id)
+                x402_payments.append(receipt)
+                tools.append({
+                    "name": "x402 Publish Gate",
+                    "result": f"Paid {receipt['amount']} {receipt['currency']} · tx {receipt['txHash'][:20]}…",
+                })
+            except Exception as e:
+                print(f"[x402 forge] {e}")
 
         # One Claude call: summary + full report separated by ---
         combined_prompt = (
@@ -385,6 +430,7 @@ class AgentService:
             "tools": tools,
             "report_content": report_md,
             "report_filename": "swarm_report.md",
+            "x402_payments": x402_payments,
         })
 
     # ── Default (BISHOP, SØN) ─────────────────────────────────────────

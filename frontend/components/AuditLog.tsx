@@ -15,6 +15,7 @@ const EVENT_COLORS: Record<string, string> = {
   reputation_updated: "#FFD700",
   peer_payment:      "#a78bfa",
   dead_mans_switch:  "#ef4444",
+  x402_payment:      "#06b6d4",
 };
 
 function LogRow({ entry }: { entry: AuditEntry }) {

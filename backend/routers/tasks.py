@@ -178,7 +178,8 @@ async def execute_task_background(task_id: str):
 
                 # Haiku call — blocking, run in thread
                 output_json = await asyncio.to_thread(
-                    agent_service.execute_sub_task, sub_task["description"], agent_name
+                    agent_service.execute_sub_task,
+                    sub_task["description"], agent_name, sub_task.get("wallet_id", "")
                 )
 
                 await asyncio.to_thread(pb.update, "sub_tasks", sub_task["id"], {
@@ -186,15 +187,30 @@ async def execute_task_background(task_id: str):
                     "output": output_json,
                 })
 
-                # Preview text for audit
+                # Parse output for preview + x402 events
                 try:
-                    preview = json.loads(output_json).get("text", "")[:100]
+                    parsed_out = json.loads(output_json)
+                    preview = parsed_out.get("text", "")[:100]
+                    x402_payments = parsed_out.get("x402_payments", [])
                 except Exception:
                     preview = output_json[:100]
+                    x402_payments = []
 
                 await _audit("work_complete", sub_task["id"],
                              f"{agent_name} finished work",
                              {"preview": preview})
+
+                # Log x402 micropayment events
+                for xp in x402_payments:
+                    await _audit(
+                        "x402_payment",
+                        sub_task["id"],
+                        f"⚡ x402 · {agent_name} paid {xp.get('amount')} {xp.get('currency')} "
+                        f"via Solana · {xp.get('txHash', '')[:20]}…",
+                        {"wallet_id": xp.get("wallet_id"), "amount": xp.get("amount"),
+                         "currency": xp.get("currency"), "endpoint": xp.get("endpoint"),
+                         "tx": xp.get("txHash")},
+                    )
 
                 await _process_payment(coordinator_wallet, sub_task)
 

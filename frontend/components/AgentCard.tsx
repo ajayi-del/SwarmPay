@@ -14,6 +14,16 @@ import { useModeStore } from "@/lib/modeStore";
 
 /* ── Extended output type ────────────────────────────────────────────── */
 
+interface X402Payment {
+  amount: number;
+  currency: string;
+  network: string;
+  endpoint: string;
+  txHash: string;
+  wallet_id: string;
+  nonce: string;
+}
+
 interface ParsedOutput {
   text: string;
   ms?: number;
@@ -27,6 +37,7 @@ interface ParsedOutput {
   key_revoked?: boolean;
   key_revoked_at?: string;
   swept_amount?: number;
+  x402_payments?: X402Payment[];
 }
 
 function parseOutput(raw: string): ParsedOutput {
@@ -46,6 +57,7 @@ function parseOutput(raw: string): ParsedOutput {
       key_revoked: p.key_revoked,
       key_revoked_at: p.key_revoked_at,
       swept_amount: p.swept_amount,
+      x402_payments: p.x402_payments,
     };
   } catch {
     return { text: raw };
@@ -447,6 +459,35 @@ export default function AgentCard({ subTask, payment, peerPayment, index, reputa
           <span>Download Report</span>
           <span className="ml-auto" style={{ color: "var(--text-dim)" }}>{parsed.report_filename}</span>
         </button>
+      )}
+
+      {/* ── x402 micropayments ── */}
+      {parsed.x402_payments && parsed.x402_payments.length > 0 && (
+        <div className="space-y-1">
+          <p className="text-xs" style={{ color: "var(--text-dim)" }}>⚡ x402 Payments</p>
+          {parsed.x402_payments.map((xp, i) => (
+            <div
+              key={i}
+              className="text-xs font-jb rounded px-2 py-1.5 space-y-0.5"
+              style={{ background: "#0a1a1f", border: "1px solid #06b6d422" }}
+            >
+              <div className="flex items-center gap-2">
+                <span style={{ color: "#06b6d4" }}>◈ Solana</span>
+                <span style={{ color: "#888" }}>{xp.network}</span>
+                <span className="ml-auto font-bold" style={{ color: "#06b6d4" }}>
+                  {xp.amount} {xp.currency}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span style={{ color: "#555" }}>tx</span>
+                <span className="truncate" style={{ color: "#9ca3af" }}>
+                  {xp.txHash.slice(0, 32)}…
+                </span>
+              </div>
+              <div style={{ color: "#555" }}>{xp.endpoint}</div>
+            </div>
+          ))}
+        </div>
       )}
 
       {/* ── Footer: budget + rep limit + wallet ── */}
