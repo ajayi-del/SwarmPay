@@ -72,8 +72,8 @@ export default function SovereigntyRaceMini() {
   return (
     <div
       style={{
-        marginTop: 10,
-        padding: "8px 10px",
+        marginTop: 2,
+        padding: "6px 10px",
         background: "#06040000",
         borderTop: "1px solid #1a1400",
         width: "100%",

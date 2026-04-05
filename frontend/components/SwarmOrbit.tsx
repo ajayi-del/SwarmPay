@@ -37,8 +37,8 @@ export default function SwarmOrbit({ subTasks, payments, compact = false }: Prop
   const totalBudget = subTasks.reduce((s, st) => s + (st.budget_allocated ?? 0), 0) || 1;
   const N = subTasks.length;
   const CX = 110;
-  const CY = 100;
-  const RADIUS = 72;
+  const CY = 105;
+  const RADIUS = 80;
 
   return (
     <div
@@ -46,20 +46,20 @@ export default function SwarmOrbit({ subTasks, payments, compact = false }: Prop
       style={{
         background: "var(--surface)",
         border: "1px solid var(--border)",
-        height: compact ? "100%" : 220,
-        minHeight: compact ? 200 : undefined,
+        height: "100%",
+        minHeight: 220,
         display: "flex",
         alignItems: "center",
         justifyContent: compact ? "center" : "space-between",
-        padding: compact ? "12px 10px" : "0 20px",
+        padding: compact ? "10px 8px" : "0 20px",
         gap: 12,
       }}
     >
       {/* Radial SVG diagram */}
-      <svg width={compact ? "100%" : 260} height={200} viewBox="-20 0 260 200" style={{ flexShrink: 0 }}>
+      <svg width="100%" height={210} viewBox="-10 0 240 210" style={{ flexShrink: 0 }}>
         {/* Orbit rings */}
-        <circle cx={CX} cy={CY} r={RADIUS}        fill="none" stroke="#ffffff06" strokeWidth="1" strokeDasharray="4 6" />
-        <circle cx={CX} cy={CY} r={RADIUS * 0.55} fill="none" stroke="#ffffff04" strokeWidth="1" />
+        <circle cx={CX} cy={CY} r={RADIUS}        fill="none" stroke="#ffffff08" strokeWidth="1" strokeDasharray="4 6" />
+        <circle cx={CX} cy={CY} r={RADIUS * 0.55} fill="none" stroke="#ffffff05" strokeWidth="1" />
 
         {/* Peer payment lines */}
         {payments
@@ -84,8 +84,9 @@ export default function SwarmOrbit({ subTasks, payments, compact = false }: Prop
           })}
 
         {/* REGIS core */}
-        <circle cx={CX} cy={CY} r={16} fill="#110e00" stroke="#F59E0B" strokeWidth="1.5" />
-        <text x={CX} y={CY + 4} textAnchor="middle" fontSize={6.5} fill="#F59E0B" fontFamily="monospace" letterSpacing="0.1em">REGIS</text>
+        <circle cx={CX} cy={CY} r={20} fill="#110e00" stroke="#F59E0B" strokeWidth="2" />
+        <circle cx={CX} cy={CY} r={24} fill="none" stroke="#F59E0B" strokeWidth="0.5" strokeOpacity="0.3" strokeDasharray="3 5" />
+        <text x={CX} y={CY + 3} textAnchor="middle" fontSize={7} fill="#F59E0B" fontFamily="monospace" letterSpacing="0.08em" fontWeight="bold">REGIS</text>
 
         {/* Agent dots */}
         {subTasks.map((st, i) => {
@@ -95,7 +96,7 @@ export default function SwarmOrbit({ subTasks, payments, compact = false }: Prop
           const y      = CY + Math.sin(angle) * r;
           const color  = AGENT_PERSONAS[st.agent_id]?.roleColor ?? "#6c63ff";
           const sColor = STATUS_COLOR[st.status] ?? color;
-          const dotR   = 5.5 + ((st.budget_allocated ?? 0) / totalBudget) * 7;
+          const dotR   = 7 + ((st.budget_allocated ?? 0) / totalBudget) * 8;
           const isActive = st.status === "working";
 
           // Position label outside the dot, away from center
@@ -118,7 +119,7 @@ export default function SwarmOrbit({ subTasks, payments, compact = false }: Prop
                 />
               )}
               <circle cx={x} cy={y} r={dotR} fill={color + "25"} stroke={sColor} strokeWidth="1.5" />
-              <text x={x} y={y + 3} textAnchor="middle" fontSize={6} fill={color} fontFamily="monospace" fontWeight="bold">
+              <text x={x} y={y + 3} textAnchor="middle" fontSize={7} fill={color} fontFamily="monospace" fontWeight="bold">
                 {st.agent_id.slice(0, 2)}
               </text>
               <circle cx={x + dotR - 1} cy={y - dotR + 1} r={2} fill={sColor} />

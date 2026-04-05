@@ -47,6 +47,8 @@ interface ParsedOutput {
   quality_score?: number;
   quality_reason?: string;
   scorer?: string;              // "huggingface/bart-large-mnli" | "deepseek/deepseek-chat"
+  email_summary?: { to: string; subject: string; body: string };
+  regis_decision?: { approved: boolean; verdict: string; reason: string; regis_seal: string };
 }
 
 function parseOutput(raw: string): ParsedOutput {
@@ -70,6 +72,8 @@ function parseOutput(raw: string): ParsedOutput {
       swept_amount: p.swept_amount,
       x402_payments: p.x402_payments,
       model: p.model,
+      email_summary: p.email_summary,
+      regis_decision: p.regis_decision,
     };
   } catch {
     return { text: raw };
@@ -326,6 +330,45 @@ function OutputTextBlock({ parsed, approxTokens }: { parsed: ParsedOutput; appro
           </span>
         )}
       </div>
+
+      {/* BISHOP email suggestion + REGIS verdict */}
+      {parsed.email_summary && parsed.regis_decision && (
+        <div
+          style={{
+            marginTop: 6,
+            padding: "8px 10px",
+            borderRadius: 8,
+            background: parsed.regis_decision.approved ? "rgba(34,197,94,0.06)" : "rgba(239,68,68,0.06)",
+            border: `1px solid ${parsed.regis_decision.approved ? "rgba(34,197,94,0.2)" : "rgba(239,68,68,0.2)"}`,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+            <span style={{ fontFamily: "monospace", fontSize: 8, color: "#666", letterSpacing: "0.12em" }}>
+              📧 EMAIL SUGGESTION
+            </span>
+            <span
+              style={{
+                fontFamily: "monospace",
+                fontSize: 8,
+                fontWeight: 700,
+                color: parsed.regis_decision.approved ? "#22c55e" : "#ef4444",
+                letterSpacing: "0.1em",
+              }}
+            >
+              {parsed.regis_decision.regis_seal} REGIS: {parsed.regis_decision.verdict}
+            </span>
+          </div>
+          <div style={{ fontFamily: "monospace", fontSize: 9, color: "#888", marginBottom: 2 }}>
+            To: {parsed.email_summary.to}
+          </div>
+          <div style={{ fontFamily: "monospace", fontSize: 9, color: "#aaa" }}>
+            {parsed.email_summary.subject}
+          </div>
+          <div style={{ fontFamily: "monospace", fontSize: 8, color: "#555", marginTop: 4 }}>
+            {parsed.regis_decision.reason}
+          </div>
+        </div>
+      )}
     </motion.div>
   );
 }

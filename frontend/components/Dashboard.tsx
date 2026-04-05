@@ -92,12 +92,12 @@ export default function Dashboard() {
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "160px 1fr 160px",
+                gridTemplateColumns: "180px 1fr 220px",
                 gap: 12,
                 alignItems: "stretch",
               }}
             >
-              {/* LEFT COURT — Skills Registry */}
+              {/* LEFT COURT — Skills Registry (collapsible) */}
               <SkillsCompact />
 
               {/* CENTER — REGIS Throne */}
@@ -110,13 +110,12 @@ export default function Dashboard() {
                 />
               </div>
 
-              {/* RIGHT COURT — Agent Orbit */}
+              {/* RIGHT COURT — Agent Orbit (full size) */}
               {sub_tasks.length > 0 ? (
                 <SwarmOrbit
                   subTasks={sub_tasks}
                   payments={payments}
                   taskStatus={task.status}
-                  compact
                 />
               ) : (
                 <div

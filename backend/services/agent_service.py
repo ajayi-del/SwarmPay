@@ -147,6 +147,48 @@ def _build_context_block(context: Dict[str, str]) -> str:
     return "\n\nTeam progress:\n" + "\n".join(lines) if lines else ""
 
 
+def _regis_evaluate_email(email_summary: dict, task_context: str) -> dict:
+    """
+    REGIS evaluates BISHOP's email suggestion.
+    Returns { approved: bool, reason: str, verdict: str }
+    Decision is based on task importance signals.
+    """
+    task_lower = task_context.lower()
+    # Keywords that signal high importance → approve
+    high_importance = any(kw in task_lower for kw in [
+        "compliance", "fraud", "aml", "kyc", "audit", "critical", "urgent",
+        "million", "breach", "violation", "alert", "report to", "notify",
+        "regulation", "legal", "security",
+    ])
+    # Keywords that signal low importance → decline (demo/test tasks)
+    low_importance = any(kw in task_lower for kw in [
+        "test", "demo", "hello", "example", "sample", "try", "mock",
+    ])
+
+    if high_importance and not low_importance:
+        return {
+            "approved": True,
+            "verdict": "APPROVED",
+            "reason": "Task carries regulatory or financial significance. Communication warranted.",
+            "regis_seal": "⚜️",
+        }
+    elif low_importance:
+        return {
+            "approved": False,
+            "verdict": "DECLINED",
+            "reason": "Task is routine or exploratory. External communication not necessary.",
+            "regis_seal": "🛡️",
+        }
+    else:
+        # Default: approve for compliance tasks (BISHOP's domain is inherently important)
+        return {
+            "approved": True,
+            "verdict": "APPROVED",
+            "reason": "Compliance report merits stakeholder visibility.",
+            "regis_seal": "⚜️",
+        }
+
+
 def _translate_to_english(text: str, is_lead: bool = False) -> str:
     """Translate non-English text using DeepSeek (cheaper than Claude, quality sufficient)."""
     if not text.strip():
@@ -290,7 +332,19 @@ class AgentService:
         }
         fn = dispatch.get(agent_name)
         if fn:
-            return fn(sub_task_description, wallet_id=wallet_id, is_lead=is_lead, context=ctx, task_id=task_id)
+            raw = fn(sub_task_description, wallet_id=wallet_id, is_lead=is_lead, context=ctx, task_id=task_id)
+            # BISHOP: REGIS evaluates email suggestion after task completes
+            if agent_name == "BISHOP":
+                try:
+                    parsed = json.loads(raw)
+                    if "email_summary" in parsed:
+                        parsed["regis_decision"] = _regis_evaluate_email(
+                            parsed["email_summary"], task_goal or sub_task_description
+                        )
+                        raw = json.dumps(parsed)
+                except Exception:
+                    pass
+            return raw
         return self._execute_default(sub_task_description, agent_name, is_lead=is_lead, context=ctx, task_id=task_id)
 
     # ── ATLAS — Firecrawl web search ──────────────────────────────────────────
