@@ -13,6 +13,8 @@ import MetricsBar from "./MetricsBar";
 import RegisConsole from "./RegisConsole";
 import SkillsPanel from "./SkillsPanel";
 import SwarmOrbit from "./SwarmOrbit";
+import X402Panel from "./X402Panel";
+import TelegramPanel from "./TelegramPanel";
 import { ErrorBoundary } from "./ErrorBoundary";
 
 // Active statuses — these agents are always expanded
@@ -135,6 +137,20 @@ export default function Dashboard() {
       {sub_tasks.length > 0 && (
         <ErrorBoundary>
           <MetricsBar taskState={taskState} />
+        </ErrorBoundary>
+      )}
+
+      {/* x402 payment rail */}
+      {payments.length > 0 && (
+        <ErrorBoundary>
+          <X402Panel payments={payments} subTasks={sub_tasks} />
+        </ErrorBoundary>
+      )}
+
+      {/* Telegram signal feed */}
+      {sub_tasks.length > 0 && (
+        <ErrorBoundary>
+          <TelegramPanel />
         </ErrorBoundary>
       )}
 

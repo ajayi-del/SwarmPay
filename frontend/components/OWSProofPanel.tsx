@@ -4,6 +4,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { SubTask, Payment } from "@/lib/api";
 import { useModeStore } from "@/lib/modeStore";
+import { useSolRate } from "@/lib/useSolRate";
 
 /* ── Helpers ─────────────────────────────────────────────────────────── */
 
@@ -95,6 +96,7 @@ interface Props {
 export default function OWSProofPanel({ subTask, payment }: Props) {
   const [open, setOpen] = useState(false);
   const { mode } = useModeStore();
+  const { toSol } = useSolRate();
   const isOffice = mode === "office";
 
   const rules = buildRules(payment);
@@ -191,6 +193,17 @@ export default function OWSProofPanel({ subTask, payment }: Props) {
                   <span style={{ color: "var(--text-dim)", minWidth: 80 }}>api_key_id</span>
                   <span style={{ color: "var(--text)" }}>{keyId}</span>
                 </div>
+                {subTask.budget_allocated > 0 && (
+                  <div className="flex gap-2">
+                    <span style={{ color: "var(--text-dim)", minWidth: 80 }}>budget_cap</span>
+                    <span style={{ color: "#9945FF", fontWeight: 600 }}>
+                      {toSol(subTask.budget_allocated, 4)}
+                      <span style={{ color: "var(--text-dim)", fontWeight: 400, marginLeft: 4 }}>
+                        ({subTask.budget_allocated.toFixed(2)} USDC)
+                      </span>
+                    </span>
+                  </div>
+                )}
                 {(isSigned || isBlocked) && (
                   <div className="flex gap-2">
                     <span style={{ color: "var(--text-dim)", minWidth: 80 }}>sign_hash</span>
