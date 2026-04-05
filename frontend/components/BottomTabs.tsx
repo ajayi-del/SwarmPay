@@ -16,7 +16,6 @@ import SwarmPanel from "./SwarmPanel";
 interface Props {
   payments: Payment[];
   subTasks: SubTask[];
-  taskStatus: string;
 }
 
 type Tab = "x402" | "sovereignty" | "orbit" | "signal" | "swarm";
@@ -29,7 +28,7 @@ const TABS: { id: Tab; label: string; dot?: string }[] = [
   { id: "swarm",       label: "SWARM",       dot: "#a78bfa" },
 ];
 
-export default function BottomTabs({ payments, subTasks, taskStatus }: Props) {
+export default function BottomTabs({ payments, subTasks }: Props) {
   const [active, setActive] = useState<Tab>("x402");
 
   return (
