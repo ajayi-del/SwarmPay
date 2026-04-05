@@ -39,8 +39,19 @@ logging.basicConfig(
 logger = logging.getLogger("swarmpay")
 
 # ── Rate limiter ───────────────────────────────────────────────────────────────
+# Railway (and most PaaS) reverse proxies forward the real client IP in
+# X-Forwarded-For. slowapi's get_remote_address reads request.client.host which
+# is the proxy's IP — all clients would share one bucket. Use
+# X-Forwarded-For header instead so each real client IP gets its own limit.
 
-limiter = Limiter(key_func=get_remote_address, default_limits=["60/minute"])
+def _real_client_ip(request) -> str:
+    forwarded_for = request.headers.get("x-forwarded-for", "")
+    if forwarded_for:
+        # X-Forwarded-For can be a comma-separated list; first is the client
+        return forwarded_for.split(",")[0].strip()
+    return get_remote_address(request)
+
+limiter = Limiter(key_func=_real_client_ip, default_limits=["60/minute"])
 
 
 # ── Startup validation ─────────────────────────────────────────────────────────

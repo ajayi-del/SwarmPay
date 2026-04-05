@@ -45,7 +45,7 @@ class PocketBaseService:
         try:
             response = self.client.post(f"/api/collections/{collection}/records", json=data)
             if not response.is_success:
-                print(f"PocketBase create error in {collection}: {response.status_code} {response.text}")
+                logger.error("PocketBase create error in %s: %s %s", collection, response.status_code, response.text)
             response.raise_for_status()
             return response.json()
         except httpx.HTTPError as e:
@@ -91,7 +91,7 @@ class PocketBaseService:
             response.raise_for_status()
             return response.json()
         except httpx.HTTPError as e:
-            print(f"PocketBase update error in {collection}: {e}")
+            logger.error("PocketBase update error in %s: %s", collection, e)
             raise
     
     def delete(self, collection: str, record_id: str) -> bool:
@@ -101,7 +101,7 @@ class PocketBaseService:
             response.raise_for_status()
             return True
         except httpx.HTTPError as e:
-            print(f"PocketBase delete error in {collection}: {e}")
+            logger.error("PocketBase delete error in %s: %s", collection, e)
             return False
     
     # ── Reputation ────────────────────────────────────────────────────────
@@ -129,7 +129,7 @@ class PocketBaseService:
             })
             return default
         except Exception as e:
-            print(f"[rep] get error for {agent_id}: {e}")
+            logger.error("[rep] get error for %s: %s", agent_id, e)
             return self._REP_DEFAULTS.get(agent_id, 3.0)
 
     def update_reputation(self, agent_id: str, delta: float) -> float:
@@ -151,7 +151,7 @@ class PocketBaseService:
             })
             return new_rep
         except Exception as e:
-            print(f"[rep] update error for {agent_id}: {e}")
+            logger.error("[rep] update error for %s: %s", agent_id, e)
             return self._REP_DEFAULTS.get(agent_id, 3.0)
 
     def get_all_reputations(self) -> Dict[str, float]:
@@ -160,7 +160,7 @@ class PocketBaseService:
             records = self.list("agent_reputation", limit=20)
             return {r["agent_id"]: float(r["current_reputation"]) for r in records}
         except Exception as e:
-            print(f"[rep] get_all error: {e}")
+            logger.error("[rep] get_all error: %s", e)
             return dict(self._REP_DEFAULTS)
 
     # ── Full task ──────────────────────────────────────────────────────────
@@ -188,7 +188,7 @@ class PocketBaseService:
                 "reputations": self.get_all_reputations(),
             }
         except Exception as e:
-            print(f"Error getting full task: {e}")
+            logger.error("Error getting full task %s: %s", task_id, e)
             raise
 
 # Data models for type safety

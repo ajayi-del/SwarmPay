@@ -181,6 +181,8 @@ async def submit_task(request: Request, body: TaskSubmitRequest):
 
         return TaskSubmitResponse(task_id=task_record["id"], coordinator_wallet=wallet_record)
 
+    except (HTTPException, ValueError):
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to submit task: {str(e)}")
 
@@ -265,6 +267,8 @@ async def decompose_task(request: Request, body: TaskDecomposeRequest):
 
         return TaskDecomposeResponse(sub_tasks=sub_tasks, agent_wallets=agent_wallets)
 
+    except (HTTPException, ValueError):
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to decompose task: {str(e)}")
 
@@ -274,8 +278,11 @@ async def decompose_task(request: Request, body: TaskDecomposeRequest):
 async def execute_task(request: Request, body: TaskExecuteRequest, background_tasks: BackgroundTasks):
     """Kick off parallel execution in the background."""
     try:
+        _validate_record_id(body.task_id)   # guard before handing to background task
         background_tasks.add_task(execute_task_background, body.task_id)
         return TaskExecuteResponse(status="running")
+    except (HTTPException, ValueError):
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to start execution: {str(e)}")
 
