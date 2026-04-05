@@ -20,13 +20,14 @@ from services.meteora_service import get_sol_usdc_rate
 from services.moonpay_service import get_onramp_info
 
 
-async def _notify(message: str) -> None:
-    """Non-blocking Telegram notification for all REGIS governance events."""
+async def _notify(event_type: str, message: str) -> None:
+    """Send gated Telegram notification for REGIS governance events."""
     try:
-        from services.telegram_service import send, ALLOWED_CHAT_ID
-        await send(ALLOWED_CHAT_ID, message)
+        from services.telegram_service import notify_event
+        await notify_event(event_type, message)
     except Exception as exc:
-        print(f"[regis tg] {exc}")
+        import logging
+        logging.getLogger("swarmpay.regis").debug("[regis tg] %s", exc)
 
 router = APIRouter(prefix="/regis", tags=["regis"])
 
@@ -83,12 +84,9 @@ async def probe_regis(request: ProbeRequest):
 
         await asyncio.to_thread(brain_service.append_probe, request.question, answer)
 
-        # Notify: REGIS was interrogated
-        await _notify(
-            f"🔍 REGIS INTERROGATED\n"
-            f"────────────────────\n"
-            f"Q: {request.question[:100]}\n"
-            f"A: {answer[:200]}"
+        # Probes are routine — no notification
+        await _notify("_suppress",
+            f"🔍 PROBE\nQ: {request.question[:100]}\nA: {answer[:200]}"
         )
 
         return {"response": answer}
@@ -156,7 +154,9 @@ async def audit_regis():
             f"Rep: +{rep_delta:.1f}★ (rewarded)" if rep_delta > 0
             else (f"Rep: {rep_delta:.1f}★ (penalised)" if rep_delta < 0 else "Rep: unchanged")
         )
-        await _notify(
+        # Only notify on audit FAILED (score < 50)
+        event = "audit_failed" if score < 50 else "_suppress"
+        await _notify(event,
             f"{verdict_icon} REGIS AUDIT — {verdict}\n"
             f"──────────────────────────\n"
             f"Score: {score}/100\n"
@@ -252,7 +252,7 @@ async def punish_regis(request: PunishRequest):
         elif "report" in result:
             extra = f"\n{result['report'][:150]}"
 
-        await _notify(
+        await _notify("punish_applied",
             f"{punishment_icon}\n"
             f"────────────────────────────\n"
             f"REGIS: \"{regis_response[:200]}\""

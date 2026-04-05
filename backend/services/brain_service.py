@@ -42,12 +42,18 @@ class BrainService:
                 return "# REGIS SOVEREIGN BRAIN\n## Event Log\n"
 
     def append(self, section: str, content: str):
-        """Append a single timestamped line to the Event Log."""
+        """Append a single timestamped line to the Event Log. Never raises."""
         now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
         line = f"[{now}] [{section}] {content}\n"
-        with _LOCK:
-            with open(self.path, "a", encoding="utf-8") as f:
-                f.write(line)
+        try:
+            with _LOCK:
+                with open(self.path, "a", encoding="utf-8") as f:
+                    f.write(line)
+        except OSError as exc:
+            import logging
+            logging.getLogger("swarmpay.brain").error(
+                "Brain write failed (section=%s): %s", section, exc
+            )
 
     # ── High-level update helpers ─────────────────────────────────────
 

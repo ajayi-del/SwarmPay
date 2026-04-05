@@ -1,82 +1,158 @@
 """
-REGIS Telegram Bot — SwarmPay sovereign intelligence on Telegram.
+REGIS Telegram Bot — SwarmPay field commander interface.
 
-Uses raw Telegram Bot API via httpx long-polling — no extra libraries.
-Runs as an asyncio background task inside the FastAPI process.
+Philosophy: Telegram speaks only on signal events.
+Every message is actionable or confirmatory. Silence during routine operations.
 
-Commands
-────────
-/start                 — character greeting
-/balance               — coordinator treasury balance
-/status                — latest task status
-/tasks                 — 5 most recent tasks
-/submit <description>  — launch a new swarm task (budget defaults to 15)
-/probe <question>      — ask REGIS anything from brain context
-/brain                 — last 10 brain entries
-/reputations           — live agent rep scores
-/audit                 — run REGIS governance audit
-/solana                — Solana devnet wallet info + balances
-/ows                   — OWS wallet permissions and policy info
-/moonpay [amount]      — generate Moonpay onramp URL
-/model                 — show current model routing (Claude vs DeepSeek)
-/dryrun                — switch to dry run mode (mock transactions)
-/live                  — switch to live mode (real Solana devnet)
-/help                  — command list
+Notification Gate:
+  Signal events  → always send (payment_blocked, task_complete, dead_mans_switch,
+                   x402_confirmed, challenge_result, punish_applied)
+  Routine events → always suppressed (agent_spawned, wallet_created, peer_payment,
+                   payment_signed, task_submitted, backend_started)
 
-Any plain text → REGIS in-character probe response.
+Commands:
+  /start          — welcome
+  /help           — command list
+  /deploy <task> budget:<amount>  — launch swarm, fire & forget, one completion msg
+  /status         — latest task summary
+  /probe <q>      — ask REGIS anything
+  /audit          — run governance audit
+  /punish <type>  — slash | demote | report
+  /fund <amount>  — MoonPay fiat → SOL link
+  /treasury       — REGIS brain summary
+  /economy        — swarm efficiency stats
+  /logs [n]       — recent audit events
+  /agents         — agent roster + rep + status
+  /reputations    — live rep scores
+  /lock <AGENT>   — suspend agent
+  /unlock <AGENT> — reactivate agent
+  /locked         — list suspended agents
+  /challenge <N>  — challenge REGIS for coordinator
+  /solana         — Solana devnet wallets
+  /ows            — OWS wallet permissions
+  /moonpay [amt]  — alias for /fund
+  /model          — current model routing
+  /dryrun         — switch to dry run mode
+  /live           — switch to live mode
+  /brain          — recent REGIS memory
+  Any plain text  — REGIS in-character probe
 """
 
 import asyncio
 import json
+import logging
 import os
 import time
 import traceback
-from typing import Any, Optional
+from typing import Any, Dict, Optional
+from urllib.parse import urlencode
 
 import httpx
-from anthropic import Anthropic
+
+logger = logging.getLogger("swarmpay.telegram")
 
 TELEGRAM_TOKEN  = os.environ.get("TELEGRAM_BOT_TOKEN", "")
-ALLOWED_CHAT_ID = int(os.environ.get("TELEGRAM_CHAT_ID", "7102469944"))
+ALLOWED_CHAT_ID = int(os.environ.get("TELEGRAM_CHAT_ID", "0"))
 BACKEND_URL     = os.environ.get("BACKEND_URL", "http://localhost:8000")
-ANTHROPIC_KEY   = os.environ.get("ANTHROPIC_API_KEY", "")
+MOONPAY_API_KEY = os.environ.get("MOONPAY_API_KEY", "")
 
 _TG_API = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
 
-REGIS_SYSTEM = (
-    "You are REGIS, sovereign monarch and treasury coordinator of the SwarmPay "
-    "multi-agent economy. You have perfect memory of every decision — every payment "
-    "signed or blocked, every agent's performance record, every punishment received. "
-    "You are responding via Telegram — be concise (max 3 sentences), authoritative, "
-    "slightly cold, and precise. Use no markdown headers. Use plain text only. "
-    "If asked about numbers, give exact figures."
-)
+
+# ── Notification Gate ──────────────────────────────────────────────────────────
+
+class _NotificationGate:
+    """
+    Filters backend events to Telegram.
+    Only signal events are forwarded. Cooldown prevents spam per event type.
+    """
+    SIGNAL_EVENTS = {
+        "payment_blocked",
+        "task_complete",
+        "dead_mans_switch",
+        "x402_confirmed",
+        "challenge_result",
+        "moonpay_received",
+        "punish_applied",
+        "task_failed",
+    }
+    COOLDOWN_SECONDS = 30
+
+    def __init__(self):
+        self._cooldowns: Dict[str, float] = {}
+
+    def should_notify(self, event_type: str) -> bool:
+        if event_type not in self.SIGNAL_EVENTS:
+            return False
+        now = time.time()
+        last = self._cooldowns.get(event_type, 0)
+        if now - last < self.COOLDOWN_SECONDS:
+            return False
+        self._cooldowns[event_type] = now
+        return True
+
+
+_gate = _NotificationGate()
+
+
+async def notify_event(event_type: str, message: str) -> None:
+    """
+    Called by backend services to fire a Telegram notification.
+    Passes through NotificationGate — only signal events reach Telegram.
+    Never raises.
+    """
+    if not _gate.should_notify(event_type):
+        return
+    await send(ALLOWED_CHAT_ID, message)
+
 
 # ── HTTP helpers ───────────────────────────────────────────────────────────────
 
 async def _tg(method: str, **kwargs) -> dict:
-    """Call a Telegram Bot API method."""
+    """Call a Telegram Bot API method. Never raises."""
     if not TELEGRAM_TOKEN:
         return {}
-    async with httpx.AsyncClient(timeout=10.0) as c:
-        r = await c.post(f"{_TG_API}/{method}", json=kwargs)
-        return r.json() if r.is_success else {}
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as c:
+            r = await c.post(f"{_TG_API}/{method}", json=kwargs)
+            return r.json() if r.is_success else {}
+    except Exception as exc:
+        logger.debug("[tg] %s failed: %s", method, exc)
+        return {}
 
 
 async def _backend(path: str, method: str = "GET", body: dict = None) -> dict:
-    """Call the SwarmPay backend."""
-    async with httpx.AsyncClient(timeout=30.0) as c:
-        if method == "POST":
-            r = await c.post(f"{BACKEND_URL}{path}", json=body or {})
-        else:
-            r = await c.get(f"{BACKEND_URL}{path}")
-        return r.json() if r.is_success else {}
+    """Call the SwarmPay backend. Never raises — returns {} on failure."""
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as c:
+            if method == "POST":
+                r = await c.post(f"{BACKEND_URL}{path}", json=body or {})
+            else:
+                r = await c.get(f"{BACKEND_URL}{path}")
+            return r.json() if r.is_success else {}
+    except Exception as exc:
+        logger.debug("[backend] %s %s failed: %s", method, path, exc)
+        return {}
+
+
+async def _pb(path: str) -> dict:
+    """Query PocketBase directly (separate from FastAPI backend)."""
+    pb_url = os.environ.get("POCKETBASE_URL", "http://localhost:8090")
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as c:
+            r = await c.get(f"{pb_url}{path}")
+            return r.json() if r.is_success else {}
+    except Exception as exc:
+        logger.debug("[pb] %s failed: %s", path, exc)
+        return {}
 
 
 async def send(chat_id: int, text: str, parse_mode: str = "") -> None:
-    """Send a Telegram message, auto-split if > 4000 chars."""
+    """Send a Telegram message, auto-split if > 4000 chars. Never raises."""
+    if not TELEGRAM_TOKEN or not chat_id:
+        return
     max_len = 4000
-    chunks = [text[i:i+max_len] for i in range(0, len(text), max_len)]
+    chunks = [text[i:i + max_len] for i in range(0, max(len(text), 1), max_len)]
     for chunk in chunks:
         payload: dict[str, Any] = {"chat_id": chat_id, "text": chunk}
         if parse_mode:
@@ -88,9 +164,11 @@ async def send(chat_id: int, text: str, parse_mode: str = "") -> None:
 
 async def cmd_start(chat_id: int):
     await send(chat_id,
-        "I am REGIS. Sovereign coordinator of the SwarmPay agent economy.\n\n"
-        "I sign payments, block violations, punish misconduct, and remember everything.\n\n"
-        "Use /help to see what I can do for you. Choose your words carefully."
+        "REGIS SOVEREIGN BRAIN — Command Terminal\n"
+        "SwarmPay Agent Economy v2.0\n\n"
+        "I sign payments, block violations, punish misconduct,\n"
+        "and remember everything.\n\n"
+        "Type /help for commands."
     )
 
 
@@ -98,47 +176,407 @@ async def cmd_help(chat_id: int):
     await send(chat_id,
         "REGIS Command Registry\n"
         "──────────────────────\n"
-        "/balance          — treasury status\n"
-        "/status           — latest task\n"
-        "/tasks            — 5 recent tasks\n"
-        "/submit <task>    — launch new swarm\n"
-        "/probe <question> — consult REGIS\n"
-        "/brain            — recent memory\n"
-        "/reputations      — agent scores with quality\n"
-        "/audit            — governance audit\n"
+        "/deploy <task> budget:<amt>  — launch swarm\n"
+        "/status                      — latest task\n"
+        "/probe <question>            — consult REGIS\n"
+        "/audit                       — governance audit\n"
+        "/punish slash|demote|report  — punish REGIS\n"
+        "/fund <usd_amount>           — MoonPay onramp\n"
+        "/treasury                    — REGIS brain summary\n"
+        "/economy                     — swarm efficiency\n"
+        "/logs [n]                    — recent audit events\n"
+        "/agents                      — agent roster + rep\n"
         "──── Agent Control ────\n"
-        "/lock <AGENT>     — suspend agent (skip spawning)\n"
-        "/unlock <AGENT>   — reactivate agent\n"
-        "/locked           — show suspended agents\n"
-        "/challenge <NAME> — challenge REGIS for coordinator\n"
+        "/lock <AGENT>                — suspend agent\n"
+        "/unlock <AGENT>              — reactivate agent\n"
+        "/locked                      — suspended agents\n"
+        "/challenge <AGENT>           — challenge REGIS\n"
         "──── Infrastructure ───\n"
-        "/solana           — Solana devnet wallets\n"
-        "/ows              — OWS wallet permissions\n"
-        "/moonpay [amt]    — fiat → SOL onramp URL\n"
-        "/model            — model routing info\n"
-        "/dryrun           — switch to dry run mode\n"
-        "/live             — switch to live mode\n"
-        "/help             — this list\n\n"
-        "Or send any message to speak directly with REGIS."
+        "/reputations                 — live rep scores\n"
+        "/solana                      — Solana wallets\n"
+        "/ows                         — OWS permissions\n"
+        "/moonpay [amt]               — onramp link\n"
+        "/brain                       — recent memory\n"
+        "/model                       — model routing\n"
+        "/dryrun  /live               — mode toggle\n"
+        "\nOr send any text to speak with REGIS."
     )
+
+
+async def cmd_deploy(chat_id: int, args: str):
+    """
+    /deploy <task description> budget:<amount>
+    Fire and forget — one completion signal when done.
+    """
+    # Parse description and budget
+    description = args.strip()
+    budget = 15.0
+    if "budget:" in description.lower():
+        parts = description.lower().split("budget:")
+        try:
+            budget = float(parts[-1].strip().split()[0])
+        except ValueError:
+            pass
+        description = description[:description.lower().rfind("budget:")].strip()
+
+    if not description:
+        await send(chat_id, "Usage: /deploy Research DeFi trends budget:10")
+        return
+
+    await send(chat_id,
+        f"⚔ SWARM DEPLOYING\n"
+        f"─────────────────\n"
+        f"Task: {description[:80]}\n"
+        f"Budget: {budget} USDC\n"
+        f"Agents selected autonomously by REGIS.\n"
+        f"Executing silently — you will be notified on completion."
+    )
+
+    try:
+        r1 = await _backend("/task/submit", "POST", {"description": description, "budget": budget})
+        task_id = r1.get("task_id")
+        if not task_id:
+            await send(chat_id, f"Submit failed: no task_id returned.")
+            return
+
+        r2 = await _backend("/task/decompose", "POST", {"task_id": task_id})
+        if not r2.get("sub_tasks"):
+            await send(chat_id, f"Decompose failed. Task ID: {task_id}")
+            return
+
+        # Fire execute — don't await the completion
+        asyncio.create_task(_backend("/task/execute", "POST", {"task_id": task_id}))
+
+    except Exception as exc:
+        await send(chat_id, f"Deploy error: {exc}")
+
+
+async def cmd_status(chat_id: int, args: str = ""):
+    """Show latest (or specific) task status."""
+    try:
+        task_id = args.strip() if args.strip() else None
+
+        if not task_id:
+            r = await _pb("/api/collections/tasks/records?sort=-created&perPage=1")
+            items = r.get("items", [])
+            if not items:
+                await send(chat_id, "No tasks found. Use /deploy <task> to start one.")
+                return
+            task_id = items[0].get("id")
+
+        full = await _backend(f"/task/{task_id}/status")
+        t    = full.get("task", {})
+        subs = full.get("sub_tasks", [])
+
+        lines = [
+            "SWARM STATUS",
+            f"Task: {str(t.get('description',''))[:60]}",
+            f"─────────────────",
+        ]
+        status_icons = {
+            "paid": "✓", "complete": "✓", "working": "⟳",
+            "spawned": "◎", "blocked": "✗", "failed": "✗",
+            "timed_out": "⏱",
+        }
+        total_paid = 0.0
+        for st in subs:
+            agent  = st.get("agent_id", "?")
+            status = st.get("status", "?")
+            icon   = status_icons.get(status, "?")
+            bud    = float(st.get("budget_allocated", 0))
+            total_paid += bud if status == "paid" else 0
+            lines.append(f"  {agent:8} {icon} {status.upper():10}  {bud:.3f} USDC")
+
+        lines += [
+            f"─────────────────",
+            f"Status:  {t.get('status','?').upper()}",
+            f"Budget:  {t.get('total_budget', 0)} USDC",
+        ]
+        await send(chat_id, "\n".join(lines))
+    except Exception as exc:
+        await send(chat_id, f"Status query failed: {exc}")
+
+
+async def cmd_probe(chat_id: int, question: str):
+    if not question.strip():
+        await send(chat_id, "Usage: /probe <your question>")
+        return
+    try:
+        r = await _backend("/regis/probe", "POST", {"question": question})
+        answer = r.get("answer") or r.get("response") or "No answer."
+        await send(chat_id, f"👑 REGIS:\n{answer}")
+    except Exception as exc:
+        await send(chat_id, f"Probe failed: {exc}")
+
+
+async def cmd_audit(chat_id: int):
+    await send(chat_id, "Running REGIS governance audit…")
+    try:
+        r = await _backend("/regis/audit", "POST", {})
+        score   = r.get("score", 0)
+        verdict = r.get("verdict", "?")
+        delta   = r.get("rep_delta", 0)
+        reason  = r.get("reason", "")
+        icon    = "✅" if verdict == "PASSED" else ("⚠️" if verdict == "MARGINAL" else "❌")
+        await send(chat_id,
+            f"⚖️ AUDIT COMPLETE\n"
+            f"─────────────────\n"
+            f"{icon} Score:   {score}/100 — {verdict}\n"
+            f"Rep Δ:   {'+' if delta >= 0 else ''}{delta:.1f}★\n"
+            f"Finding: {reason[:200]}"
+        )
+    except Exception as exc:
+        await send(chat_id, f"Audit failed: {exc}")
+
+
+async def cmd_punish(chat_id: int, args: str):
+    """
+    /punish slash|demote|report
+    """
+    ptype_map = {
+        "slash": "slash_treasury",
+        "demote": "demote_reputation",
+        "report": "governance_report",
+    }
+    ptype = ptype_map.get(args.strip().lower(), "")
+    if not ptype:
+        await send(chat_id, "Usage: /punish slash | demote | report")
+        return
+    try:
+        # Get coordinator wallet for slash
+        r_w = await _pb("/api/collections/wallets/records?filter=role%3D'coordinator'&sort=-created&perPage=1")
+        wallets = r_w.get("items", [])
+        wallet_id = wallets[0].get("id") if wallets else None
+
+        payload = {"punishment_type": ptype}
+        if wallet_id and ptype == "slash_treasury":
+            payload["coordinator_wallet_id"] = wallet_id
+
+        r = await _backend("/regis/punish", "POST", payload)
+        regis_response = r.get("response", "REGIS acknowledged.")
+
+        icons = {
+            "slash_treasury":    "⚔️ TREASURY SLASHED",
+            "demote_reputation": "📉 REGIS DEMOTED",
+            "governance_report": "📜 REPORT ORDERED",
+        }
+        await send(chat_id,
+            f"{icons.get(ptype, '🔨 PUNISHMENT')}\n"
+            f"────────────────────────────\n"
+            f"REGIS: \"{regis_response[:300]}\""
+        )
+    except Exception as exc:
+        await send(chat_id, f"Punish failed: {exc}")
+
+
+async def cmd_fund(chat_id: int, args: str):
+    """
+    /fund <amount_usd>
+    Generate MoonPay link to fund REGIS treasury.
+    """
+    try:
+        amount = float(args.strip()) if args.strip() else 20.0
+    except ValueError:
+        amount = 20.0
+
+    try:
+        r = await _pb("/api/collections/wallets/records?filter=role%3D'coordinator'&sort=-created&perPage=1")
+        wallets = r.get("items", [])
+        sol_address = wallets[0].get("sol_address", "") if wallets else ""
+
+        if not sol_address:
+            await send(chat_id,
+                "No active REGIS treasury wallet found.\n"
+                "Launch a task first with /deploy."
+            )
+            return
+
+        # Build MoonPay URL
+        if MOONPAY_API_KEY:
+            base    = "https://buy.moonpay.com"
+            api_key = MOONPAY_API_KEY
+            mode    = "LIVE"
+        else:
+            base    = "https://buy-sandbox.moonpay.com"
+            api_key = "pk_test_key"
+            mode    = "SANDBOX"
+
+        params = {
+            "apiKey":               api_key,
+            "currencyCode":         "usdc_sol",
+            "walletAddress":        sol_address,
+            "baseCurrencyCode":     "usd",
+            "baseCurrencyAmount":   str(amount),
+            "colorCode":            "#a78bfa",
+            "redirectURL":          "https://swarm.pay/funded",
+            "externalTransactionId": f"swarm_{sol_address[:8]}",
+        }
+        url = f"{base}?{urlencode(params)}"
+
+        await send(chat_id,
+            f"💰 FUND REGIS TREASURY [{mode}]\n"
+            f"─────────────────────────────\n"
+            f"Amount:  ${amount:.2f} USD → USDC\n"
+            f"Wallet:  {sol_address[:24]}…\n"
+            f"Network: Solana devnet\n\n"
+            f"Complete the purchase in your browser.\n"
+            f"Treasury will reflect funds on receipt.\n\n"
+            f"{url}"
+        )
+    except Exception as exc:
+        await send(chat_id, f"Fund link failed: {exc}")
+
+
+async def cmd_treasury(chat_id: int):
+    """Parse REGIS brain + wallet to show treasury summary."""
+    try:
+        r = await _backend("/regis/brain")
+        content = r.get("content", "")
+        last_updated = r.get("last_updated", "—")
+
+        # Count entries
+        lines = [l for l in content.splitlines() if l.startswith("[")]
+        task_lines   = [l for l in lines if "TASK_COMPLETE" in l]
+        probe_lines  = [l for l in lines if "PROBE_Q" in l]
+        audit_lines  = [l for l in lines if "AUDIT" in l]
+        punish_lines = [l for l in lines if "PUNISHMENT" in l]
+
+        # Get coordinator wallet
+        r_w = await _pb("/api/collections/wallets/records?filter=role%3D'coordinator'&sort=-created&perPage=1")
+        wallets = r_w.get("items", [])
+        wallet = wallets[0] if wallets else {}
+        balance = float(wallet.get("balance", 0))
+        cap     = float(wallet.get("budget_cap", 0))
+        sol_addr = wallet.get("sol_address", "—")
+
+        await send(chat_id,
+            f"👑 REGIS TREASURY\n"
+            f"─────────────────\n"
+            f"Balance:   {balance:.4f} USDC / {cap:.4f} cap\n"
+            f"SOL:       {sol_addr[:24] if sol_addr != '—' else '—'}…\n"
+            f"Tasks run: {len(task_lines)}\n"
+            f"Probes:    {len(probe_lines)}\n"
+            f"Audits:    {len(audit_lines)}\n"
+            f"Punishments: {len(punish_lines)}\n"
+            f"Last entry: {last_updated or '—'}\n\n"
+            f"Recent:\n" + "\n".join(f"  {l[:100]}" for l in lines[-3:])
+        )
+    except Exception as exc:
+        await send(chat_id, f"Treasury query failed: {exc}")
+
+
+async def cmd_economy(chat_id: int):
+    """GET /swarm/stats → economy summary."""
+    try:
+        r = await _backend("/swarm/stats")
+        signed  = r.get("total_signed", 0)
+        blocked = r.get("total_blocked", 0)
+        total   = signed + blocked
+        pct     = round(signed / total * 100) if total else 0
+        peers   = r.get("peer_count", 0)
+        health  = r.get("health_score", 0)
+        await send(chat_id,
+            f"📊 SWARM ECONOMY\n"
+            f"────────────────\n"
+            f"Health score:  {health}/100\n"
+            f"Tasks run:     {r.get('total_tasks', 0)}\n"
+            f"Payments out:  {signed} signed · {blocked} blocked\n"
+            f"Efficiency:    {pct}%\n"
+            f"Peer txs:      {peers}\n"
+            f"USDC paid:     {r.get('eth_processed', 0):.4f}\n"
+            f"USDC held:     {r.get('eth_held', 0):.4f}\n"
+            f"Avg rep:       {r.get('avg_reputation', 0):.2f}★"
+        )
+    except Exception as exc:
+        await send(chat_id, f"Economy query failed: {exc}")
+
+
+async def cmd_logs(chat_id: int, args: str):
+    """GET /audit?limit=n → event feed."""
+    try:
+        n = int(args.strip()) if args.strip().isdigit() else 5
+        n = min(n, 20)
+        r = await _backend(f"/audit?limit={n}")
+        logs = r.get("logs", [])
+        if not logs:
+            await send(chat_id, "No audit events yet.")
+            return
+        lines = [f"AUDIT LOG (last {len(logs)})\n────────────────────"]
+        for ev in reversed(logs):
+            ts      = str(ev.get("created", ""))[:16].replace("T", " ")
+            etype   = ev.get("event_type", "?")[:18]
+            message = ev.get("message", "")[:60]
+            icon    = {"payment_signed": "✓", "payment_blocked": "✗",
+                       "task_complete": "✅", "dead_mans_switch": "⏱",
+                       "work_complete": "◎", "agent_spawned": "+"}.get(
+                           ev.get("event_type", ""), "·")
+            lines.append(f"[{ts}] {icon} {etype}\n  {message}")
+        await send(chat_id, "\n".join(lines))
+    except Exception as exc:
+        await send(chat_id, f"Logs query failed: {exc}")
+
+
+async def cmd_agents(chat_id: int):
+    """Show all agents with status from latest task."""
+    try:
+        r = await _pb("/api/collections/tasks/records?sort=-created&perPage=1")
+        items = r.get("items", [])
+        if not items:
+            await send(chat_id, "No tasks found.")
+            return
+        task_id = items[0].get("id")
+        full = await _backend(f"/task/{task_id}/status")
+        subs = full.get("sub_tasks", [])
+
+        from services.pocketbase import PocketBaseService
+        pb = PocketBaseService()
+        reps = pb.get_all_reputations()
+
+        lines = ["AGENT ROSTER\n────────────"]
+
+        agent_data = [
+            ("REGIS",  "🇬🇧", "Coordinator", "★★★★★"),
+            ("ATLAS",  "🇩🇪", "Researcher",  ""),
+            ("CIPHER", "🇯🇵", "Analyst",     ""),
+            ("FORGE",  "🇳🇬", "Synthesizer", ""),
+            ("BISHOP", "🇻🇦", "Compliance",  ""),
+            ("SØN",    "🇸🇪", "Heir",        ""),
+        ]
+
+        sub_map = {st["agent_id"]: st for st in subs}
+        status_icons = {"paid": "✓", "complete": "✓", "working": "⟳",
+                        "blocked": "✗", "failed": "✗", "spawned": "◎", "timed_out": "⏱"}
+
+        for name, flag, role, fixed_stars in agent_data:
+            rep = reps.get(name, 3.0) if name != "REGIS" else 5.0
+            stars = fixed_stars or "●" * int(rep) + "○" * (5 - int(rep))
+            sub   = sub_map.get(name)
+            if sub:
+                status = sub.get("status", "?")
+                icon   = status_icons.get(status, "?")
+                bud    = float(sub.get("budget_allocated", 0))
+                lines.append(f"{flag} {name:8} [{role[:10]}]  {stars}  {icon} {status.upper()}  {bud:.3f} USDC")
+            else:
+                lines.append(f"{flag} {name:8} [{role[:10]}]  {stars}  ◌ idle")
+
+        await send(chat_id, "\n".join(lines))
+    except Exception as exc:
+        await send(chat_id, f"Agents query failed: {exc}")
 
 
 async def cmd_balance(chat_id: int):
     try:
-        # Get recent tasks to find coordinator wallet
-        r = await _backend("/api/collections/wallets/records?filter=role%3D'coordinator'&sort=-created&perPage=3",
-                           method="GET")
+        r = await _pb("/api/collections/wallets/records?filter=role%3D'coordinator'&sort=-created&perPage=3")
         wallets = r.get("items", [])
         if not wallets:
             await send(chat_id, "No active treasury found. Launch a task first.")
             return
         w = wallets[0]
-        # Get Meteora rate
         rate_data = await _backend("/regis/meteora")
         rate = rate_data.get("rate")
         sol_addr = w.get("sol_address", "—")
-        balance = float(w.get("balance", 0))
-        budget = float(w.get("budget_cap", 0))
+        balance  = float(w.get("balance", 0))
+        budget   = float(w.get("budget_cap", 0))
         msg = (
             f"TREASURY STATUS\n"
             f"───────────────\n"
@@ -150,200 +588,108 @@ async def cmd_balance(chat_id: int):
         if rate:
             msg += f"SOL/USDC:    {rate} ({rate_data.get('source','')[:20]})\n"
         await send(chat_id, msg)
-    except Exception as e:
-        await send(chat_id, f"Treasury query failed: {e}")
-
-
-async def cmd_status(chat_id: int):
-    try:
-        # Get most recent task via PocketBase
-        r = await _backend("/api/collections/tasks/records?sort=-created&perPage=1")
-        items = r.get("items", [])
-        if not items:
-            await send(chat_id, "No tasks found. Submit one with /submit <description>.")
-            return
-        task = items[0]
-        tid = task.get("id")
-        # Get full task status
-        full = await _backend(f"/task/{tid}/status")
-        t = full.get("task", task)
-        subs = full.get("sub_tasks", [])
-        paid   = sum(1 for s in subs if s.get("status") == "paid")
-        blocked = sum(1 for s in subs if s.get("status") == "blocked")
-        failed  = sum(1 for s in subs if s.get("status") in ("failed","timed_out"))
-        msg = (
-            f"LATEST TASK\n"
-            f"───────────\n"
-            f"ID:          {tid}\n"
-            f"Status:      {t.get('status','?').upper()}\n"
-            f"Description: {str(t.get('description',''))[:60]}\n"
-            f"Budget:      {t.get('total_budget', 0)} USDC\n"
-            f"Agents:      {paid} paid · {blocked} blocked · {failed} failed\n"
-        )
-        await send(chat_id, msg)
-    except Exception as e:
-        await send(chat_id, f"Status query failed: {e}")
-
-
-async def cmd_tasks(chat_id: int):
-    try:
-        r = await _backend("/api/collections/tasks/records?sort=-created&perPage=5")
-        tasks = r.get("items", [])
-        if not tasks:
-            await send(chat_id, "No tasks found.")
-            return
-        lines = ["RECENT TASKS\n────────────"]
-        for t in tasks:
-            desc = str(t.get("description", ""))[:45]
-            status = str(t.get("status", "?")).upper()
-            lines.append(f"{t.get('id','')} · {status}\n  {desc}")
-        await send(chat_id, "\n".join(lines))
-    except Exception as e:
-        await send(chat_id, f"Task list failed: {e}")
-
-
-async def cmd_submit(chat_id: int, description: str):
-    if not description.strip():
-        await send(chat_id, "Usage: /submit <task description>\nExample: /submit Analyze Solana DeFi yields")
-        return
-    await send(chat_id, f"Launching swarm for: {description[:80]}…\nStand by.")
-    try:
-        # Submit
-        r1 = await _backend("/task/submit", "POST", {"description": description, "budget": 15.0})
-        task_id = r1.get("task_id") or r1.get("id")
-        if not task_id:
-            await send(chat_id, f"Submit failed: {r1}")
-            return
-        # Decompose
-        await _backend("/task/decompose", "POST", {"task_id": task_id})
-        # Execute
-        await _backend("/task/execute", "POST", {"task_id": task_id})
-        await send(chat_id,
-            f"SWARM LAUNCHED\n"
-            f"──────────────\n"
-            f"Task ID: {task_id}\n"
-            f"Agents selected by REGIS for this task.\n"
-            f"Use /status to monitor progress."
-        )
-    except Exception as e:
-        await send(chat_id, f"Launch failed: {e}")
-
-
-async def cmd_probe(chat_id: int, question: str):
-    if not question.strip():
-        await send(chat_id, "Usage: /probe <your question>\nExample: /probe Why was FORGE blocked?")
-        return
-    try:
-        r = await _backend("/regis/probe", "POST", {"question": question})
-        answer = r.get("answer") or r.get("response") or "No answer."
-        await send(chat_id, f"REGIS: {answer}")
-    except Exception as e:
-        await send(chat_id, f"Probe failed: {e}")
+    except Exception as exc:
+        await send(chat_id, f"Treasury query failed: {exc}")
 
 
 async def cmd_brain(chat_id: int):
     try:
         r = await _backend("/regis/brain")
-        entries = r.get("entries", [])
-        if not entries:
+        content = r.get("content", "")
+        lines = [l for l in content.splitlines() if l.startswith("[")]
+        if not lines:
             await send(chat_id, "Brain is empty. No tasks completed yet.")
             return
-        lines = ["REGIS BRAIN (last 10)\n─────────────────────"]
-        for e in entries[-10:]:
-            lines.append(e[:120])
-        await send(chat_id, "\n".join(lines))
-    except Exception as e:
-        await send(chat_id, f"Brain query failed: {e}")
+        out = ["REGIS BRAIN (last 10)\n─────────────────────"]
+        for l in lines[-10:]:
+            out.append(l[:120])
+        await send(chat_id, "\n".join(out))
+    except Exception as exc:
+        await send(chat_id, f"Brain query failed: {exc}")
 
 
 async def cmd_reputations(chat_id: int):
     try:
-        r = await _backend("/api/collections/agent_reputation/records?perPage=10")
+        r = await _pb("/api/collections/agent_reputation/records?perPage=10")
         recs = r.get("items", [])
         if not recs:
             await send(chat_id, "No reputation records found.")
             return
         lines = ["AGENT REPUTATIONS\n─────────────────"]
+
         from services.quality_service import get_avg_quality, qualifies_for_challenge
         from services.agent_lock_service import is_locked
 
         def _stars(rep: float) -> str:
-            full = int(rep)
-            half = 1 if rep - full >= 0.5 else 0
+            full  = int(rep)
+            half  = 1 if rep - full >= 0.5 else 0
             empty = 5 - full - half
             return "●" * full + "◐" * half + "○" * empty
 
         for rec in sorted(recs, key=lambda x: -float(x.get("current_reputation", 0))):
             rep  = float(rec.get("current_reputation", 0))
             name = rec.get("agent_id", "?")
-            s    = _stars(rep)
             avg_q = get_avg_quality(name)
-            locked_indicator = " 🔒" if is_locked(name) else ""
-            challenge_indicator = " ⚔" if qualifies_for_challenge(name, rep) else ""
-            lines.append(f"{name:8} {s} {rep:.2f}★  q:{avg_q:.1f}/10{locked_indicator}{challenge_indicator}")
-        lines.append("\n⚔ = eligible to challenge REGIS")
-        lines.append("🔒 = locked (use /unlock NAME)")
+            lock_icon      = " 🔒" if is_locked(name) else ""
+            challenge_icon = " ⚔" if qualifies_for_challenge(name, rep) else ""
+            lines.append(f"{name:8} {_stars(rep)} {rep:.2f}★  q:{avg_q:.1f}/10{lock_icon}{challenge_icon}")
+        lines += ["\n⚔ = eligible to challenge REGIS", "🔒 = locked (use /unlock NAME)"]
         await send(chat_id, "\n".join(lines))
-    except Exception as e:
-        await send(chat_id, f"Reputation query failed: {e}")
+    except Exception as exc:
+        await send(chat_id, f"Reputation query failed: {exc}")
 
 
-async def cmd_audit(chat_id: int):
-    await send(chat_id, "Running REGIS governance audit…")
+async def cmd_tasks_list(chat_id: int):
     try:
-        r = await _backend("/regis/audit", "POST", {"wallet_id": "coordinator"})
-        score = r.get("score", 0)
-        verdict = r.get("verdict", "No verdict.")
-        delta = r.get("reputation_delta", 0)
-        await send(chat_id,
-            f"AUDIT COMPLETE\n"
-            f"──────────────\n"
-            f"Score:   {score}/100\n"
-            f"Rep Δ:   {'+' if delta >= 0 else ''}{delta}\n"
-            f"Verdict: {verdict[:200]}"
-        )
-    except Exception as e:
-        await send(chat_id, f"Audit failed: {e}")
+        r = await _pb("/api/collections/tasks/records?sort=-created&perPage=5")
+        tasks = r.get("items", [])
+        if not tasks:
+            await send(chat_id, "No tasks found.")
+            return
+        lines = ["RECENT TASKS\n────────────"]
+        for t in tasks:
+            desc   = str(t.get("description", ""))[:45]
+            status = str(t.get("status", "?")).upper()
+            lines.append(f"{t.get('id','')} · {status}\n  {desc}")
+        await send(chat_id, "\n".join(lines))
+    except Exception as exc:
+        await send(chat_id, f"Task list failed: {exc}")
 
 
 async def cmd_solana(chat_id: int):
     try:
-        # Fetch all wallets and show Solana addresses + balances
-        r = await _backend("/api/collections/wallets/records?sort=-created&perPage=10")
+        r = await _pb("/api/collections/wallets/records?sort=-created&perPage=10")
         wallets = r.get("items", [])
         if not wallets:
             await send(chat_id, "No wallets found. Submit a task first.")
             return
         lines = ["SOLANA DEVNET WALLETS\n─────────────────────"]
         for w in wallets[:8]:
-            sol = w.get("sol_address", "—")
+            sol  = w.get("sol_address", "—")
             role = w.get("role", "?").upper()
             name = w.get("name", "?")
             bal  = float(w.get("balance", 0))
             cap  = float(w.get("budget_cap", 0))
             if sol and sol != "—":
-                explorer = f"https://explorer.solana.com/address/{sol}?cluster=devnet"
                 lines.append(
                     f"{name} [{role}]\n"
                     f"  {sol[:20]}…\n"
-                    f"  Balance: {bal:.4f} / Cap: {cap:.2f} USDC\n"
-                    f"  Explorer: {explorer}"
+                    f"  Balance: {bal:.4f} / Cap: {cap:.2f} USDC"
                 )
-        # Current SOL/USDC rate
         rate_data = await _backend("/regis/meteora")
         if rate_data.get("rate"):
             lines.append(f"\nSOL/USDC: {rate_data['rate']} ({rate_data.get('source','')})")
         await send(chat_id, "\n".join(lines))
-    except Exception as e:
-        await send(chat_id, f"Solana query failed: {e}")
+    except Exception as exc:
+        await send(chat_id, f"Solana query failed: {exc}")
 
 
 async def cmd_ows(chat_id: int):
     try:
-        r = await _backend("/api/collections/wallets/records?sort=-created&perPage=10")
+        r = await _pb("/api/collections/wallets/records?sort=-created&perPage=10")
         wallets = r.get("items", [])
         if not wallets:
-            await send(chat_id, "No OWS wallets found. Submit a task first.")
+            await send(chat_id, "No OWS wallets found.")
             return
         lines = ["OWS WALLET PERMISSIONS\n──────────────────────"]
         for w in wallets[:8]:
@@ -356,54 +702,15 @@ async def cmd_ows(chat_id: int):
             status  = "✗ REVOKED" if revoked else "✓ ACTIVE"
             lines.append(
                 f"{name} [{role}] {status}\n"
-                f"  Addr: {eth[:16]}…\n"
-                f"  Cap: {cap:.4f} USDC\n"
-                f"  Key: {str(api_key)[:20]}…"
+                f"  Addr: {eth[:16]}…  Cap: {cap:.4f} USDC"
             )
         lines.append(
-            "\nPolicy Engine:\n"
-            "  Rep gate → Budget cap → Coordinator auth → No double-pay\n"
-            "  5★=$10 · 4★=$2 · 3★=$1 · 2★=$0.50 limits"
+            "\nPolicy: Rep gate → Budget cap → No double-pay\n"
+            "  5★=$10 · 4★=$2 · 3★=$1 · 2★=$0.50"
         )
         await send(chat_id, "\n".join(lines))
-    except Exception as e:
-        await send(chat_id, f"OWS query failed: {e}")
-
-
-async def cmd_moonpay(chat_id: int, args: str):
-    try:
-        # Get most recent coordinator wallet's SOL address
-        r = await _backend("/api/collections/wallets/records?filter=role%3D'coordinator'&sort=-created&perPage=1")
-        wallets = r.get("items", [])
-        sol_address = wallets[0].get("sol_address", "") if wallets else ""
-
-        # Parse optional amount
-        try:
-            amount = float(args.strip()) if args.strip() else 20.0
-        except ValueError:
-            amount = 20.0
-
-        if sol_address:
-            from services.moonpay_service import get_onramp_info
-            info = get_onramp_info(sol_address)
-            url  = info["url"]
-            mode = info["mode"].upper()
-            note = info["note"]
-        else:
-            url  = "No active SOL wallet. Submit a task first."
-            mode = "N/A"
-            note = "Submit a task to generate a wallet."
-
-        await send(chat_id,
-            f"MOONPAY ONRAMP [{mode}]\n"
-            f"──────────────────────\n"
-            f"Amount: ${amount:.2f} USD → SOL\n"
-            f"Wallet: {sol_address[:24] if sol_address else '—'}…\n"
-            f"Note:   {note}\n\n"
-            f"{url}"
-        )
-    except Exception as e:
-        await send(chat_id, f"Moonpay query failed: {e}")
+    except Exception as exc:
+        await send(chat_id, f"OWS query failed: {exc}")
 
 
 async def cmd_model(chat_id: int):
@@ -413,15 +720,14 @@ async def cmd_model(chat_id: int):
         await send(chat_id,
             f"MODEL ROUTING\n"
             f"─────────────\n"
-            f"Lead agents:    {info['lead_model']}\n"
-            f"Support agents: {info['support_model']}\n"
-            f"DeepSeek:       {'✓ ENABLED' if info['deepseek_enabled'] else '✗ KEY MISSING'}\n"
-            f"Endpoint:       {info['deepseek_base']}\n\n"
-            "Lead agent → Claude (complex reasoning)\n"
-            "Support agents → DeepSeek (routine tasks, ~80% cheaper)"
+            f"Primary:    {info['primary_model']}\n"
+            f"Governance: {info['governance_model']}\n"
+            f"DeepSeek:   {'✓ ENABLED' if info['deepseek_enabled'] else '✗ KEY MISSING'}\n"
+            f"Endpoint:   {info['deepseek_base']}\n\n"
+            f"{info['note']}"
         )
-    except Exception as e:
-        await send(chat_id, f"Model info failed: {e}")
+    except Exception as exc:
+        await send(chat_id, f"Model info failed: {exc}")
 
 
 async def cmd_lock(chat_id: int, args: str):
@@ -434,19 +740,13 @@ async def cmd_lock(chat_id: int, args: str):
         if name not in VALID_AGENTS:
             await send(chat_id, f"Unknown agent: {name}\nValid: {', '.join(VALID_AGENTS)}")
             return
-        newly_locked = lock_agent(name, f"Locked via Telegram by authorized user")
+        newly_locked = lock_agent(name, "Locked via Telegram")
         if newly_locked:
-            await send(chat_id,
-                f"🔒 {name} LOCKED\n"
-                f"─────────────\n"
-                f"Agent will be skipped in future task analysis.\n"
-                f"Existing tasks are unaffected.\n"
-                f"Use /unlock {name} to reactivate."
-            )
+            await send(chat_id, f"🔒 {name} LOCKED\n{name} will be skipped in future tasks.\nUse /unlock {name} to reactivate.")
         else:
             await send(chat_id, f"{name} is already locked.")
-    except Exception as e:
-        await send(chat_id, f"Lock failed: {e}")
+    except Exception as exc:
+        await send(chat_id, f"Lock failed: {exc}")
 
 
 async def cmd_unlock(chat_id: int, args: str):
@@ -461,15 +761,11 @@ async def cmd_unlock(chat_id: int, args: str):
             return
         was_locked = unlock_agent(name)
         if was_locked:
-            await send(chat_id,
-                f"🔓 {name} UNLOCKED\n"
-                f"────────────────\n"
-                f"Agent is active and eligible for future tasks."
-            )
+            await send(chat_id, f"🔓 {name} UNLOCKED\nAgent is active for future tasks.")
         else:
             await send(chat_id, f"{name} was not locked.")
-    except Exception as e:
-        await send(chat_id, f"Unlock failed: {e}")
+    except Exception as exc:
+        await send(chat_id, f"Unlock failed: {exc}")
 
 
 async def cmd_locked(chat_id: int):
@@ -477,21 +773,21 @@ async def cmd_locked(chat_id: int):
         from services.agent_lock_service import get_locked
         locked = get_locked()
         if not locked:
-            await send(chat_id, "No agents are currently locked.\nAll 5 agents are active.")
+            await send(chat_id, "No agents are locked. All 5 are active.")
             return
         lines = ["LOCKED AGENTS\n─────────────"]
         for name, reason in locked.items():
             lines.append(f"🔒 {name}\n  Reason: {reason}")
-        lines.append(f"\nUse /unlock <AGENT> to reactivate.")
+        lines.append("\nUse /unlock <AGENT> to reactivate.")
         await send(chat_id, "\n".join(lines))
-    except Exception as e:
-        await send(chat_id, f"Lock status query failed: {e}")
+    except Exception as exc:
+        await send(chat_id, f"Lock status failed: {exc}")
 
 
 async def cmd_challenge(chat_id: int, args: str):
     challenger = args.strip().upper()
     if not challenger:
-        await send(chat_id, "Usage: /challenge <AGENT>\nExample: /challenge ATLAS")
+        await send(chat_id, "Usage: /challenge <AGENT>")
         return
     try:
         from services.quality_service import qualifies_for_challenge, run_regis_challenge, get_avg_quality
@@ -500,91 +796,54 @@ async def cmd_challenge(chat_id: int, args: str):
             await send(chat_id, f"Unknown agent: {challenger}")
             return
 
-        r = await _backend("/api/collections/agent_reputation/records?perPage=10")
+        r = await _pb("/api/collections/agent_reputation/records?perPage=10")
         recs = r.get("items", [])
-        rep_map = {rec["agent_id"]: float(rec.get("current_reputation", 3.0)) for rec in recs}
+        rep_map = {rec.get("agent_id"): float(rec.get("current_reputation", 3.0)) for rec in recs}
         rep = rep_map.get(challenger, 3.0)
 
         if not qualifies_for_challenge(challenger, rep):
             avg_q = get_avg_quality(challenger)
             await send(chat_id,
-                f"⚔ {challenger} does not yet qualify.\n"
-                f"Requires: avg quality ≥ 8.0 (current: {avg_q:.1f}), rep ≥ 4.5★ (current: {rep:.2f}★), ≥ 3 tasks.\n"
-                f"Keep working — quality compounds."
+                f"⚔ {challenger} does not qualify.\n"
+                f"Needs: avg quality ≥ 8.0 (have {avg_q:.1f}), rep ≥ 4.5★ (have {rep:.2f}★), ≥ 3 tasks."
             )
             return
 
-        await send(chat_id, f"⚔ Challenge initiated: {challenger} vs REGIS…\nConvening tribunal…")
-
+        await send(chat_id, f"⚔ Challenge: {challenger} vs REGIS… convening tribunal.")
         brain_r = await _backend("/regis/brain")
-        brain_content = brain_r.get("content", "")
+        result  = await asyncio.to_thread(run_regis_challenge, challenger, brain_r.get("content", ""))
 
-        result = await asyncio.to_thread(run_regis_challenge, challenger, brain_content)
         winner  = result.get("winner", "REGIS")
         verdict = result.get("verdict", "")
         avg_q   = result.get("challenger_avg", 0)
 
         if winner == challenger:
-            outcome = (
-                f"⚔ THRONE CHANGES HANDS\n"
-                f"──────────────────────\n"
-                f"{challenger} DEFEATS REGIS!\n"
-                f"Quality avg: {avg_q:.1f}/10\n"
-                f"Verdict: {verdict}\n\n"
-                f"REGIS is demoted. {challenger} is now coordinator.\n"
-                f"A new REGIS must be elected from the swarm."
-            )
+            msg = (f"👑 THRONE CHANGES HANDS\n{challenger} DEFEATS REGIS!\n"
+                   f"Quality avg: {avg_q:.1f}/10\nVerdict: {verdict}")
         else:
-            outcome = (
-                f"⚔ REGIS PREVAILS\n"
-                f"────────────────\n"
-                f"REGIS defeats {challenger}.\n"
-                f"Challenger avg: {avg_q:.1f}/10\n"
-                f"Verdict: {verdict}\n\n"
-                f"The throne holds. {challenger} may try again after 3 more tasks."
-            )
-
-        await send(chat_id, outcome)
-        # Log to brain
-        await _backend("/regis/probe", "POST", {"question": f"[CHALLENGE] {outcome}"})
-
-    except Exception as e:
-        await send(chat_id, f"Challenge failed: {e}")
+            msg = (f"⚔ REGIS PREVAILS\nDefeats {challenger}.\n"
+                   f"Challenger avg: {avg_q:.1f}/10\nVerdict: {verdict}")
+        await send(chat_id, msg)
+    except Exception as exc:
+        await send(chat_id, f"Challenge failed: {exc}")
 
 
 async def cmd_dryrun(chat_id: int):
-    """Force dry run mode — idempotent, no double-toggle confusion."""
-    import os
     os.environ["LIVE_MODE"] = "false"
-    await send(chat_id,
-        "DRY RUN MODE ACTIVE\n"
-        "───────────────────\n"
-        "All transactions use mock signatures.\n"
-        "Solana sends are simulated — no real funds move.\n"
-        "Use /live to enable real devnet transactions."
-    )
+    await send(chat_id, "DRY RUN MODE ACTIVE\nTransactions use mock signatures. Use /live for real devnet.")
 
 
 async def cmd_live(chat_id: int):
-    """Force live mode — idempotent."""
-    import os
     os.environ["LIVE_MODE"] = "true"
-    await send(chat_id,
-        "⚠ LIVE MODE ACTIVE\n"
-        "──────────────────\n"
-        "Real Solana devnet transactions enabled.\n"
-        "Keypairs are real — balances will change.\n"
-        "Use /dryrun to return to safe mode."
-    )
+    await send(chat_id, "⚠ LIVE MODE ACTIVE\nReal Solana devnet transactions enabled. Use /dryrun to return.")
 
 
 async def handle_plain_message(chat_id: int, text: str):
-    """Any non-command message → REGIS in-character probe."""
     try:
         r = await _backend("/regis/probe", "POST", {"question": text})
-        answer = r.get("answer") or r.get("response") or "I have nothing to say."
-        await send(chat_id, answer)
-    except Exception as e:
+        answer = r.get("answer") or r.get("response") or "The court is temporarily closed."
+        await send(chat_id, f"👑 REGIS:\n{answer}")
+    except Exception:
         await send(chat_id, "The court is temporarily closed.")
 
 
@@ -599,8 +858,7 @@ async def handle_update(update: dict) -> None:
     if not chat_id:
         return
 
-    # Security — only respond to the configured chat
-    if chat_id != ALLOWED_CHAT_ID:
+    if ALLOWED_CHAT_ID and chat_id != ALLOWED_CHAT_ID:
         await send(chat_id, "Access denied. This is a private REGIS terminal.")
         return
 
@@ -608,72 +866,50 @@ async def handle_update(update: dict) -> None:
     if not text:
         return
 
-    if text.startswith("/start"):
-        await cmd_start(chat_id)
-    elif text.startswith("/help"):
-        await cmd_help(chat_id)
-    elif text.startswith("/balance"):
-        await cmd_balance(chat_id)
-    elif text.startswith("/status"):
-        await cmd_status(chat_id)
-    elif text.startswith("/tasks"):
-        await cmd_tasks(chat_id)
-    elif text.startswith("/submit "):
-        await cmd_submit(chat_id, text[8:].strip())
-    elif text.startswith("/probe "):
-        await cmd_probe(chat_id, text[7:].strip())
-    elif text.startswith("/brain"):
-        await cmd_brain(chat_id)
-    elif text.startswith("/reputations"):
-        await cmd_reputations(chat_id)
-    elif text.startswith("/audit"):
-        await cmd_audit(chat_id)
-    elif text.startswith("/solana"):
-        await cmd_solana(chat_id)
-    elif text.startswith("/ows"):
-        await cmd_ows(chat_id)
-    elif text.startswith("/moonpay"):
-        args = text[8:].strip()
-        await cmd_moonpay(chat_id, args)
-    elif text.startswith("/model"):
-        await cmd_model(chat_id)
-    elif text.startswith("/dryrun"):
-        await cmd_dryrun(chat_id)
-    elif text.startswith("/live"):
-        await cmd_live(chat_id)
-    elif text.startswith("/lock "):
-        await cmd_lock(chat_id, text[6:].strip())
-    elif text.startswith("/unlock "):
-        await cmd_unlock(chat_id, text[8:].strip())
-    elif text.startswith("/locked"):
-        await cmd_locked(chat_id)
-    elif text.startswith("/challenge "):
-        await cmd_challenge(chat_id, text[11:].strip())
-    else:
-        await handle_plain_message(chat_id, text)
+    cmd  = text.split()[0].lower()
+    args = text[len(cmd):].strip()
+
+    if cmd in ("/start",):              await cmd_start(chat_id)
+    elif cmd in ("/help",):             await cmd_help(chat_id)
+    elif cmd in ("/deploy",):           await cmd_deploy(chat_id, args)
+    elif cmd in ("/submit",):           await cmd_deploy(chat_id, args)   # alias
+    elif cmd in ("/status",):           await cmd_status(chat_id, args)
+    elif cmd in ("/probe",):            await cmd_probe(chat_id, args)
+    elif cmd in ("/audit",):            await cmd_audit(chat_id)
+    elif cmd in ("/punish",):           await cmd_punish(chat_id, args)
+    elif cmd in ("/fund",):             await cmd_fund(chat_id, args)
+    elif cmd in ("/treasury",):         await cmd_treasury(chat_id)
+    elif cmd in ("/economy",):          await cmd_economy(chat_id)
+    elif cmd in ("/logs",):             await cmd_logs(chat_id, args)
+    elif cmd in ("/agents",):           await cmd_agents(chat_id)
+    elif cmd in ("/balance",):          await cmd_balance(chat_id)
+    elif cmd in ("/brain",):            await cmd_brain(chat_id)
+    elif cmd in ("/reputations",):      await cmd_reputations(chat_id)
+    elif cmd in ("/tasks",):            await cmd_tasks_list(chat_id)
+    elif cmd in ("/solana",):           await cmd_solana(chat_id)
+    elif cmd in ("/ows",):              await cmd_ows(chat_id)
+    elif cmd in ("/moonpay",):          await cmd_fund(chat_id, args)     # alias
+    elif cmd in ("/model",):            await cmd_model(chat_id)
+    elif cmd in ("/dryrun",):           await cmd_dryrun(chat_id)
+    elif cmd in ("/live",):             await cmd_live(chat_id)
+    elif cmd in ("/lock",):             await cmd_lock(chat_id, args)
+    elif cmd in ("/unlock",):           await cmd_unlock(chat_id, args)
+    elif cmd in ("/locked",):           await cmd_locked(chat_id)
+    elif cmd in ("/challenge",):        await cmd_challenge(chat_id, args)
+    else:                               await handle_plain_message(chat_id, text)
 
 
 # ── Polling loop ───────────────────────────────────────────────────────────────
 
 async def poll_loop() -> None:
-    """Long-poll Telegram for updates. Runs forever until cancelled."""
+    """Long-poll Telegram for updates. Runs until cancelled. NO startup message."""
     if not TELEGRAM_TOKEN:
-        print("[telegram] No TELEGRAM_BOT_TOKEN — bot disabled")
+        logger.info("[telegram] No TELEGRAM_BOT_TOKEN — bot disabled")
         return
 
+    logger.info("[telegram] REGIS bot starting silently (chat_id=%s)", ALLOWED_CHAT_ID)
+    # ← No startup notification. First message user sees is their own /start.
     offset = 0
-    print(f"[telegram] REGIS bot started (chat_id={ALLOWED_CHAT_ID})")
-
-    # Send startup message
-    try:
-        await send(ALLOWED_CHAT_ID,
-            "REGIS ONLINE\n"
-            "────────────\n"
-            "SwarmPay backend started. All systems operational.\n"
-            "Use /help to see available commands."
-        )
-    except Exception:
-        pass
 
     async with httpx.AsyncClient(timeout=40.0) as client:
         while True:
@@ -686,8 +922,7 @@ async def poll_loop() -> None:
                     await asyncio.sleep(5)
                     continue
 
-                data = r.json()
-                for update in data.get("result", []):
+                for update in r.json().get("result", []):
                     offset = update["update_id"] + 1
                     try:
                         await handle_update(update)
@@ -695,13 +930,8 @@ async def poll_loop() -> None:
                         traceback.print_exc()
 
             except asyncio.CancelledError:
-                print("[telegram] Bot stopped")
+                logger.info("[telegram] Bot stopped")
                 return
-            except Exception as e:
-                print(f"[telegram] Poll error: {e}")
+            except Exception as exc:
+                logger.warning("[telegram] poll error: %s", exc)
                 await asyncio.sleep(5)
-
-
-def start_bot(loop: asyncio.AbstractEventLoop) -> None:
-    """Schedule the poll loop on the given event loop."""
-    asyncio.ensure_future(poll_loop(), loop=loop)

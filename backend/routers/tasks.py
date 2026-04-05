@@ -270,12 +270,21 @@ async def execute_task(request: Request, body: TaskExecuteRequest, background_ta
 
 
 async def _notify_telegram(message: str) -> None:
-    """Non-blocking Telegram notification to REGIS chat."""
+    """Direct send — only for backward compat; prefer _notify_event."""
     try:
         from services.telegram_service import send, ALLOWED_CHAT_ID
         await send(ALLOWED_CHAT_ID, message)
     except Exception as e:
         logger.warning("[tg notify] %s", e)
+
+
+async def _notify_event(event_type: str, message: str) -> None:
+    """Send Telegram notification through NotificationGate (signal events only)."""
+    try:
+        from services.telegram_service import notify_event
+        await notify_event(event_type, message)
+    except Exception as e:
+        logger.warning("[tg event] %s", e)
 
 
 async def execute_task_background(task_id: str):
@@ -295,18 +304,9 @@ async def execute_task_background(task_id: str):
 
         await asyncio.to_thread(pb.update, "tasks", task_id, {"status": "in_progress"})
 
-        # Notify task started
+        # Silent during execution — one completion signal at the end
         agent_names = [st["agent_id"] for st in sub_tasks]
         lead_agent  = next((st["agent_id"] for st in sub_tasks if st.get("is_lead")), agent_names[0] if agent_names else "?")
-        await _notify_telegram(
-            f"🚀 SWARM ACTIVE\n"
-            f"──────────────\n"
-            f"Task: {task_goal[:80]}\n"
-            f"Agents: {' · '.join(agent_names)}\n"
-            f"Lead: {lead_agent} (Claude)\n"
-            f"Support: DeepSeek\n"
-            f"ID: {task_id[:12]}"
-        )
 
         # Sort by EXECUTION_ORDER for goal-compounding
         def _exec_priority(st: Dict) -> int:
@@ -367,15 +367,7 @@ async def execute_task_background(task_id: str):
                              f"{agent_name} finished · quality {score:.1f}/10",
                              {"preview": preview, "quality_score": score})
 
-                # Telegram: agent completed
-                lang    = parsed_preview.get("lang", "")
-                en_text = parsed_preview.get("english_text") or preview
-                model   = parsed_preview.get("model", "?")
-                await _notify_telegram(
-                    f"{'★ ' if is_lead else ''}✓ {agent_name} COMPLETE\n"
-                    f"Quality: {score:.1f}/10  |  Model: {model}\n"
-                    f"{en_text[:120]}"
-                )
+                # Agent completion is routine — suppressed by gate
 
                 for xp in x402_payments:
                     await _audit(
@@ -399,14 +391,19 @@ async def execute_task_background(task_id: str):
                 await _audit("reputation_updated", agent_name,
                              f"{agent_name} rep penalised → {new_rep:.2f}★ (work failed)",
                              {"delta": -0.2, "new_reputation": new_rep})
-                await _notify_telegram(f"⚠ {agent_name} FAILED\n{str(exc)[:120]}")
+                await _notify_event("task_failed", f"⚠ {agent_name} FAILED\n{str(exc)[:120]}")
 
         async def run_agent_with_dms(sub_task: Dict) -> None:
             try:
                 await asyncio.wait_for(run_agent(sub_task), timeout=120.0)
             except asyncio.TimeoutError:
                 await _trigger_dead_mans_switch(sub_task, coordinator_wallet)
-                await _notify_telegram(f"⏱ {sub_task['agent_id']} TIMED OUT — funds swept to treasury")
+                await _notify_event("dead_mans_switch",
+                    f"⚠️ DEAD MAN'S SWITCH\n"
+                    f"Agent: {sub_task['agent_id']}\n"
+                    f"No heartbeat: 120s\n"
+                    f"API key: REVOKED — funds swept to treasury"
+                )
 
         # ── Sequential goal-compounding execution ────────────────────────────
         for sub_task in ordered_sub_tasks:
@@ -479,8 +476,8 @@ async def execute_task_background(task_id: str):
             )
             if quality_lines:
                 summary += "Quality:\n" + "\n".join(quality_lines) + "\n"
-            summary += f"ID: {task_id[:12]}\nUse /status for full report."
-            await _notify_telegram(summary)
+            summary += f"ID: {task_id[:12]}\nUse /status for full detail."
+            await _notify_event("task_complete", summary)
         except Exception as exc:
             logger.warning("[task summary tg] %s", exc)
 
@@ -491,9 +488,8 @@ async def execute_task_background(task_id: str):
                 if qualifies_for_challenge(agent_name, rep):
                     from services.quality_service import get_avg_quality
                     avg_q = get_avg_quality(agent_name)
-                    await _notify_telegram(
-                        f"⚔ REGIS CHALLENGE ELIGIBLE\n"
-                        f"──────────────────────────\n"
+                    await _notify_event("challenge_result",
+                        f"⚔ CHALLENGE ELIGIBLE\n"
                         f"{agent_name} qualifies to challenge REGIS!\n"
                         f"Avg quality: {avg_q:.1f}/10  |  Rep: {rep:.2f}★\n"
                         f"Send /challenge {agent_name} to initiate."
@@ -509,7 +505,7 @@ async def execute_task_background(task_id: str):
     except Exception as exc:
         logger.error("[bg error] %s", exc)
         await asyncio.to_thread(pb.update, "tasks", task_id, {"status": "failed"})
-        await _notify_telegram(f"❌ TASK FAILED\n{task_id[:12]}\n{str(exc)[:120]}")
+        await _notify_event("task_failed", f"❌ TASK FAILED\n{task_id[:12]}\n{str(exc)[:120]}")
 
 
 async def _trigger_dead_mans_switch(sub_task: Dict, coordinator_wallet: Dict):
@@ -648,21 +644,12 @@ async def _process_payment(coordinator_wallet: Dict, sub_task: Dict):
                      f"{agent_name} rep {direction} → {new_rep:.2f}★ (was {reputation:.2f}★)",
                      {"delta": delta, "new_reputation": new_rep})
 
-        # Telegram: payment outcome + rep update
-        if policy_result.allow:
-            tx_hash = payload.get("tx_hash", "")
-            tx_short = f" · tx {tx_hash[:16]}…" if tx_hash else ""
-            await _notify_telegram(
-                f"💸 PAID: {agent_name}\n"
-                f"────────────────\n"
-                f"Amount: {attempted:.4f} USDC{tx_short}\n"
-                f"Rep: {reputation:.2f}★ → {new_rep:.2f}★ (+0.1)\n"
-                f"Policy: {policy_result.reason or 'approved'}"
-            )
-        else:
-            await _notify_telegram(
-                f"🚫 PAYMENT BLOCKED: {agent_name}\n"
-                f"──────────────────────────\n"
+        # Payment signed → routine, suppressed by gate
+        # Payment blocked → signal event, always notified
+        if not policy_result.allow:
+            await _notify_event("payment_blocked",
+                f"🚨 POLICY BLOCK\n"
+                f"Agent: {agent_name}\n"
                 f"Attempted: {attempted:.4f} USDC\n"
                 f"Rep: {reputation:.2f}★ → {new_rep:.2f}★ (-0.2)\n"
                 f"Reason: {policy_result.reason}"
@@ -718,11 +705,8 @@ async def _do_peer_payments(sub_tasks: List[Dict]):
                 {"from_agent": sender, "to_agent": receiver,
                  "amount": amount, "label": label},
             )
-            await _notify_telegram(
-                f"⇄ PEER PAYMENT\n"
-                f"{sender} → {receiver}\n"
-                f"{amount:.3f} USDC · {label}"
-            )
+            # Peer payments are routine — suppressed by gate
+            pass
         except Exception as exc:
             logger.warning("[peer payment] %s→%s: %s", sender, receiver, exc)
 
