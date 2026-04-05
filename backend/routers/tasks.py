@@ -29,6 +29,17 @@ from services.brain_service import brain_service
 from services.solana_service import solana_service
 from services.agent_lock_service import filter_available, is_locked
 from services.quality_service import evaluate_work, qualifies_for_challenge, run_regis_challenge
+from services.email_service import (
+    send_critical_block,
+    send_task_receipt,
+    send_treasury_low,
+    CRITICAL_BLOCK_THRESHOLD_SOL,
+    TREASURY_LOW_THRESHOLD_SOL,
+)
+
+# Fallback SOL/USDC rate for email threshold conversions.
+# Used ONLY to convert USDC amounts to SOL for alert thresholds — not for settlement.
+_FALLBACK_SOL_USDC_RATE = 79.0
 
 logger = logging.getLogger("swarmpay.tasks")
 limiter = Limiter(key_func=get_remote_address)
@@ -481,6 +492,40 @@ async def execute_task_background(task_id: str):
         except Exception as exc:
             logger.warning("[task summary tg] %s", exc)
 
+        # ── BISHOP email: task receipt + treasury low ─────────────────────
+        try:
+            _budget_cap  = float(coordinator_wallet.get("budget_cap", 0))
+            _distributed = sum(float(p.get("amount", 0)) for p in task_payments if p.get("status") == "signed")
+            _saved       = sum(float(p.get("amount", 0)) for p in task_payments if p.get("status") == "blocked")
+            _remaining   = max(0.0, _budget_cap - _distributed)
+            _tx_hashes   = [p.get("tx_hash", "") for p in task_payments if p.get("status") == "signed" and p.get("tx_hash")]
+
+            # Convert USDC → SOL using fallback rate (governance alert only)
+            _dist_sol      = _distributed / _FALLBACK_SOL_USDC_RATE
+            _saved_sol     = _saved       / _FALLBACK_SOL_USDC_RATE
+            _remaining_sol = _remaining   / _FALLBACK_SOL_USDC_RATE
+
+            asyncio.create_task(
+                asyncio.to_thread(
+                    send_task_receipt,
+                    task_goal, paid_count, blocked_count,
+                    _dist_sol, _saved_sol, _remaining_sol,
+                    _tx_hashes,
+                )
+            )
+
+            # Treasury low alert (triggered once at settlement, not per payment)
+            if _remaining_sol < TREASURY_LOW_THRESHOLD_SOL:
+                asyncio.create_task(
+                    asyncio.to_thread(
+                        send_treasury_low,
+                        _remaining_sol,
+                        TREASURY_LOW_THRESHOLD_SOL,
+                    )
+                )
+        except Exception as exc:
+            logger.warning("[bishop email receipt] %s", exc)
+
         # ── REGIS challenge check ─────────────────────────────────────────
         try:
             all_reps = await asyncio.to_thread(pb.get_all_reputations)
@@ -654,6 +699,18 @@ async def _process_payment(coordinator_wallet: Dict, sub_task: Dict):
                 f"Rep: {reputation:.2f}★ → {new_rep:.2f}★ (-0.2)\n"
                 f"Reason: {policy_result.reason}"
             )
+            # Email: critical block (fire-and-forget — must not block execution)
+            amount_sol = attempted / _FALLBACK_SOL_USDC_RATE
+            if amount_sol > CRITICAL_BLOCK_THRESHOLD_SOL:
+                task_desc = sub_task.get("description", "")
+                asyncio.create_task(
+                    asyncio.to_thread(
+                        send_critical_block,
+                        agent_name, amount_sol,
+                        policy_result.reason or "Policy threshold exceeded",
+                        task_desc,
+                    )
+                )
 
     except Exception as exc:
         logger.error("[payment error] %s", exc)

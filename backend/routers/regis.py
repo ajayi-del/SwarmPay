@@ -237,6 +237,17 @@ async def punish_regis(request: PunishRequest):
 
         await asyncio.to_thread(brain_service.append_punishment, ptype, regis_response)
 
+        # Email: governance punishment record (fire-and-forget)
+        try:
+            from services.email_service import send_punishment_record
+            import asyncio as _asyncio
+            _asyncio.create_task(
+                _asyncio.to_thread(send_punishment_record, ptype, 0, regis_response)
+            )
+        except Exception as _email_exc:
+            import logging as _log
+            _log.getLogger("swarmpay.regis").warning("[bishop email punish] %s", _email_exc)
+
         # Telegram: punishment applied
         icons = {
             "slash_treasury":    "⚔️ TREASURY SLASHED",
