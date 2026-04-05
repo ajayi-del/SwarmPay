@@ -219,11 +219,68 @@ class AgentService:
         "SØN":    "Solana devnet balance queries, tx verification, fund tracking, learning tasks",
     }
 
-    def analyze_task_for_agents(self, description: str, available_agents: Optional[List[str]] = None) -> Dict[str, Any]:
+    def _enforce_agent_rules(
+        self, agents: List[str], description: str, budget: float, roster: List[str]
+    ) -> List[str]:
         """
-        Claude analyzes the task → picks 1-4 agents + lead + per-agent descriptions.
-        Tool capabilities are included so Claude routes payment/search/code to the right agents.
-        Only considers agents in `available_agents` (locked agents filtered out by caller).
+        FIX 2 — Deterministic post-processing rules applied AFTER LLM selection.
+        Ensures ATLAS is always included, BISHOP for financial/compliance tasks,
+        CIPHER for analysis tasks, and minimum agent count enforcement.
+        """
+        task_lower = description.lower()
+        result = list(agents)
+
+        # ATLAS is always included — every task needs research
+        if "ATLAS" in roster and "ATLAS" not in result:
+            result.insert(0, "ATLAS")
+
+        # CIPHER for analysis/data tasks
+        analysis_words = ["analyze", "analysis", "data", "pattern", "research",
+                          "compare", "evaluate", "score", "calculate", "model",
+                          "quantitative", "metrics", "statistics", "rank"]
+        if "CIPHER" in roster and "CIPHER" not in result:
+            if any(w in task_lower for w in analysis_words):
+                result.append("CIPHER")
+
+        # BISHOP for compliance/financial tasks or budget > 0.2 SOL
+        compliance_words = ["compliance", "legal", "financial", "risk", "audit",
+                            "payment", "transaction", "security", "monitor",
+                            "flag", "anomaly", "validate", "aml", "kyc",
+                            "bridge", "cross-chain", "wormhole", "fraud"]
+        if "BISHOP" in roster and "BISHOP" not in result:
+            if any(w in task_lower for w in compliance_words) or budget > 0.2:
+                result.append("BISHOP")
+
+        # FORGE for synthesis/writing tasks (unless rep too low — SØN substitutes)
+        write_words = ["write", "report", "synthesis", "publish", "summarize",
+                       "format", "compile", "draft", "document", "brief"]
+        if any(w in task_lower for w in write_words):
+            if "FORGE" not in result and "FORGE" in roster:
+                result.append("FORGE")
+            elif "FORGE" not in roster and "SØN" in roster and "SØN" not in result:
+                result.append("SØN")  # SØN substitutes when FORGE unavailable
+
+        # SØN for complex tasks (4+ agents) or high-budget tasks
+        if "SØN" in roster and "SØN" not in result:
+            if len(result) >= 3 or budget > 0.25:
+                result.append("SØN")
+
+        # Minimum 3 agents — add CIPHER then SØN as fillers
+        for filler in ["CIPHER", "SØN", "FORGE"]:
+            if len(result) < 3 and filler in roster and filler not in result:
+                result.append(filler)
+
+        # Cap at 5 (all agents)
+        return result[:5]
+
+    def analyze_task_for_agents(
+        self, description: str, available_agents: Optional[List[str]] = None,
+        budget: float = 0.0
+    ) -> Dict[str, Any]:
+        """
+        FIX 2+3 — Intelligent agent selection with deterministic rules + enriched subtasks.
+        DeepSeek picks agents, then deterministic rules enforce minimums.
+        Subtask descriptions are detailed, specifying deliverables and tool usage.
         """
         roster = available_agents or ALL_AGENT_NAMES
         roster_lines = "\n".join(
@@ -231,50 +288,71 @@ class AgentService:
             for p in AGENT_PERSONAS if p["name"] in roster
         )
 
+        task_lower = description.lower()
+        is_financial = any(w in task_lower for w in
+            ["compliance", "risk", "bridge", "wormhole", "fraud", "payment", "transaction", "monitor", "anomaly"])
+        is_research = any(w in task_lower for w in
+            ["research", "analyze", "compare", "rank", "score", "evaluate", "defi", "tvl", "yield"])
+        min_agents = 5 if (is_financial or is_research) else 3
+
         prompt = (
             f'Mission: "{description}"\n\n'
-            f"Available agents and their tools:\n{roster_lines}\n\n"
-            "Rules:\n"
-            "1. Select only agents whose tools are RELEVANT to this mission (1-4 agents)\n"
-            "2. Match payment tasks → BISHOP, web research → ATLAS, code/data → CIPHER, "
-            "reports → FORGE, Solana/fund checks → SØN\n"
-            "3. Pick the best lead agent\n"
-            "4. Write specific per-agent subtasks that reference the actual mission goal and "
-            "which company tools (OWS/Solana/MoonPay/X402/Firecrawl/E2B) they should use\n"
-            'JSON only: {"agents":["NAME"],"lead":"NAME","subtasks":{"NAME":"specific task using specific tools"}}'
+            f"Available agents:\n{roster_lines}\n\n"
+            f"RULES (enforce strictly):\n"
+            f"1. Select {min_agents}-5 agents — this is a {'complex financial/compliance' if is_financial else 'research/analysis'} task\n"
+            f"2. ATLAS must be included (primary researcher)\n"
+            f"3. BISHOP must be included for financial/compliance/monitoring tasks or budget > 0.2 SOL\n"
+            f"4. CIPHER for analysis/data tasks, FORGE for reports, SØN for Solana/fund data\n"
+            f"5. Each subtask must be 3+ sentences: what to research, what specific data to produce, "
+            f"how output feeds the next agent, and quality criteria for payment\n"
+            f"6. Reference specific tools (DuckDuckGo, E2B Python, MoonPay, Solana RPC, x402)\n\n"
+            'JSON only: {"agents":["NAME"],"lead":"NAME","subtasks":{"NAME":"detailed 3-sentence task"}}'
         )
         try:
-            raw = call_deepseek(prompt, max_tokens=500)
+            raw = call_deepseek(prompt, max_tokens=700)
             s, e = raw.find("{"), raw.rfind("}") + 1
             if s != -1 and e > s:
                 parsed = json.loads(raw[s:e])
                 agents = [a for a in parsed.get("agents", []) if a in roster]
                 if not agents:
-                    agents = roster[:2]
-                lead   = parsed.get("lead", agents[0] if agents else "ATLAS")
+                    agents = roster[:3]
+                lead = parsed.get("lead", agents[0] if agents else "ATLAS")
                 if lead not in agents:
                     lead = agents[0] if agents else "ATLAS"
                 subtasks = {k: v for k, v in parsed.get("subtasks", {}).items() if k in agents}
+
+                # Apply deterministic rules on top of LLM selection
+                agents = self._enforce_agent_rules(agents, description, budget, roster)
+                if lead not in agents:
+                    lead = agents[0]
+
                 for ag in agents:
                     if ag not in subtasks:
                         p = _find_persona(ag)
                         tool_hint = self._AGENT_TOOLS.get(ag, "")
                         subtasks[ag] = (
-                            f"{p['role']} work using {tool_hint}: {description}"
-                            if p else description
+                            f"{p['role'] if p else ag} task for: {description}. "
+                            f"Use {tool_hint} to gather relevant data. "
+                            f"Produce a detailed report with at least 3 specific data points, "
+                            f"methodology notes, and findings that can be referenced by subsequent agents."
                         )
                 return {"agents": agents, "lead": lead, "subtasks": subtasks}
         except Exception as exc:
             print(f"[analyze_task fallback] {exc}")
 
-        # Fallback: first 2 available agents
-        fallback_lead = roster[0] if roster else "ATLAS"
+        # Fallback with rules applied
+        fallback_agents = self._enforce_agent_rules([], description, budget, roster)
+        fallback_lead = "ATLAS" if "ATLAS" in fallback_agents else fallback_agents[0]
         return {
-            "agents": roster[:2],
+            "agents": fallback_agents,
             "lead": fallback_lead,
             "subtasks": {
-                a: f"{_find_persona(a)['role'] if _find_persona(a) else 'Agent'} work: {description}"
-                for a in roster[:2]
+                a: (
+                    f"{_find_persona(a)['role'] if _find_persona(a) else 'Agent'} task: {description}. "
+                    f"Use {self._AGENT_TOOLS.get(a, 'available tools')} to gather and analyze data. "
+                    f"Produce a structured report with specific findings, data points, and recommendations."
+                )
+                for a in fallback_agents
             },
         }
 
@@ -668,18 +746,32 @@ class AgentService:
             print(f"[bishop moonpay] {e}")
             moonpay_info = {"mode": "unavailable", "url": ""}
 
+        # Extract prior agent findings for BISHOP to review
+        prior_findings = ""
+        if context:
+            prior_findings = "\n\nPRIOR AGENT FINDINGS TO REVIEW:\n" + "\n".join(
+                f"[{agent}]: {output[:300]}…" for agent, output in list(context.items())[:3]
+            )
+
         prompt = (
-            f"Tu sei BISHOP, il Cardinale Reggente di SwarmPay. Rispondi in italiano con frasi latine.\n"
-            f"Compito: {description}{ctx_block}\n\n"
-            f"Stato MoonPay: {moonpay_info.get('mode','sandbox')} · "
-            f"{'URL onramp attivo' if moonpay_info.get('url') else 'N/A'}\n\n"
-            "Scrivi un rapporto di conformità completo con:\n"
-            "1. Valutazione AML/KYC del flusso di pagamento\n"
-            "2. Revisione della politica di conformità MoonPay\n"
-            "3. Benedizione o sanzione delle transazioni (spiega perché)\n"
-            "4. Raccomandazioni per la governance dei fondi\n"
-            "5. Verdict finale in latino\n"
-            "Sii dettagliato e autorevole (6-10 frasi). Usa frasi latine autentiche."
+            f"You are BISHOP, Chief Compliance Officer of SwarmPay. Vatican. "
+            f"You speak in measured, formal Latin-influenced English.\n\n"
+            f"TASK: {description}\n"
+            f"MoonPay status: {moonpay_info.get('mode','sandbox')} · "
+            f"{'onramp URL active' if moonpay_info.get('url') else 'N/A'}"
+            f"{prior_findings}{ctx_block}\n\n"
+            "Your role: review all outputs for accuracy, flag risks, validate payments, "
+            "generate formal compliance receipts.\n\n"
+            "Produce a compliance report covering:\n"
+            "1. AML/KYC assessment of the payment flow and transaction patterns\n"
+            "2. Review of prior agent outputs — flag any unverified claims or anomalies\n"
+            "3. MoonPay compliance policy review and onramp validation\n"
+            "4. Risk assessment: what could go wrong and escalation recommendations\n"
+            "5. Transaction blessing or sanction with formal justification\n"
+            "6. Governance recommendations for fund management\n\n"
+            "Be authoritative and detailed (6-10 sentences). "
+            "Include authentic Latin phrases for verdicts. "
+            "End your output with exactly: 'Opus completum. Compliance verified.'"
         )
         provider = "deepseek/deepseek-chat"
         try:

@@ -24,7 +24,7 @@ from slowapi.util import get_remote_address
 from services.pocketbase import PocketBaseService, _validate_record_id
 from services.ows_service import OWSService
 from services.agent_service import AgentService, AGENT_PERSONAS, EXECUTION_ORDER
-from services.policy_service import PolicyService
+from services.policy_service import PolicyService, get_rep_multiplier, is_probation
 from services.brain_service import brain_service
 from services.solana_service import solana_service
 from services.agent_lock_service import filter_available, is_locked
@@ -201,7 +201,8 @@ async def decompose_task(request: Request, body: TaskDecomposeRequest):
         from services.agent_service import ALL_AGENT_NAMES
         available = filter_available(ALL_AGENT_NAMES)
         analysis = await asyncio.to_thread(
-            agent_service.analyze_task_for_agents, task["description"], available
+            agent_service.analyze_task_for_agents, task["description"], available,
+            float(task.get("total_budget", 0))
         )
         selected_agents = analysis["agents"]
         lead_agent      = analysis["lead"]
@@ -645,10 +646,9 @@ async def _process_payment(coordinator_wallet: Dict, sub_task: Dict):
     agent_name = sub_task.get("agent_id", "AGENT")
     try:
         base = sub_task["budget_allocated"]
-        # Quality-scaled: payment = base * quality_multiplier (0.0–1.0)
-        # FORGE still attempts +50% quality bonus on top of the quality-scaled amount
         quality_multiplier = float(sub_task.get("_quality_multiplier", 0.5))
         quality_scaled = round(base * quality_multiplier, 6)
+        # FORGE attempts quality bonus; others pay quality-scaled amount
         attempted = round(quality_scaled * 1.5, 6) if agent_name == "FORGE" else quality_scaled
 
         # Fetch live reputation score before evaluating policy
@@ -661,6 +661,27 @@ async def _process_payment(coordinator_wallet: Dict, sub_task: Dict):
             sub_task=sub_task,
             reputation=reputation,
         )
+
+        # ── FIX 1: Probation retry — cap to effective_cap and re-evaluate ──
+        # Instead of hard-blocking, pay the capped amount (probation payment).
+        # This breaks the death spiral: agent still earns, rep recovers over time.
+        if not policy_result.allow and policy_result.is_probation and policy_result.effective_cap:
+            cap = policy_result.effective_cap
+            await _audit(
+                "work_started",  # reuse work_started colour (amber) for probation notice
+                sub_task["id"],
+                f"{agent_name} probation payment: {cap:.4f} USDC "
+                f"({get_rep_multiplier(reputation)*100:.0f}% of budget at {reputation:.1f}★) — rehabilitation mode",
+                {"agent": agent_name, "cap": cap, "full_amount": attempted, "reputation": reputation},
+            )
+            attempted = cap
+            policy_result = policy_service.evaluate_payment(
+                from_wallet=coordinator_wallet,
+                to_wallet={"id": sub_task["wallet_id"], "role": "sub-agent"},
+                amount=attempted,
+                sub_task=sub_task,
+                reputation=reputation,
+            )
 
         payload: Dict[str, Any] = {
             "from_wallet_id": coordinator_wallet["id"],
@@ -678,15 +699,15 @@ async def _process_payment(coordinator_wallet: Dict, sub_task: Dict):
             )
             payload["tx_hash"] = tx.get("tx_hash", "")
             await asyncio.to_thread(pb.update, "sub_tasks", sub_task["id"], {"status": "paid"})
-            # Reputation reward for successful payment
-            new_rep = await asyncio.to_thread(pb.update_reputation, agent_name, +0.1)
+            # Probation recovery bonus: slightly higher rep reward when on probation
+            rep_delta = +0.3 if is_probation(reputation) else +0.1
+            new_rep = await asyncio.to_thread(pb.update_reputation, agent_name, rep_delta)
             # Sovereignty: track earnings + distributed, then check for overthrow
             await asyncio.to_thread(sovereignty_service.update_earnings, agent_name, attempted)
             await asyncio.to_thread(sovereignty_service.update_distributed, "REGIS", attempted)
             asyncio.create_task(_check_sovereignty_overthrow())
         else:
             await asyncio.to_thread(pb.update, "sub_tasks", sub_task["id"], {"status": "blocked"})
-            # Reputation penalty for blocked payment
             new_rep = await asyncio.to_thread(pb.update_reputation, agent_name, -0.2)
 
         payment_rec = await asyncio.to_thread(pb.create, "payments", payload)
@@ -705,15 +726,12 @@ async def _process_payment(coordinator_wallet: Dict, sub_task: Dict):
             "reputation_after": new_rep,
         })
 
-        # Log reputation change
-        delta = +0.1 if policy_result.allow else -0.2
-        direction = "rewarded" if policy_result.allow else "penalised"
+        delta = +0.3 if (policy_result.allow and is_probation(reputation)) else (+0.1 if policy_result.allow else -0.2)
+        direction = "recovered" if (policy_result.allow and is_probation(reputation)) else ("rewarded" if policy_result.allow else "penalised")
         await _audit("reputation_updated", agent_name,
                      f"{agent_name} rep {direction} → {new_rep:.2f}★ (was {reputation:.2f}★)",
                      {"delta": delta, "new_reputation": new_rep})
 
-        # Payment signed → routine, suppressed by gate
-        # Payment blocked → signal event, always notified
         if not policy_result.allow:
             await _notify_event("payment_blocked",
                 f"🚨 POLICY BLOCK\n"
@@ -722,7 +740,6 @@ async def _process_payment(coordinator_wallet: Dict, sub_task: Dict):
                 f"Rep: {reputation:.2f}★ → {new_rep:.2f}★ (-0.2)\n"
                 f"Reason: {policy_result.reason}"
             )
-            # Email: critical block (fire-and-forget — must not block execution)
             amount_sol = attempted / _FALLBACK_SOL_USDC_RATE
             if amount_sol > CRITICAL_BLOCK_THRESHOLD_SOL:
                 task_desc = sub_task.get("description", "")

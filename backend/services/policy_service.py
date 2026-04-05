@@ -2,10 +2,16 @@
 Policy Service — reputation-gated, three-rule payment engine.
 
 Rule order:
-  1. REP GATE     — reputation score → per-agent spend limit
+  1. REP GATE     — reputation score → proportional budget cap (never zero)
   2. BUDGET CAP   — coordinator allocation ceiling
   3. COORD AUTH   — only coordinator wallets may sign
   4. DOUBLE PAY   — no duplicate payments for the same sub-task
+
+FIX 1 — FORGE Rehabilitation:
+  Reputation now controls a MULTIPLIER on budget_allocated (not a fixed USDC cap).
+  Even at 0★ FORGE earns 20% of their allocation — never fully blocked.
+  This prevents the death spiral where a blocked agent loses reputation,
+  gets more blocked, loses more rep, etc.
 """
 
 from typing import Dict, Any, Optional
@@ -15,33 +21,41 @@ from pydantic import BaseModel
 class PolicyResult(BaseModel):
     allow: bool
     reason: Optional[str] = None
+    # When True: payment allowed at reduced (probation) amount — caller must re-attempt with cap
+    is_probation: bool = False
+    effective_cap: Optional[float] = None
 
 
-# Spend limits per star tier — calibrated to $15 task budget (~$1.5-2.0 per agent):
-#   5★ CIPHER  ~$1.55  → approved (limit $10.0)
-#   4★ ATLAS   ~$1.55  → approved (limit $2.0)
-#   4★ BISHOP  ~$1.86  → approved (limit $2.0)
-#   4★ FORGE   ~$2.32  → REP BLOCK ($2.32 > $2.0) ← demo quality-bonus block
-#   3★ SØN     ~$0.77  → approved (limit $1.0)
+# Sliding reputation multipliers — applied to sub_task.budget_allocated
+# Agent always earns something; higher rep = higher fraction of budget
 _REP_TIERS = [
-    (5.0, 10.0),
-    (4.0, 2.0),
-    (3.0, 1.0),
-    (2.0, 0.5),
+    (4.5, 1.0),   # 4.5★+  → 100% of budget
+    (3.5, 0.85),  # 3.5-4.5 → 85%
+    (2.5, 0.65),  # 2.5-3.5 → 65%
+    (1.5, 0.45),  # 1.5-2.5 → 45%
+    (0.5, 0.25),  # 0.5-1.5 → 25% (probation floor)
 ]
+_PROBATION_FLOOR = 0.20  # absolute minimum even at 0★
 
 
-def _rep_limit(reputation: float) -> float:
-    """Return maximum auto-approved USDC for this reputation score."""
-    for floor, limit in _REP_TIERS:
+def get_rep_multiplier(reputation: float) -> float:
+    """
+    Return payment multiplier (0.20 – 1.0) for a given reputation score.
+    Applied to sub_task.budget_allocated to compute the effective cap.
+    """
+    for floor, multiplier in _REP_TIERS:
         if reputation >= floor:
-            return limit
-    return 0.0  # < 2.0 → blocked entirely
+            return multiplier
+    return _PROBATION_FLOOR
 
 
 def _stars_label(reputation: float) -> str:
-    filled = int(reputation)
     return f"{reputation:.1f}★"
+
+
+def is_probation(reputation: float) -> bool:
+    """True when agent is earning at reduced rate (rep < 3.5)."""
+    return reputation < 3.5
 
 
 class PolicyService:
@@ -73,24 +87,20 @@ class PolicyService:
     def _check_reputation_gate(self, *, amount: float, sub_task: Dict[str, Any],
                                 reputation: float, **_) -> PolicyResult:
         agent_id = sub_task.get("agent_id", "AGENT")
-        limit = _rep_limit(reputation)
+        allocated = float(sub_task.get("budget_allocated", amount))
+        multiplier = get_rep_multiplier(reputation)
+        effective_cap = round(allocated * multiplier, 6)
         stars = _stars_label(reputation)
 
-        if reputation < 2.0:
+        if amount > effective_cap:
+            prob = is_probation(reputation)
             return PolicyResult(
                 allow=False,
+                is_probation=prob,
+                effective_cap=effective_cap,
                 reason=(
-                    f"REP BLOCK: {agent_id} reputation {stars} — "
-                    f"agent suspended (minimum 2★ required)"
-                ),
-            )
-
-        if amount > limit:
-            return PolicyResult(
-                allow=False,
-                reason=(
-                    f"REP BLOCK: {agent_id} reputation {stars} insufficient "
-                    f"for {amount:.4f} USDC ({stars} limit: {limit:.2f} USDC)"
+                    f"REP GATE: {agent_id} {stars} — capped at {effective_cap:.4f} USDC "
+                    f"({multiplier*100:.0f}% of budget · {'probation' if prob else 'rep tier'})"
                 ),
             )
 

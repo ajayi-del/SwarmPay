@@ -91,11 +91,29 @@ async def lifespan(app: FastAPI):
     except Exception as exc:
         logger.warning("Telegram bot failed to start: %s", exc)
 
+    # Background intelligence scans — REGIS (5m), CIPHER (15m), ATLAS (30m)
+    scan_tasks = []
+    try:
+        from services.background_scans import run_regis_loop, run_cipher_loop, run_atlas_loop
+        scan_tasks = [
+            asyncio.create_task(run_regis_loop()),
+            asyncio.create_task(run_cipher_loop()),
+            asyncio.create_task(run_atlas_loop()),
+        ]
+        logger.info("Background scans started: REGIS(5m) CIPHER(15m) ATLAS(30m)")
+    except Exception as exc:
+        logger.warning("Background scans failed to start: %s", exc)
+
     yield
 
     if tg_task and not tg_task.done():
         tg_task.cancel()
         logger.info("Telegram bot stopped")
+
+    for t in scan_tasks:
+        if not t.done():
+            t.cancel()
+    logger.info("Background scans stopped")
 
 
 # ── App ────────────────────────────────────────────────────────────────────────
