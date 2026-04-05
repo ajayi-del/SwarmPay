@@ -1,18 +1,27 @@
 """
-Task Router - Handles all task-related endpoints
+Task Router - Handles all task-related endpoints.
+
+Rate limits (per IP):
+  /task/submit   — 10/hour  (LLM cost protection)
+  /task/decompose — 20/hour
+  /task/execute  — 20/hour
+  /task/clarify  — 30/hour
 """
 
 import asyncio
 import json
+import logging
 import time
 import uuid
 from datetime import datetime, timezone
 from typing import Dict, Any, List
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Request
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
-from services.pocketbase import PocketBaseService
+from services.pocketbase import PocketBaseService, _validate_record_id
 from services.ows_service import OWSService
 from services.agent_service import AgentService, AGENT_PERSONAS, EXECUTION_ORDER
 from services.policy_service import PolicyService
@@ -21,11 +30,34 @@ from services.solana_service import solana_service
 from services.agent_lock_service import filter_available, is_locked
 from services.quality_service import evaluate_work, qualifies_for_challenge, run_regis_challenge
 
+logger = logging.getLogger("swarmpay.tasks")
+limiter = Limiter(key_func=get_remote_address)
+
 router = APIRouter(prefix="/task", tags=["tasks"])
+
 
 class TaskSubmitRequest(BaseModel):
     description: str
     budget: float
+
+    @field_validator("description")
+    @classmethod
+    def description_not_empty(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("description cannot be empty")
+        if len(v) > 2000:
+            raise ValueError("description too long (max 2000 chars)")
+        return v
+
+    @field_validator("budget")
+    @classmethod
+    def budget_positive(cls, v: float) -> float:
+        if v <= 0:
+            raise ValueError("budget must be positive")
+        if v > 10000:
+            raise ValueError("budget exceeds maximum ($10,000 USDC)")
+        return round(v, 6)
 
 class TaskSubmitResponse(BaseModel):
     task_id: str
@@ -69,7 +101,8 @@ class TaskClarifyResponse(BaseModel):
     suggested_budget: float
 
 @router.post("/clarify", response_model=TaskClarifyResponse)
-async def clarify_task(request: TaskClarifyRequest):
+@limiter.limit("30/hour")
+async def clarify_task(http_req: Request, request: TaskClarifyRequest):
     """
     REGIS asks 2-3 context questions before task starts.
     Returns empty list if task description is already clear enough.
@@ -98,12 +131,13 @@ async def clarify_task(request: TaskClarifyRequest):
                 suggested_budget=float(parsed.get("suggested_budget", 5.0)),
             )
     except Exception as exc:
-        print(f"[clarify] {exc}")
+        logger.warning("[clarify] %s", exc)
     return TaskClarifyResponse(questions=[], needs_clarification=False, suggested_budget=5.0)
 
 
 @router.post("/submit", response_model=TaskSubmitResponse)
-async def submit_task(request: TaskSubmitRequest):
+@limiter.limit("10/hour")
+async def submit_task(http_req: Request, request: TaskSubmitRequest):
     """Submit a new task and create REGIS coordinator wallet."""
     try:
         ows_wallet = await asyncio.to_thread(ows.create_wallet, f"REGIS-{uuid.uuid4().hex[:6]}")
@@ -141,9 +175,11 @@ async def submit_task(request: TaskSubmitRequest):
 
 
 @router.post("/decompose", response_model=TaskDecomposeResponse)
-async def decompose_task(request: TaskDecomposeRequest):
+@limiter.limit("20/hour")
+async def decompose_task(http_req: Request, request: TaskDecomposeRequest):
     """Deterministically decompose task — Claude picks the right agents, not all 5."""
     try:
+        _validate_record_id(request.task_id)
         task = await asyncio.to_thread(pb.get, "tasks", request.task_id)
 
         # Step 1: Claude analyzes task → picks which agents to spawn + who leads
@@ -223,7 +259,8 @@ async def decompose_task(request: TaskDecomposeRequest):
 
 
 @router.post("/execute", response_model=TaskExecuteResponse)
-async def execute_task(request: TaskExecuteRequest, background_tasks: BackgroundTasks):
+@limiter.limit("20/hour")
+async def execute_task(http_req: Request, request: TaskExecuteRequest, background_tasks: BackgroundTasks):
     """Kick off parallel execution in the background."""
     try:
         background_tasks.add_task(execute_task_background, request.task_id)
@@ -238,7 +275,7 @@ async def _notify_telegram(message: str) -> None:
         from services.telegram_service import send, ALLOWED_CHAT_ID
         await send(ALLOWED_CHAT_ID, message)
     except Exception as e:
-        print(f"[tg notify] {e}")
+        logger.warning("[tg notify] %s", e)
 
 
 async def execute_task_background(task_id: str):
@@ -301,7 +338,7 @@ async def execute_task_background(task_id: str):
                 try:
                     parsed_out = json.loads(output_json)
                     output_text = parsed_out.get("text", "")[:300]
-                    ctx_preview = " | ".join(f"{k}: {v[:100]}" for k, v in shared_context.items())
+                    ctx_preview = " | ".join(f"{k}: {str(v)[:100]}" for k, v in shared_context.items())
                     quality = await asyncio.to_thread(
                         evaluate_work, task_goal, agent_name, output_text, ctx_preview
                     )
@@ -311,7 +348,7 @@ async def execute_task_background(task_id: str):
                     output_json = json.dumps(parsed_out)
                     x402_payments = parsed_out.get("x402_payments", [])
                 except Exception as qe:
-                    print(f"[quality eval] {agent_name}: {qe}")
+                    logger.warning("[quality eval] %s: %s", agent_name, qe)
                     quality = {"score": 5.0, "reason": "", "payment_multiplier": 0.5}
                     x402_payments = []
 
@@ -356,7 +393,7 @@ async def execute_task_background(task_id: str):
                 await _process_payment(coordinator_wallet, sub_task_with_quality)
 
             except Exception as exc:
-                print(f"[agent error] {agent_name}: {exc}")
+                logger.error("[agent error] %s: %s", agent_name, exc)
                 await asyncio.to_thread(pb.update, "sub_tasks", sub_task["id"], {"status": "failed"})
                 new_rep = await asyncio.to_thread(pb.update_reputation, agent_name, -0.2)
                 await _audit("reputation_updated", agent_name,
@@ -394,7 +431,7 @@ async def execute_task_background(task_id: str):
                 brain_service.update_after_task, task, fresh_sub_tasks, all_task_payments
             )
         except Exception as exc:
-            print(f"[brain sync] {exc}")
+            logger.warning("[brain sync] %s", exc)
 
         # ── Meteora: log SOL/USDC rate at treasury close ─────────────────
         try:
@@ -409,7 +446,7 @@ async def execute_task_background(task_id: str):
                     f"treasury ${usdc_total:.2f} USDC ≈ {sol_equiv} SOL",
                 )
         except Exception as exc:
-            print(f"[meteora log] {exc}")
+            logger.info("[meteora] %s", exc)
 
         await asyncio.to_thread(pb.update, "tasks", task_id, {"status": "complete"})
         await _audit("task_complete", task_id, "REGIS closed the treasury. All agents settled.")
@@ -445,7 +482,7 @@ async def execute_task_background(task_id: str):
             summary += f"ID: {task_id[:12]}\nUse /status for full report."
             await _notify_telegram(summary)
         except Exception as exc:
-            print(f"[task summary tg] {exc}")
+            logger.warning("[task summary tg] %s", exc)
 
         # ── REGIS challenge check ─────────────────────────────────────────
         try:
@@ -467,10 +504,10 @@ async def execute_task_background(task_id: str):
                         {"rep": rep, "avg_quality": avg_q},
                     )
         except Exception as exc:
-            print(f"[challenge check] {exc}")
+            logger.warning("[challenge check] %s", exc)
 
     except Exception as exc:
-        print(f"[bg error] {exc}")
+        logger.error("[bg error] %s", exc)
         await asyncio.to_thread(pb.update, "tasks", task_id, {"status": "failed"})
         await _notify_telegram(f"❌ TASK FAILED\n{task_id[:12]}\n{str(exc)[:120]}")
 
@@ -535,7 +572,7 @@ async def _trigger_dead_mans_switch(sub_task: Dict, coordinator_wallet: Dict):
                      {"delta": -0.3, "new_reputation": new_rep})
 
     except Exception as exc:
-        print(f"[dead_mans_switch] {agent_name}: {exc}")
+        logger.error("[dms] %s: %s", agent_name, exc)
 
 
 async def _process_payment(coordinator_wallet: Dict, sub_task: Dict):
@@ -632,7 +669,7 @@ async def _process_payment(coordinator_wallet: Dict, sub_task: Dict):
             )
 
     except Exception as exc:
-        print(f"[payment error] {exc}")
+        logger.error("[payment error] %s", exc)
 
 
 async def _do_peer_payments(sub_tasks: List[Dict]):
@@ -687,7 +724,7 @@ async def _do_peer_payments(sub_tasks: List[Dict]):
                 f"{amount:.3f} USDC · {label}"
             )
         except Exception as exc:
-            print(f"[peer payment] {sender}→{receiver}: {exc}")
+            logger.warning("[peer payment] %s→%s: %s", sender, receiver, exc)
 
 
 @router.get("/{task_id}/status")

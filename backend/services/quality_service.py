@@ -131,7 +131,12 @@ def run_regis_challenge(challenger_name: str, regis_brain_content: str) -> Dict:
 def _fire_challenge_notification(
     challenger: str, winner: str, verdict: str, avg: float, scores: list
 ) -> None:
-    """Send Telegram notification about challenge result (sync, best-effort)."""
+    """
+    Send Telegram notification about challenge result.
+    Safe to call from both sync and async contexts — uses create_task if an
+    event loop is already running (FastAPI background task), otherwise schedules
+    via the loop directly. Never blocks. Never crashes the caller.
+    """
     import asyncio
     try:
         from services.telegram_service import send, ALLOWED_CHAT_ID
@@ -158,15 +163,16 @@ def _fire_challenge_notification(
                 f"Verdict: {verdict}"
             )
 
-        loop = None
         try:
             loop = asyncio.get_running_loop()
-        except RuntimeError:
-            pass
-
-        if loop and loop.is_running():
+            # We're inside an async context — schedule as fire-and-forget task
             loop.create_task(send(ALLOWED_CHAT_ID, msg))
-        else:
-            asyncio.run(send(ALLOWED_CHAT_ID, msg))
+        except RuntimeError:
+            # No running loop — we're in a sync/thread context
+            # Run in a new thread to avoid blocking
+            import threading
+            def _send():
+                asyncio.run(send(ALLOWED_CHAT_ID, msg))
+            threading.Thread(target=_send, daemon=True).start()
     except Exception as exc:
         print(f"[challenge tg] {exc}")

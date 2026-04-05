@@ -4,10 +4,35 @@ PocketBase Service - Handles all database operations
 
 import httpx
 import json
+import logging
 import os
+import re
 from datetime import datetime
 from typing import Dict, List, Optional, Any
 from pydantic import BaseModel
+
+logger = logging.getLogger("swarmpay.pocketbase")
+
+# Valid PocketBase record ID format (15 alphanumeric chars)
+_RECORD_ID_RE = re.compile(r'^[a-z0-9]{10,20}$', re.IGNORECASE)
+# Allowed collections
+_ALLOWED_COLLECTIONS = {
+    "tasks", "sub_tasks", "wallets", "payments", "audit_log", "agent_reputation"
+}
+
+
+def _validate_record_id(record_id: str) -> str:
+    """Validate PocketBase record ID to prevent filter injection."""
+    if not _RECORD_ID_RE.match(record_id):
+        raise ValueError(f"Invalid record ID format: {record_id!r}")
+    return record_id
+
+
+def _validate_collection(collection: str) -> str:
+    if collection not in _ALLOWED_COLLECTIONS:
+        raise ValueError(f"Unknown collection: {collection!r}")
+    return collection
+
 
 class PocketBaseService:
     def __init__(self, base_url: str = None):
@@ -24,22 +49,27 @@ class PocketBaseService:
             response.raise_for_status()
             return response.json()
         except httpx.HTTPError as e:
-            print(f"PocketBase create error in {collection}: {e}")
+            logger.error("PocketBase create error in %s: %s", collection, e)
             raise
-    
+
     def get(self, collection: str, record_id: str) -> Dict[str, Any]:
         """Get a specific record"""
+        _validate_collection(collection)
+        _validate_record_id(record_id)
         try:
             response = self.client.get(f"/api/collections/{collection}/records/{record_id}")
             response.raise_for_status()
             return response.json()
         except httpx.HTTPError as e:
-            print(f"PocketBase get error in {collection}: {e}")
+            logger.error("PocketBase get error in %s/%s: %s", collection, record_id, e)
             raise
-    
+
     def list(self, collection: str, filter_params: Optional[str] = None,
              limit: int = 50, sort: Optional[str] = None) -> List[Dict[str, Any]]:
-        """List records from a collection"""
+        """List records from a collection."""
+        _validate_collection(collection)
+        # Clamp limit to prevent runaway queries
+        limit = max(1, min(limit, 200))
         try:
             params: Dict[str, Any] = {"perPage": limit}
             if filter_params:
@@ -51,7 +81,7 @@ class PocketBaseService:
             response.raise_for_status()
             return response.json().get("items", [])
         except httpx.HTTPError as e:
-            print(f"PocketBase list error in {collection}: {e}")
+            logger.error("PocketBase list error in %s: %s", collection, e)
             raise
     
     def update(self, collection: str, record_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
