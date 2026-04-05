@@ -8,9 +8,11 @@ import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import { useSolRate } from "@/lib/useSolRate";
 
 const EXAMPLE_TASKS = [
-  "Analyze top 5 Solana DeFi protocols by TVL, run Python yield calculations, publish report",
-  "Research AI agent frameworks, compare architectures, write competitive analysis",
-  "Audit smart contract risk exposure for a portfolio of 3 DeFi positions",
+  "Analyze Solana DeFi TVL across Raydium, Orca, and Jupiter — rank by 7-day growth",
+  "Score last 20 token launches on pump.fun by holder distribution and liquidity depth",
+  "Monitor Wormhole bridge activity and flag any anomalous cross-chain transfers today",
+  "Research top 10 Solana validators by uptime, stake weight, and commission rates",
+  "Scan Magic Eden floor price movements for 5 blue-chip NFT collections this week",
 ];
 
 const STEPS = [

@@ -6,6 +6,7 @@ import Dashboard from "@/components/Dashboard";
 import AuditLog from "@/components/AuditLog";
 import ModeToggle from "@/components/ModeToggle";
 import DryRunBadge from "@/components/DryRunBadge";
+import StatusBar from "@/components/StatusBar";
 import SwarmPanel from "@/components/SwarmPanel";
 import StackDiagram from "@/components/StackDiagram";
 import { useSwarmStore } from "@/lib/store";
@@ -184,6 +185,11 @@ export default function Home() {
             <span style={{ display: "flex", alignItems: "center", gap: 5, color: "var(--text-dim)" }}>
               <span style={{ color: "var(--blocked)", fontSize: 7 }}>●</span> FORGE +50% blocked
             </span>
+          </div>
+
+          {/* System health dots */}
+          <div className="hidden lg:flex" style={{ borderLeft: "1px solid #1a1a1a", paddingLeft: 14 }}>
+            <StatusBar />
           </div>
         </div>
 
