@@ -37,29 +37,41 @@ _MODEL     = "eleven_multilingual_v2"
 
 
 def _api_key() -> str:
-    return os.environ.get("ELEVENLABS_API_KEY", "")
+    return os.environ.get("ELEVENLABS_API_KEY", "").strip()
 
 
 def speak(agent: str, text: str) -> Optional[bytes]:
     """
     Generate audio bytes for the given agent and text.
     Returns None when ElevenLabs is unconfigured or an error occurs.
+
+    Compatible with elevenlabs SDK >=1.0.0 using text_to_speech.convert().
     """
     api_key = _api_key()
     if not api_key:
+        logger.debug("[voice] ELEVENLABS_API_KEY not set — skipping TTS")
         return None
     if not text or not text.strip():
         return None
+
+    voice_id = AGENT_VOICES.get(agent, AGENT_VOICES["REGIS"])
+    clean_text = text.strip()[:_MAX_CHARS]
+
     try:
         from elevenlabs.client import ElevenLabs
         client = ElevenLabs(api_key=api_key)
-        voice_id = AGENT_VOICES.get(agent, AGENT_VOICES["REGIS"])
-        chunks = client.generate(
-            text=text[:_MAX_CHARS],
-            voice=voice_id,
-            model=_MODEL,
+
+        # SDK v1.x: text_to_speech.convert() returns bytes iterator
+        audio_iter = client.text_to_speech.convert(
+            voice_id=voice_id,
+            text=clean_text,
+            model_id=_MODEL,
+            output_format="mp3_44100_128",
         )
-        return b"".join(chunks)
+        audio_bytes = b"".join(audio_iter)
+        logger.info("[voice] %s TTS generated %d bytes", agent, len(audio_bytes))
+        return audio_bytes if audio_bytes else None
+
     except Exception as exc:
         logger.warning("[voice] %s speak failed: %s", agent, exc)
         return None
