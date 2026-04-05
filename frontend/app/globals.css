@@ -217,3 +217,13 @@ input:focus, textarea:focus {
 .z-ground  { transform: translateZ(0px); }
 .z-raised  { transform: translateZ(4px); }
 .z-float   { transform: translateZ(8px); }
+
+/* ── Split layout: audit panel fills full height ─────────────────────── */
+.audit-panel-fill > div {
+  max-height: 100% !important;
+  height: 100% !important;
+  border-radius: 0 !important;
+  border-left: none !important;
+  border-right: none !important;
+  border-top: none !important;
+}

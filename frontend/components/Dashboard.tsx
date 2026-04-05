@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getTaskStatus, type TaskState } from "@/lib/api";
 import { useSwarmStore } from "@/lib/store";
@@ -8,17 +8,23 @@ import { useModeStore } from "@/lib/modeStore";
 import AgentCard from "./AgentCard";
 import SleepingAgentCard from "./SleepingAgentCard";
 import CoordinatorCard from "./CoordinatorCard";
+import RegisCard from "./RegisCard";
 import MetricsBar from "./MetricsBar";
 import RegisConsole from "./RegisConsole";
 import SkillsPanel from "./SkillsPanel";
 import SwarmOrbit from "./SwarmOrbit";
-import KingdomScene from "./KingdomScene";
 import { ErrorBoundary } from "./ErrorBoundary";
+
+// Active statuses — these agents are always expanded
+const ACTIVE_STATUSES = new Set(["spawned", "working"]);
 
 export default function Dashboard() {
   const { taskId, setPhase } = useSwarmStore();
   const { mode } = useModeStore();
   const isKingdom = mode === "kingdom";
+
+  // Track which terminal agents the user has manually expanded
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
   const { data: taskState } = useQuery({
     queryKey: ["task", taskId],
@@ -31,13 +37,17 @@ export default function Dashboard() {
     },
   });
 
-  // Transition to "done" phase via effect, not inside a query callback
   useEffect(() => {
     const status = taskState?.task?.status;
     if (status === "complete" || status === "failed") {
       setPhase("done");
     }
   }, [taskState?.task?.status, setPhase]);
+
+  // Auto-collapse newly-terminal agents (reset when task changes)
+  useEffect(() => {
+    setExpandedIds(new Set());
+  }, [taskId]);
 
   if (!taskId || !taskState) return null;
 
@@ -46,31 +56,32 @@ export default function Dashboard() {
   const ALL_AGENTS = ["ATLAS", "CIPHER", "FORGE", "BISHOP", "SØN"];
   const activeAgentIds = new Set(sub_tasks.map((st) => st.agent_id));
   const sleepingAgents = ALL_AGENTS.filter((a) => !activeAgentIds.has(a));
-  const taskActive = task.status !== "complete" && task.status !== "failed";
+  function toggleExpanded(id: string) {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   return (
     <div className="w-full space-y-4">
-      {/* Kingdom Scene — only in kingdom mode, above all agent cards */}
-      {isKingdom && (
-        <ErrorBoundary>
-          <KingdomScene
-            subTasks={sub_tasks}
-            treasuryBalance={coordinator_wallet ? Number(coordinator_wallet.budget_cap) : 0}
-            taskActive={taskActive}
-            reputations={reputations}
-          />
-        </ErrorBoundary>
-      )}
-
-      {/* REGIS — coordinator */}
+      {/* Kingdom: compact REGIS sigil card | Office: full coordinator card */}
       {coordinator_wallet && (
         <ErrorBoundary>
-          <CoordinatorCard wallet={coordinator_wallet} task={task} />
+          {isKingdom ? (
+            <div className="flex justify-center">
+              <RegisCard wallet={coordinator_wallet} task={task} />
+            </div>
+          ) : (
+            <CoordinatorCard wallet={coordinator_wallet} task={task} />
+          )}
           <RegisConsole coordinatorWalletId={coordinator_wallet.id} />
         </ErrorBoundary>
       )}
 
-      {/* Swarm Orbit — 3D mission control visualization */}
+      {/* CSS-only orbit constellation — no Three.js */}
       {sub_tasks.length > 0 && (
         <ErrorBoundary>
           <SwarmOrbit
@@ -81,20 +92,21 @@ export default function Dashboard() {
         </ErrorBoundary>
       )}
 
-      {/* Agent cards — responsive grid */}
+      {/* Agent grid */}
       {sub_tasks.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {sub_tasks.map((st, i) => {
             const payment = payments.find(
-              (p) =>
-                p.to_wallet_id === st.wallet_id &&
-                !p.policy_reason?.startsWith("PEER:")
+              (p) => p.to_wallet_id === st.wallet_id && !p.policy_reason?.startsWith("PEER:")
             );
             const peerPayment = payments.find(
-              (p) =>
-                p.to_wallet_id === st.wallet_id &&
-                p.policy_reason?.startsWith("PEER:")
+              (p) => p.to_wallet_id === st.wallet_id && p.policy_reason?.startsWith("PEER:")
             );
+
+            // Active agents always expand; terminal agents collapse unless user expanded them
+            const isTerminal = !ACTIVE_STATUSES.has(st.status);
+            const isCollapsed = isTerminal && !expandedIds.has(st.id);
+
             return (
               <ErrorBoundary key={st.id}>
                 <AgentCard
@@ -103,10 +115,14 @@ export default function Dashboard() {
                   peerPayment={peerPayment}
                   index={i}
                   reputation={reputations[st.agent_id]}
+                  collapsed={isCollapsed}
+                  onToggleCollapse={() => toggleExpanded(st.id)}
                 />
               </ErrorBoundary>
             );
           })}
+
+          {/* Sleeping agents (not selected for this task) */}
           {sleepingAgents.map((agentId) => (
             <ErrorBoundary key={`sleep-${agentId}`}>
               <SleepingAgentCard agentId={agentId} />

@@ -339,9 +339,12 @@ interface Props {
   peerPayment?: Payment;
   index: number;
   reputation?: number;
+  /** When true: shows compact strip (idle agents). User can click to expand. */
+  collapsed?: boolean;
+  onToggleCollapse?: () => void;
 }
 
-export default function AgentCard({ subTask, payment, peerPayment, index, reputation }: Props) {
+export default function AgentCard({ subTask, payment, peerPayment, index, reputation, collapsed = false, onToggleCollapse }: Props) {
   const { mode } = useModeStore();
   const isOffice = mode === "office";
   const { toSol } = useSolRate();
@@ -388,6 +391,67 @@ export default function AgentCard({ subTask, payment, peerPayment, index, reputa
       <div className="rounded-2xl p-4" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
         <p className="font-jb text-xs" style={{ color: "var(--text-muted)" }}>{subTask.agent_id}</p>
       </div>
+    );
+  }
+
+  // ── Collapsed strip (idle agents) ──────────────────────────────────────
+  if (collapsed) {
+    const { label, color } = isOffice
+      ? getOfficeStatusDisplay(subTask.status)
+      : getStatusDisplay(subTask.agent_id, subTask.status);
+    const earned = payment && payment.status === "signed"
+      ? toSol(Number(payment.amount), 3)
+      : null;
+    const blocked = payment && payment.status === "blocked"
+      ? toSol(Number(payment.amount), 3)
+      : null;
+
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: index * 0.04 }}
+        onClick={onToggleCollapse}
+        className="rounded-xl px-3 py-2.5 cursor-pointer"
+        style={{
+          background: "var(--surface)",
+          border: `1px solid ${borderColor}`,
+          transition: "border-color 0.2s",
+        }}
+        whileHover={{ borderColor: rc }}
+      >
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-sm">{persona.flag}</span>
+            <span className="text-xs font-semibold truncate">{persona.name}</span>
+            <span className="text-[10px] font-jb" style={{ color: "var(--text-dim)" }}>
+              · {persona.city}
+            </span>
+            <Stars n={liveRep} />
+          </div>
+          <span
+            style={{ color: "var(--text-dim)", fontSize: 10, flexShrink: 0 }}
+          >▼</span>
+        </div>
+        <div className="flex items-center gap-2 mt-1">
+          <span
+            className="text-[10px] font-jb"
+            style={{ color, background: `${color}18`, border: `1px solid ${color}25`, borderRadius: 4, padding: "1px 5px" }}
+          >
+            {label}
+          </span>
+          {earned && (
+            <span className="text-[10px] font-jb" style={{ color: "#22c55e" }}>
+              ✓ {earned}
+            </span>
+          )}
+          {blocked && (
+            <span className="text-[10px] font-jb" style={{ color: "#ef4444" }}>
+              ✗ {blocked}
+            </span>
+          )}
+        </div>
+      </motion.div>
     );
   }
 
