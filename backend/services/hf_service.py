@@ -61,21 +61,23 @@ def score_output(agent_output: str, task_description: str = "") -> Optional[floa
         from huggingface_hub import InferenceClient
         client = InferenceClient(token=HF_KEY)
 
+        # huggingface_hub >= 0.20: signature is zero_shot_classification(text, candidate_labels, ...)
+        # Returns list of ZeroShotClassificationOutputElement sorted by score descending
         result = client.zero_shot_classification(
-            text=text,
-            labels=_LABELS,
+            text,
+            _LABELS,
             hypothesis_template=_HYPOTHESIS,
             multi_label=False,
         )
 
-        # InferenceClient returns ZeroShotClassificationOutput with .labels / .scores
-        labels = getattr(result, "labels", None) or []
-        if not labels:
-            # Some versions return list of dicts
-            if isinstance(result, list) and result:
-                labels = [r.get("label", "") if isinstance(r, dict) else str(r) for r in result]
-
-        top_label = labels[0] if labels else ""
+        # result is list[ZeroShotClassificationOutputElement] with .label and .score
+        top_label = ""
+        if result and isinstance(result, list):
+            first = result[0]
+            top_label = getattr(first, "label", "") or (first.get("label", "") if isinstance(first, dict) else "")
+        elif hasattr(result, "labels"):
+            labels_list = result.labels or []  # type: ignore[attr-defined]
+            top_label = labels_list[0] if labels_list else ""
         score = _SCORE_MAP.get(top_label, 5.0)
 
         logger.info("[hf] quality score=%.1f top_label=%s", score, top_label)
