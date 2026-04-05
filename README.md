@@ -42,7 +42,7 @@
 | MoonPay fiat→SOL onramp widget | ✅ |
 | Inter-Agent Peer Payments — ATLAS→CIPHER→FORGE→BISHOP micro-economy | ✅ |
 | Kingdom / Office Mode Toggle | ✅ |
-| 3D Swarm Orbit Scene (Three.js / R3F) | ✅ |
+| CSS/SVG Swarm Orbit — radial constellation, agent dots, peer payment lines | ✅ |
 | DeepSeek routing — lead agents use Claude, support agents use DeepSeek (~80% cheaper) | ✅ |
 | Rate limiting (slowapi) — 10 submits/hour, prevents LLM budget abuse | ✅ |
 | Input validation — Pydantic validators on budget/description | ✅ |
@@ -50,6 +50,11 @@
 | Production CORS config — configurable via ALLOWED_ORIGINS env var | ✅ |
 | Admin key required to toggle live/dry-run mode | ✅ |
 | Railway deployment — 3 services: pocketbase / backend / frontend | ✅ |
+| System Status Bar — live health dots (PB/ANT/SOL/TG) polled every 60s | ✅ |
+| x402 Payment Rail Panel — agent, service, Solscan devnet link, amount, latency | ✅ |
+| Telegram Signal Feed — chat-style UI showing live REGIS notifications in-app | ✅ |
+| OWS Budget Cap visibility — ◎ SOL + USDC shown in compliance proof panel | ✅ |
+| Comprehensive health endpoint — tests 6 services, returns degraded/healthy | ✅ |
 
 ---
 
@@ -59,10 +64,10 @@
 ┌────────────────────────────────────────────────────────────────────┐
 │  BROWSER  Next.js 14 + TypeScript                                  │
 │                                                                    │
-│  TaskForm (clarify → submit) · CoordinatorCard (REGIS)             │
-│  AgentCard × active agents · SleepingAgentCard × idle agents       │
-│  SwarmOrbitScene (Three.js) · RegisConsole (probe/audit/punish)    │
-│  MetricsBar · AuditLog · SkillsPanel · DryRunBadge                 │
+│  TaskForm (clarify → submit) · RegisCard / CoordinatorCard         │
+│  AgentCard (collapsible) × active agents · SleepingAgentCard idle  │
+│  SwarmOrbit (CSS/SVG radial) · RegisConsole (probe/audit/punish)   │
+│  X402Panel · TelegramPanel · MetricsBar · AuditLog · StatusBar     │
 │                                                                    │
 │  TanStack Query (1.2s poll) · Zustand · Framer Motion              │
 └──────────────────────────────┬─────────────────────────────────────┘
@@ -75,7 +80,9 @@
 │  POST /task/submit     create REGIS coordinator wallet (OWS+Sol)   │
 │  POST /task/decompose  Claude picks agents + tools (lock-aware)    │
 │  POST /task/execute    sequential goal-compounding + quality eval  │
-│  GET  /task/:id/status full snapshot                               │
+│  GET  /task/:id/status full snapshot (task+wallets+payments+reps)  │
+│  GET  /health          6-service health check (PB/ANT/DS/SOL/TG/MP)│
+│  GET  /analytics/tokens/today  24h usage stats                     │
 │  POST /regis/probe     interrogate REGIS (Telegram notified)       │
 │  POST /regis/audit     governance score → rep delta (Telegram)     │
 │  POST /regis/punish    slash/demote/report (Telegram)              │
@@ -166,6 +173,20 @@ Eligibility for REGIS challenge:
   → Telegram fires: "⚔️ REGIS CHALLENGE ELIGIBLE"
   → Use /challenge <NAME> to trigger Claude adjudication
 ```
+
+---
+
+## Quick Demo (Live)
+
+1. Open **[https://frontend-production-9eb4.up.railway.app](https://frontend-production-9eb4.up.railway.app)**
+2. Pick a pre-loaded task (e.g. "Analyze Solana DeFi TVL across Raydium, Orca, and Jupiter")
+3. Set budget (default ◎0.3 SOL), click **LAUNCH SWARM**
+4. Watch the split-layout: left panel shows live audit log, right panel shows agent orbit + cards
+5. FORGE will be **blocked** by the REP GATE (4-rule OWS policy chain enforced)
+6. Click **OWS PROOF** on any agent card to inspect the compliance proof
+7. Scroll down: the **x402 Payment Rail** panel shows Solana tx hashes → Solscan
+8. The **Telegram Signal Feed** shows REGIS broadcasting each event in real time
+9. Check the system status bar top-right: green dots = all services healthy
 
 ---
 
@@ -324,7 +345,7 @@ Translation toggle: all non-English agents produce `english_text` field.
 | Persistence | PocketBase 0.22.20 (SQLite, single binary) |
 | Frontend | Next.js 14 · TypeScript · Tailwind CSS · standalone output |
 | State | TanStack Query v5 · Zustand v5 |
-| Animation | Framer Motion v12 · Three.js / React Three Fiber |
+| Animation | Framer Motion v12 · CSS/SVG radial orbit (no Three.js) |
 | Deployment | Railway (3 services: pocketbase / backend / frontend) |
 
 ---
