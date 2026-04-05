@@ -155,17 +155,115 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    """Railway health check endpoint."""
-    pb_ok = True
+    """Comprehensive health check — tests each service connection."""
+    from datetime import datetime, timezone
+
+    checks: dict[str, str] = {}
+
+    # PocketBase
     try:
         from services.pocketbase import PocketBaseService
         PocketBaseService().list("tasks", limit=1)
+        checks["pocketbase"] = "ok"
     except Exception:
-        pb_ok = False
+        checks["pocketbase"] = "error"
+
+    # Anthropic key present + reachable
+    try:
+        key = os.environ.get("ANTHROPIC_API_KEY", "")
+        checks["anthropic"] = "ok" if key and key.startswith("sk-ant-") else "no_key"
+    except Exception:
+        checks["anthropic"] = "error"
+
+    # DeepSeek key
+    try:
+        key = os.environ.get("DEEPSEEK_API_KEY", "")
+        checks["deepseek"] = "ok" if key else "no_key"
+    except Exception:
+        checks["deepseek"] = "error"
+
+    # Solana devnet RPC ping
+    try:
+        import httpx as _hx
+        rpc = os.environ.get("SOLANA_RPC_URL", "https://api.devnet.solana.com")
+        r = _hx.post(rpc, json={"jsonrpc": "2.0", "id": 1, "method": "getHealth"}, timeout=4)
+        checks["solana"] = "ok" if r.status_code == 200 else "error"
+    except Exception:
+        checks["solana"] = "unreachable"
+
+    # Telegram bot token present
+    try:
+        tok = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+        checks["telegram"] = "ok" if tok else "no_token"
+    except Exception:
+        checks["telegram"] = "error"
+
+    # MoonPay key present
+    try:
+        mpk = os.environ.get("MOONPAY_PUBLIC_KEY", "")
+        checks["moonpay"] = "ok" if mpk else "no_key"
+    except Exception:
+        checks["moonpay"] = "error"
+
+    all_critical = all(
+        checks.get(s) == "ok"
+        for s in ("pocketbase", "anthropic", "solana")
+    )
+
     return {
-        "status": "healthy" if pb_ok else "degraded",
-        "pocketbase": "ok" if pb_ok else "unreachable",
+        "status": "healthy" if all_critical else "degraded",
+        **checks,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "version": "1.0.0",
     }
+
+
+# ── Analytics ─────────────────────────────────────────────────────────────────
+
+@app.get("/analytics/tokens/today")
+async def analytics_tokens_today():
+    """Approximate token usage from today's sub-task outputs."""
+    import json as _json
+    from datetime import datetime, timezone, timedelta
+    try:
+        from services.pocketbase import PocketBaseService
+        pb = PocketBaseService()
+        today = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+        tasks_today = pb.list("tasks", limit=100, sort="-created")
+        sub_tasks = pb.list("sub_tasks", limit=200, sort="-created")
+        payments = pb.list("payments", limit=200, sort="-created")
+
+        total_tokens = 0
+        for st in sub_tasks:
+            out = st.get("output", "")
+            if not out:
+                continue
+            try:
+                text = _json.loads(out).get("text", out)
+            except Exception:
+                text = out
+            total_tokens += max(0, len(text) // 4)
+
+        total_signed = sum(1 for p in payments if p.get("status") == "signed")
+        total_usdc = sum(
+            float(p.get("amount", 0)) for p in payments if p.get("status") == "signed"
+        )
+        x402_count = sum(
+            1 for p in payments
+            if "x402" in (p.get("policy_reason") or "").lower()
+        )
+
+        return {
+            "period": "last_24h",
+            "tasks_run": len(tasks_today),
+            "tokens_estimated": total_tokens,
+            "payments_signed": total_signed,
+            "usdc_processed": round(total_usdc, 4),
+            "x402_transactions": x402_count,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+    except Exception as e:
+        return {"period": "last_24h", "error": str(e), "tokens_estimated": 0}
 
 
 # ── Dry Run / Live Mode ────────────────────────────────────────────────────────
