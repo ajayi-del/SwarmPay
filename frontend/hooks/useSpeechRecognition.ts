@@ -25,6 +25,13 @@ export function useSpeechRecognition(
   const recognitionRef = useRef<AnyRecognition | null>(null);
   const [supported, setSupported] = useState(false);
 
+  // Track state in a ref so callbacks always read current value (avoids stale closure)
+  const stateRef = useRef<SpeechState>("idle");
+  const setStateSync = useCallback((s: SpeechState) => {
+    stateRef.current = s;
+    setState(s);
+  }, []);
+
   useEffect(() => {
     setSupported(
       typeof window !== "undefined" &&
@@ -34,9 +41,14 @@ export function useSpeechRecognition(
 
   const start = useCallback(() => {
     if (!supported) {
-      setError("Speech recognition not supported in this browser. Try Chrome.");
-      setState("error");
+      setError("Speech recognition not supported. Try Chrome on HTTPS.");
+      setStateSync("error");
       return;
+    }
+
+    // Stop any existing session first
+    if (recognitionRef.current) {
+      try { recognitionRef.current.stop(); } catch (_) { /* ignore */ }
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -49,7 +61,7 @@ export function useSpeechRecognition(
     recognition.maxAlternatives = 1;
 
     recognition.onstart = () => {
-      setState("listening");
+      setStateSync("listening");
       setError(null);
       setTranscript("");
     };
@@ -63,34 +75,46 @@ export function useSpeechRecognition(
 
       const results = event.results as ArrayLike<{ isFinal: boolean }>;
       if ((results as { [idx: number]: { isFinal: boolean }; length: number })[results.length - 1]?.isFinal) {
-        setState("processing");
+        setStateSync("processing");
         onResult(current);
-        setTimeout(() => setState("idle"), 600);
+        setTimeout(() => setStateSync("idle"), 600);
       }
     };
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     recognition.onerror = (event: any) => {
-      const msg = event.error === "not-allowed"
-        ? "Microphone access denied. Allow it in browser settings."
-        : `Speech error: ${event.error}`;
+      let msg: string;
+      if (event.error === "not-allowed") {
+        msg = "Microphone access denied. Allow it in browser settings.";
+      } else if (event.error === "network") {
+        msg = "Network error. Speech recognition requires internet access.";
+      } else if (event.error === "no-speech") {
+        msg = "No speech detected. Try again.";
+      } else {
+        msg = `Speech error: ${event.error}`;
+      }
       setError(msg);
-      setState("error");
-      setTimeout(() => setState("idle"), 3000);
+      setStateSync("error");
+      setTimeout(() => setStateSync("idle"), 3000);
     };
 
+    // Use stateRef (not state) to avoid stale closure
     recognition.onend = () => {
-      if (state === "listening") setState("idle");
+      if (stateRef.current === "listening") {
+        setStateSync("idle");
+      }
     };
 
     recognition.start();
     recognitionRef.current = recognition;
-  }, [supported, onResult, state]);
+  }, [supported, onResult, setStateSync]);
 
   const stop = useCallback(() => {
-    recognitionRef.current?.stop();
-    setState("idle");
-  }, []);
+    if (recognitionRef.current) {
+      try { recognitionRef.current.stop(); } catch (_) { /* ignore */ }
+    }
+    setStateSync("idle");
+  }, [setStateSync]);
 
   return { state, transcript, start, stop, supported, error };
 }

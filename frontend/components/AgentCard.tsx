@@ -10,6 +10,7 @@ import {
   getOfficeStatusDisplay,
 } from "@/lib/personas";
 import OWSProofPanel from "@/components/OWSProofPanel";
+import AgentAvatar from "@/components/AgentAvatar";
 import { useModeStore } from "@/lib/modeStore";
 
 /* ── Extended output type ────────────────────────────────────────────── */
@@ -40,6 +41,7 @@ interface ParsedOutput {
   key_revoked_at?: string;
   swept_amount?: number;
   x402_payments?: X402Payment[];
+  model?: "claude" | "deepseek";
 }
 
 function parseOutput(raw: string): ParsedOutput {
@@ -62,6 +64,7 @@ function parseOutput(raw: string): ParsedOutput {
       key_revoked_at: p.key_revoked_at,
       swept_amount: p.swept_amount,
       x402_payments: p.x402_payments,
+      model: p.model,
     };
   } catch {
     return { text: raw };
@@ -270,11 +273,24 @@ function OutputTextBlock({ parsed, approxTokens }: { parsed: ParsedOutput; appro
           ))}
         </div>
       )}
-      <div className="flex gap-3 text-xs font-jb" style={{ color: "var(--text-dim)" }}>
+      <div className="flex items-center gap-3 text-xs font-jb flex-wrap" style={{ color: "var(--text-dim)" }}>
         {parsed.ms !== undefined && <span>{parsed.ms}ms</span>}
         {approxTokens > 0 && <span>~{approxTokens} tokens</span>}
         {parsed.code_execution_ms !== undefined && parsed.code_execution_ms > 0 && (
           <span style={{ color: "#a78bfa" }}>E2B: {parsed.code_execution_ms}ms</span>
+        )}
+        {parsed.model && (
+          <span
+            className="px-1.5 py-0.5 rounded text-[9px]"
+            style={{
+              background: parsed.model === "claude" ? "rgba(108,99,255,0.12)" : "rgba(34,197,94,0.10)",
+              color: parsed.model === "claude" ? "#a78bfa" : "#22c55e",
+              border: `1px solid ${parsed.model === "claude" ? "rgba(108,99,255,0.25)" : "rgba(34,197,94,0.25)"}`,
+              letterSpacing: "0.05em",
+            }}
+          >
+            {parsed.model === "claude" ? "Claude Haiku" : "DeepSeek"}
+          </span>
         )}
       </div>
     </motion.div>
@@ -390,26 +406,42 @@ export default function AgentCard({ subTask, payment, peerPayment, index, reputa
       }}
     >
       {/* ── Header ── */}
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <div className="flex items-center gap-1.5 mb-0.5">
-            <span className="text-base">{isOffice ? "👤" : persona.flag}</span>
-            <span className="font-bold tracking-tight text-sm">{persona.name}</span>
-            <span style={{ color: "var(--text-dim)" }} className="text-xs">·</span>
-            <span className="text-xs font-jb" style={{ color: "var(--text-muted)" }}>
-              {isOffice ? (officePers?.dept ?? persona.city) : persona.city}
+      <div className="flex items-start gap-3">
+        {/* 3D avatar — shows agent identity and status visually */}
+        {!isOffice && (
+          <AgentAvatar
+            agentName={subTask.agent_id}
+            status={subTask.status}
+            color={rc}
+            size={56}
+            isLead={!!subTask.is_lead}
+            reputation={liveRep}
+          />
+        )}
+
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <div className="flex items-center gap-1.5 mb-0.5">
+                <span className="text-base">{isOffice ? "👤" : persona.flag}</span>
+                <span className="font-bold tracking-tight text-sm">{persona.name}</span>
+                <span style={{ color: "var(--text-dim)" }} className="text-xs">·</span>
+                <span className="text-xs font-jb" style={{ color: "var(--text-muted)" }}>
+                  {isOffice ? (officePers?.dept ?? persona.city) : persona.city}
+                </span>
+              </div>
+              <p className="text-xs" style={{ color: "var(--text-dim)" }}>
+                {displaySubtitle}
+              </p>
+            </div>
+            <span
+              className="text-xs px-2 py-0.5 rounded-md font-semibold shrink-0"
+              style={{ background: `${rc}18`, color: rc, border: `1px solid ${rc}30` }}
+            >
+              {displayRole}
             </span>
           </div>
-          <p className="text-xs" style={{ color: "var(--text-dim)" }}>
-            {displaySubtitle}
-          </p>
         </div>
-        <span
-          className="text-xs px-2 py-0.5 rounded-md font-semibold shrink-0"
-          style={{ background: `${rc}18`, color: rc, border: `1px solid ${rc}30` }}
-        >
-          {displayRole}
-        </span>
       </div>
 
       {/* ── Stars + stats + sparkline ── */}
@@ -629,7 +661,7 @@ export default function AgentCard({ subTask, payment, peerPayment, index, reputa
         >
           <span style={{ color: "#a78bfa", fontSize: "0.65rem" }}>⇄ PEER IN</span>
           <span className="text-xs font-jb" style={{ color: "#a78bfa" }}>
-            {Number(peerPayment.amount).toFixed(3)} ETH
+            {Number(peerPayment.amount).toFixed(3)} USDC
           </span>
           <span className="text-xs" style={{ color: "var(--text-dim)" }}>
             {peerPayment.policy_reason?.replace("PEER: ", "") ?? ""}
@@ -661,7 +693,7 @@ export default function AgentCard({ subTask, payment, peerPayment, index, reputa
                 ? isOffice ? "✓ APPROVED TRANSFER" : "✓ SIGNED"
                 : isOffice ? "✗ COMPLIANCE REJECTED" : "✗ BLOCKED"}
             </span>
-            <span style={{ color: "var(--text)" }}>{Number(payment.amount).toFixed(4)} ETH</span>
+            <span style={{ color: "var(--text)" }}>{Number(payment.amount).toFixed(4)} USDC</span>
           </div>
           {payment.policy_reason && (
             <p className="text-xs" style={{ color: "var(--blocked)", opacity: 0.85 }}>

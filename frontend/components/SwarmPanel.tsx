@@ -118,11 +118,11 @@ export default function SwarmPanel() {
           <Cell label="Tasks Run"     value={String(stats.total_tasks)} />
           <Cell label={signedLabel}   value={String(stats.total_signed)}  color="var(--signed)" />
           <Cell label={blockedLabel}  value={String(stats.total_blocked)} color="var(--blocked)" />
-          <Cell label="ETH Processed" value={`${stats.eth_processed.toFixed(3)}`} color="var(--signed)" />
-          <Cell label="ETH Held"      value={`${stats.eth_held.toFixed(3)}`}      color="var(--blocked)" />
+          <Cell label="USDC Processed" value={`${stats.eth_processed.toFixed(3)}`} color="var(--signed)" />
+          <Cell label="USDC Held"      value={`${stats.eth_held.toFixed(3)}`}      color="var(--blocked)" />
           <Cell
             label={peerLabel}
-            value={`${stats.peer_count} · ${stats.eth_peer.toFixed(3)} ETH`}
+            value={`${stats.peer_count} · ${stats.eth_peer.toFixed(3)} USDC`}
             color="#a78bfa"
           />
         </div>

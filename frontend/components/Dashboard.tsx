@@ -9,6 +9,7 @@ import CoordinatorCard from "./CoordinatorCard";
 import MetricsBar from "./MetricsBar";
 import RegisConsole from "./RegisConsole";
 import SkillsPanel from "./SkillsPanel";
+import SwarmOrbit from "./SwarmOrbit";
 import { ErrorBoundary } from "./ErrorBoundary";
 
 export default function Dashboard() {
@@ -47,7 +48,18 @@ export default function Dashboard() {
         </ErrorBoundary>
       )}
 
-      {/* 5 agent cards — responsive grid */}
+      {/* Swarm Orbit — 3D mission control visualization */}
+      {sub_tasks.length > 0 && (
+        <ErrorBoundary>
+          <SwarmOrbit
+            subTasks={sub_tasks}
+            payments={payments}
+            taskStatus={task.status}
+          />
+        </ErrorBoundary>
+      )}
+
+      {/* Agent cards — responsive grid */}
       {sub_tasks.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {sub_tasks.map((st, i) => {

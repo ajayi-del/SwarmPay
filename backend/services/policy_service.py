@@ -32,7 +32,7 @@ _REP_TIERS = [
 
 
 def _rep_limit(reputation: float) -> float:
-    """Return maximum auto-approved ETH for this reputation score."""
+    """Return maximum auto-approved USDC for this reputation score."""
     for floor, limit in _REP_TIERS:
         if reputation >= floor:
             return limit
@@ -90,7 +90,7 @@ class PolicyService:
                 allow=False,
                 reason=(
                     f"REP BLOCK: {agent_id} reputation {stars} insufficient "
-                    f"for {amount:.4f} ETH ({stars} limit: {limit:.2f} ETH)"
+                    f"for {amount:.4f} USDC ({stars} limit: {limit:.2f} USDC)"
                 ),
             )
 
@@ -105,8 +105,8 @@ class PolicyService:
             return PolicyResult(
                 allow=False,
                 reason=(
-                    f"BUDGET BLOCK: requested {amount:.4f} ETH exceeds "
-                    f"coordinator allocation {allocated:.4f} ETH"
+                    f"BUDGET BLOCK: requested {amount:.4f} USDC exceeds "
+                    f"coordinator allocation {allocated:.4f} USDC"
                 ),
             )
         return PolicyResult(allow=True)

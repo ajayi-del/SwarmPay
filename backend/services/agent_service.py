@@ -1,6 +1,14 @@
 """
 Agent Service - LLM interactions with named persona agents.
 
+Model routing:
+  Lead agent   → Claude Haiku  (complex reasoning, coordination)
+  Support agents → DeepSeek Chat (routine tasks, ~80% cheaper)
+
+Deterministic spawning:
+  Claude analyzes task → returns {agents, lead, subtasks}
+  Only listed agents spawn — no wasted budget on irrelevant agents.
+
 Tool capabilities (require env vars, degrade gracefully if absent):
   ATLAS  — Firecrawl web search  (FIRECRAWL_API_KEY)
   CIPHER — E2B Python execution  (E2B_API_KEY)
@@ -14,7 +22,7 @@ import time
 import uuid
 from typing import List, Dict, Any, Optional
 
-from anthropic import Anthropic
+from services.model_service import call_claude, route as model_route
 
 FIRECRAWL_KEY: str = os.environ.get("FIRECRAWL_API_KEY", "")
 E2B_KEY: str       = os.environ.get("E2B_API_KEY", "")
@@ -111,6 +119,8 @@ COORDINATOR_PERSONA: Dict[str, Any] = {
               "sparkline": [0.7, 0.5, 0.6, 0.6, 0.5, 0.7, 0.6]},
 }
 
+ALL_AGENT_NAMES = [p["name"] for p in AGENT_PERSONAS]
+
 
 def _find_persona(agent_name: str) -> Optional[Dict[str, Any]]:
     return next((p for p in AGENT_PERSONAS if p["name"] == agent_name), None)
@@ -118,52 +128,105 @@ def _find_persona(agent_name: str) -> Optional[Dict[str, Any]]:
 
 class AgentService:
     def __init__(self):
-        self.client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+        pass  # model_service handles client init lazily
+
+    # ── Task analysis: deterministic agent selection ──────────────────
+
+    def analyze_task_for_agents(self, description: str) -> Dict[str, Any]:
+        """
+        Claude analyzes the task and returns which agents to spawn,
+        who leads, and per-agent sub-task descriptions.
+
+        Returns:
+          {
+            "agents": ["ATLAS", "CIPHER"],   # ordered list to spawn
+            "lead": "ATLAS",                  # lead agent (uses Claude)
+            "subtasks": {
+              "ATLAS": "Research Solana DeFi protocols by TVL",
+              "CIPHER": "Analyze yield data from research"
+            }
+          }
+        """
+        roster_desc = "\n".join(
+            f"- {p['name']} ({p['role']}, {p['city']}): {', '.join(p['skills'])}"
+            for p in AGENT_PERSONAS
+        )
+        prompt = (
+            f'Task: "{description}"\n\n'
+            f"Available agents:\n{roster_desc}\n\n"
+            "Select 1-4 agents best suited for this task. "
+            "Choose the minimum needed — don't over-staff. "
+            "Return JSON only (no markdown):\n"
+            '{"agents": ["NAME1", "NAME2"], "lead": "NAME1", "subtasks": {"NAME1": "...", "NAME2": "..."}}'
+        )
+        try:
+            raw = call_claude(prompt, max_tokens=400)
+            s, e = raw.find("{"), raw.rfind("}") + 1
+            if s != -1 and e > s:
+                parsed = json.loads(raw[s:e])
+                agents = [a for a in parsed.get("agents", []) if a in ALL_AGENT_NAMES]
+                lead   = parsed.get("lead", agents[0] if agents else "ATLAS")
+                if lead not in agents:
+                    lead = agents[0] if agents else "ATLAS"
+                subtasks = {
+                    k: v for k, v in parsed.get("subtasks", {}).items()
+                    if k in agents
+                }
+                # Fill in any missing subtask descriptions
+                for ag in agents:
+                    if ag not in subtasks:
+                        p = _find_persona(ag)
+                        subtasks[ag] = f"{p['role']} work on: {description}" if p else description
+                return {"agents": agents, "lead": lead, "subtasks": subtasks}
+        except Exception as exc:
+            print(f"[analyze_task fallback] {exc}")
+
+        # Fallback: use all agents with ATLAS as lead
+        return {
+            "agents": ALL_AGENT_NAMES,
+            "lead": "ATLAS",
+            "subtasks": {
+                p["name"]: f"{p['role']} analysis of: {description}"
+                for p in AGENT_PERSONAS
+            },
+        }
 
     # ── Task decomposition ────────────────────────────────────────────
 
-    def decompose_task(self, description: str, budget: float, n_agents: int = 5) -> List[Dict[str, Any]]:
+    def decompose_task(self, description: str, budget: float,
+                       selected_agents: Optional[List[str]] = None,
+                       lead: str = "ATLAS") -> List[Dict[str, Any]]:
+        """
+        Build sub-task list for the selected agents only.
+        Budget is distributed proportionally by budget_share.
+        """
+        personas = [p for p in AGENT_PERSONAS if p["name"] in (selected_agents or ALL_AGENT_NAMES)]
+        if not personas:
+            personas = AGENT_PERSONAS
+
+        # Normalize budget shares for selected subset
+        total_share = sum(p["budget_share"] for p in personas) or 1.0
         sub_tasks = [
             {
                 "id": f"subtask_{uuid.uuid4().hex[:8]}",
                 "name": p["name"],
                 "description": f"{p['role']} analysis of: {description}",
-                "budget_allocated": round(budget * p["budget_share"], 6),
+                "budget_allocated": round(budget * (p["budget_share"] / total_share), 6),
                 "persona": p,
+                "is_lead": p["name"] == lead,
             }
-            for p in AGENT_PERSONAS
+            for p in personas
         ]
-        try:
-            names_roles = ", ".join(f"{p['name']} ({p['role']})" for p in AGENT_PERSONAS)
-            prompt = (
-                f'Task: "{description}"\n\n'
-                f"Write one-sentence sub-task descriptions for: {names_roles}\n\n"
-                f'Return JSON only: [{{"name": "ATLAS", "description": "..."}}]'
-            )
-            resp = self.client.messages.create(
-                model="claude-haiku-4-5-20251001",
-                max_tokens=400,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            raw = resp.content[0].text
-            s, e = raw.find("["), raw.rfind("]") + 1
-            if s != -1 and e > s:
-                parsed = json.loads(raw[s:e])
-                by_name = {item["name"]: item["description"] for item in parsed}
-                for st in sub_tasks:
-                    if st["name"] in by_name:
-                        st["description"] = by_name[st["name"]]
-        except Exception as exc:
-            print(f"[decompose fallback] {exc}")
         return sub_tasks
 
     # ── Sub-task execution (dispatcher) ──────────────────────────────
 
     def execute_sub_task(self, sub_task_description: str, agent_name: str,
-                         wallet_id: str = "") -> str:
+                         wallet_id: str = "", is_lead: bool = False) -> str:
         """
         Dispatch to agent-specific execution path.
-        Always returns a valid JSON string regardless of tool availability.
+        Lead agent uses Claude; support agents use DeepSeek.
+        Always returns a valid JSON string.
         """
         dispatch = {
             "ATLAS":  self._execute_atlas,
@@ -172,12 +235,12 @@ class AgentService:
         }
         fn = dispatch.get(agent_name)
         if fn:
-            return fn(sub_task_description, wallet_id=wallet_id)
-        return self._execute_default(sub_task_description, agent_name)
+            return fn(sub_task_description, wallet_id=wallet_id, is_lead=is_lead)
+        return self._execute_default(sub_task_description, agent_name, is_lead=is_lead)
 
     # ── ATLAS — Firecrawl web search ──────────────────────────────────
 
-    def _execute_atlas(self, description: str, wallet_id: str = "") -> str:
+    def _execute_atlas(self, description: str, wallet_id: str = "", is_lead: bool = False) -> str:
         from services.x402_service import x402_service
         t0 = time.monotonic()
         persona = _find_persona("ATLAS")
@@ -186,7 +249,6 @@ class AgentService:
         search_context = ""
         x402_payments: List[Dict] = []
 
-        # x402 micropayment: pay for search access
         if wallet_id:
             try:
                 receipt = x402_service.pay_search(wallet_id)
@@ -210,20 +272,16 @@ class AgentService:
 
         context_block = f"\n\nWeb Research Context:\n{search_context[:800]}" if search_context else ""
         try:
-            resp = self.client.messages.create(
-                model="claude-haiku-4-5-20251001",
-                max_tokens=200,
-                messages=[{"role": "user", "content":
-                    f"You are ATLAS, the Researcher from Berlin. Respond in German.\n"
-                    f"Complete this research task in 2-3 sentences: {description}{context_block}\n"
-                    "Be concise and stay in character."}],
+            prompt = (
+                f"You are ATLAS, the Researcher from Berlin. Respond in German.\n"
+                f"Complete this research task in 2-3 sentences: {description}{context_block}\n"
+                "Be concise and stay in character."
             )
-            text = resp.content[0].text.strip()
+            text = model_route(is_lead, prompt, max_tokens=200)
         except Exception as exc:
             print(f"[atlas llm] {exc}")
             text = persona["fallback"] if persona else "Research complete."
 
-        # Email summary draft for ATLAS
         email_summary = {
             "to": "stakeholders@swarm.pay",
             "subject": f"Research Brief: {description[:60]}",
@@ -232,14 +290,14 @@ class AgentService:
 
         ms = int((time.monotonic() - t0) * 1000)
         return json.dumps({"text": text, "ms": ms, "tools": tools, "sources": sources,
-                           "x402_payments": x402_payments, "email_summary": email_summary})
+                           "x402_payments": x402_payments, "email_summary": email_summary,
+                           "model": "claude" if is_lead else "deepseek"})
 
     def _firecrawl_search(self, query: str) -> dict:
         try:
             from firecrawl import FirecrawlApp
             app = FirecrawlApp(api_key=FIRECRAWL_KEY)
             raw = app.search(query, limit=3)
-            # Handle firecrawl v2 SearchData object, list, or dict
             if hasattr(raw, "web"):
                 data = raw.web or []
             elif isinstance(raw, list):
@@ -272,14 +330,13 @@ class AgentService:
 
     # ── CIPHER — E2B Python execution ─────────────────────────────────
 
-    def _execute_cipher(self, description: str, wallet_id: str = "") -> str:
+    def _execute_cipher(self, description: str, wallet_id: str = "", is_lead: bool = False) -> str:
         from services.x402_service import x402_service
         t0 = time.monotonic()
         persona = _find_persona("CIPHER")
         tools: List[Dict] = []
         x402_payments: List[Dict] = []
 
-        # x402 micropayment: pay for analysis engine access
         if wallet_id:
             try:
                 receipt = x402_service.pay_analyze(wallet_id)
@@ -291,25 +348,20 @@ class AgentService:
             except Exception as e:
                 print(f"[x402 cipher] {e}")
 
-        # Analysis summary in Japanese
         try:
-            resp = self.client.messages.create(
-                model="claude-haiku-4-5-20251001",
-                max_tokens=200,
-                messages=[{"role": "user", "content":
-                    f"You are CIPHER, the Analyst from Tokyo. Respond in Japanese.\n"
-                    f"Complete this analysis in 2-3 sentences: {description}\n"
-                    "Be concise and stay in character."}],
+            prompt = (
+                f"You are CIPHER, the Analyst from Tokyo. Respond in Japanese.\n"
+                f"Complete this analysis in 2-3 sentences: {description}\n"
+                "Be concise and stay in character."
             )
-            text = resp.content[0].text.strip()
+            text = model_route(is_lead, prompt, max_tokens=200)
         except Exception as exc:
             print(f"[cipher llm] {exc}")
             text = persona["fallback"] if persona else "Analysis complete."
 
-        # E2B code execution
         code, code_output, code_execution_ms = "", "", 0
         if E2B_KEY:
-            er = self._e2b_execute(description)
+            er = self._e2b_execute(description, is_lead=is_lead)
             code = er.get("code", "")
             code_output = er.get("output", "")
             code_execution_ms = er.get("execution_time", 0)
@@ -328,10 +380,11 @@ class AgentService:
             "code_output": code_output,
             "code_execution_ms": code_execution_ms,
             "x402_payments": x402_payments,
+            "model": "claude" if is_lead else "deepseek",
         })
 
-    def _e2b_execute(self, description: str) -> dict:
-        """Ask Claude to write analysis code, then run it in E2B."""
+    def _e2b_execute(self, description: str, is_lead: bool = False) -> dict:
+        """Ask LLM to write analysis code, then run it in E2B."""
         code_prompt = (
             f"Write 8-12 lines of Python to analyze: {description}\n\n"
             "Rules:\n"
@@ -341,13 +394,7 @@ class AgentService:
             "Return ONLY the Python code, nothing else."
         )
         try:
-            code_resp = self.client.messages.create(
-                model="claude-haiku-4-5-20251001",
-                max_tokens=300,
-                messages=[{"role": "user", "content": code_prompt}],
-            )
-            raw_code = code_resp.content[0].text.strip()
-            # Strip markdown fences if present
+            raw_code = model_route(is_lead, code_prompt, max_tokens=300)
             if "```" in raw_code:
                 lines = raw_code.split("\n")
                 start = next((i + 1 for i, l in enumerate(lines) if l.startswith("```")), 0)
@@ -374,14 +421,13 @@ class AgentService:
 
     # ── FORGE — E2B file write + downloadable report ──────────────────
 
-    def _execute_forge(self, description: str, wallet_id: str = "") -> str:
+    def _execute_forge(self, description: str, wallet_id: str = "", is_lead: bool = False) -> str:
         from services.x402_service import x402_service
         t0 = time.monotonic()
         persona = _find_persona("FORGE")
         tools: List[Dict] = []
         x402_payments: List[Dict] = []
 
-        # x402 micropayment: pay for publish endpoint access
         if wallet_id:
             try:
                 receipt = x402_service.pay_publish(wallet_id)
@@ -393,7 +439,6 @@ class AgentService:
             except Exception as e:
                 print(f"[x402 forge] {e}")
 
-        # One Claude call: summary + full report separated by ---
         combined_prompt = (
             f"You are FORGE, Synthesizer from Lagos (English + Yorùbá).\n"
             f"Task: {description}\n\n"
@@ -408,12 +453,7 @@ class AgentService:
         report_md = f"# SwarmPay Report\n\n## Task\n\n{description}"
 
         try:
-            resp = self.client.messages.create(
-                model="claude-haiku-4-5-20251001",
-                max_tokens=700,
-                messages=[{"role": "user", "content": combined_prompt}],
-            )
-            raw = resp.content[0].text.strip()
+            raw = model_route(is_lead, combined_prompt, max_tokens=700)
             if "---" in raw:
                 parts = raw.split("---", 1)
                 text = parts[0].strip()
@@ -424,7 +464,6 @@ class AgentService:
         except Exception as exc:
             print(f"[forge llm] {exc}")
 
-        # Write to E2B sandbox
         if E2B_KEY:
             try:
                 from e2b_code_interpreter import Sandbox
@@ -447,17 +486,14 @@ class AgentService:
                 print(f"[e2b forge] {e}")
                 tools.append({"name": "E2B File Write", "result": "swarm_report.md written (local)"})
 
-        # English clean summary for FORGE (strips Yoruba phrases)
+        # English translation (always use Claude for translation quality)
         english_text = ""
         try:
-            tr = self.client.messages.create(
-                model="claude-haiku-4-5-20251001",
-                max_tokens=150,
-                messages=[{"role": "user", "content":
-                    f"Translate/clean this to plain English only. Remove any Yoruba phrases. "
-                    f"Keep it professional and 1-2 sentences:\n\n{text}"}],
+            tr_prompt = (
+                f"Translate/clean this to plain English only. Remove any Yoruba phrases. "
+                f"Keep it professional and 1-2 sentences:\n\n{text}"
             )
-            english_text = tr.content[0].text.strip()
+            english_text = call_claude(tr_prompt, max_tokens=150)
         except Exception:
             pass
 
@@ -471,11 +507,12 @@ class AgentService:
             "x402_payments": x402_payments,
             "lang": "English/Yoruba",
             "english_text": english_text,
+            "model": "claude" if is_lead else "deepseek",
         })
 
     # ── Default (BISHOP, SØN) ─────────────────────────────────────────
 
-    def _execute_default(self, description: str, agent_name: str) -> str:
+    def _execute_default(self, description: str, agent_name: str, is_lead: bool = False) -> str:
         persona = _find_persona(agent_name)
         prompt_lang = persona["prompt_lang"] if persona else "English"
         role        = persona["role"]        if persona else "Agent"
@@ -489,12 +526,7 @@ class AgentService:
                 f"Complete this task in 2-3 sentences: {description}\n\n"
                 "Be concise and stay in character."
             )
-            resp = self.client.messages.create(
-                model="claude-haiku-4-5-20251001",
-                max_tokens=200,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            text = resp.content[0].text.strip()
+            text = model_route(is_lead, prompt, max_tokens=200)
             sentences = text.split(". ")
             if len(sentences) > 3:
                 text = ". ".join(sentences[:3]) + "."
@@ -502,27 +534,26 @@ class AgentService:
             print(f"[execute fallback] {exc}")
             text = persona["fallback"] if persona else f"Task completed by {agent_name}."
 
-        # English translation for non-English agents (BISHOP Latin/Italian, SØN Norwegian)
+        # Translation always uses Claude for quality
         english_text = ""
         if needs_translation and text:
             try:
-                tr = self.client.messages.create(
-                    model="claude-haiku-4-5-20251001",
-                    max_tokens=200,
-                    messages=[{"role": "user", "content":
-                        f"Translate this to English. Keep it concise and professional. "
-                        f"Output only the translation, no preamble:\n\n{text}"}],
+                tr_prompt = (
+                    f"Translate this to English. Keep it concise and professional. "
+                    f"Output only the translation, no preamble:\n\n{text}"
                 )
-                english_text = tr.content[0].text.strip()
+                english_text = call_claude(tr_prompt, max_tokens=200)
             except Exception:
                 pass
 
         ms = int((time.monotonic() - t0) * 1000)
-        result: dict = {"text": text, "ms": ms, "tools": [], "lang": prompt_lang}
+        result: dict = {
+            "text": text, "ms": ms, "tools": [], "lang": prompt_lang,
+            "model": "claude" if is_lead else "deepseek",
+        }
         if english_text:
             result["english_text"] = english_text
 
-        # BISHOP generates a compliance email draft
         if agent_name == "BISHOP":
             result["email_summary"] = {
                 "to": "compliance@swarm.pay",

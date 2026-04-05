@@ -173,19 +173,19 @@ export default function CoordinatorCard({ wallet, task }: Props) {
           <p className="text-xs" style={{ color: "var(--text-muted)" }}>{treasuryLabel}</p>
           <p className="text-2xl font-bold font-jb" style={{ color: accentColor }}>
             {Number(wallet.budget_cap).toFixed(2)}{" "}
-            <span className="text-sm font-normal" style={{ color: "var(--text-muted)" }}>ETH</span>
+            <span className="text-sm font-normal" style={{ color: "var(--text-muted)" }}>USDC</span>
           </p>
           <p className="text-xs font-jb truncate max-w-[200px]" style={{ color: "var(--text-dim)" }}>
             {wallet.eth_address.slice(0, 10)}…{wallet.eth_address.slice(-6)}
           </p>
           {meteoraRate && (
             <p className="text-xs font-jb mt-1" style={{ color: "#06b6d4" }}>
-              Treasury valued at ≈ ${(Number(wallet.budget_cap) * meteoraRate / 3200).toFixed(0)} USD
+              Budget: ${Number(wallet.budget_cap).toFixed(2)} USDC
               <span className="block text-[10px] mt-0.5" style={{ color: "#555" }}>
                 SOL/USDC {meteoraRate} · {meteoraSource}
               </span>
               <span className="block text-[10px] mt-0.5" style={{ color: "#a78bfa" }}>
-                Position: {(Number(wallet.budget_cap) * 0.4).toFixed(3)} SOL / {(Number(wallet.budget_cap) * 0.6 * meteoraRate).toFixed(0)} USDC · Est. APR ~8.4%
+                ≈ {(Number(wallet.budget_cap) / meteoraRate).toFixed(4)} SOL at current rate · Est. APR ~8.4%
               </span>
             </p>
           )}

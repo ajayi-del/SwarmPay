@@ -100,7 +100,7 @@ async def audit_regis():
         for p in coord_payments[:5]:
             line = (
                 f"- {p.get('status', '?').upper()} "
-                f"{float(p.get('amount', 0)):.4f} ETH "
+                f"{float(p.get('amount', 0)):.4f} USDC "
                 f"reason: {p.get('policy_reason', 'none') or 'approved'}"
             )
             decision_lines.append(line)

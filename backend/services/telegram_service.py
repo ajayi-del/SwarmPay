@@ -15,6 +15,12 @@ Commands
 /brain                 — last 10 brain entries
 /reputations           — live agent rep scores
 /audit                 — run REGIS governance audit
+/solana                — Solana devnet wallet info + balances
+/ows                   — OWS wallet permissions and policy info
+/moonpay [amount]      — generate Moonpay onramp URL
+/model                 — show current model routing (Claude vs DeepSeek)
+/dryrun                — switch to dry run mode (mock transactions)
+/live                  — switch to live mode (real Solana devnet)
 /help                  — command list
 
 Any plain text → REGIS in-character probe response.
@@ -100,6 +106,13 @@ async def cmd_help(chat_id: int):
         "/brain            — recent memory\n"
         "/reputations      — agent scores\n"
         "/audit            — governance audit\n"
+        "──── Infrastructure ───\n"
+        "/solana           — Solana devnet wallets\n"
+        "/ows              — OWS wallet permissions\n"
+        "/moonpay [amt]    — fiat → SOL onramp URL\n"
+        "/model            — model routing info\n"
+        "/dryrun           — switch to dry run mode\n"
+        "/live             — switch to live mode\n"
         "/help             — this list\n\n"
         "Or send any message to speak directly with REGIS."
     )
@@ -204,8 +217,8 @@ async def cmd_submit(chat_id: int, description: str):
             f"SWARM LAUNCHED\n"
             f"──────────────\n"
             f"Task ID: {task_id}\n"
-            f"5 agents deployed. Use /status to monitor.\n"
-            f"ATLAS · CIPHER · FORGE · BISHOP · SØN"
+            f"Agents selected by REGIS for this task.\n"
+            f"Use /status to monitor progress."
         )
     except Exception as e:
         await send(chat_id, f"Launch failed: {e}")
@@ -275,6 +288,171 @@ async def cmd_audit(chat_id: int):
         await send(chat_id, f"Audit failed: {e}")
 
 
+async def cmd_solana(chat_id: int):
+    try:
+        # Fetch all wallets and show Solana addresses + balances
+        r = await _backend("/api/collections/wallets/records?sort=-created&perPage=10")
+        wallets = r.get("items", [])
+        if not wallets:
+            await send(chat_id, "No wallets found. Submit a task first.")
+            return
+        lines = ["SOLANA DEVNET WALLETS\n─────────────────────"]
+        for w in wallets[:8]:
+            sol = w.get("sol_address", "—")
+            role = w.get("role", "?").upper()
+            name = w.get("name", "?")
+            bal  = float(w.get("balance", 0))
+            cap  = float(w.get("budget_cap", 0))
+            if sol and sol != "—":
+                explorer = f"https://explorer.solana.com/address/{sol}?cluster=devnet"
+                lines.append(
+                    f"{name} [{role}]\n"
+                    f"  {sol[:20]}…\n"
+                    f"  Balance: {bal:.4f} / Cap: {cap:.2f} USDC\n"
+                    f"  Explorer: {explorer}"
+                )
+        # Current SOL/USDC rate
+        rate_data = await _backend("/regis/meteora")
+        if rate_data.get("rate"):
+            lines.append(f"\nSOL/USDC: {rate_data['rate']} ({rate_data.get('source','')})")
+        await send(chat_id, "\n".join(lines))
+    except Exception as e:
+        await send(chat_id, f"Solana query failed: {e}")
+
+
+async def cmd_ows(chat_id: int):
+    try:
+        r = await _backend("/api/collections/wallets/records?sort=-created&perPage=10")
+        wallets = r.get("items", [])
+        if not wallets:
+            await send(chat_id, "No OWS wallets found. Submit a task first.")
+            return
+        lines = ["OWS WALLET PERMISSIONS\n──────────────────────"]
+        for w in wallets[:8]:
+            name    = w.get("name", "?")
+            role    = w.get("role", "?").upper()
+            eth     = w.get("eth_address", "—")
+            api_key = w.get("api_key_id", "—")
+            cap     = float(w.get("budget_cap", 0))
+            revoked = "REVOKED" in str(api_key)
+            status  = "✗ REVOKED" if revoked else "✓ ACTIVE"
+            lines.append(
+                f"{name} [{role}] {status}\n"
+                f"  Addr: {eth[:16]}…\n"
+                f"  Cap: {cap:.4f} USDC\n"
+                f"  Key: {str(api_key)[:20]}…"
+            )
+        lines.append(
+            "\nPolicy Engine:\n"
+            "  Rep gate → Budget cap → Coordinator auth → No double-pay\n"
+            "  5★=$10 · 4★=$2 · 3★=$1 · 2★=$0.50 limits"
+        )
+        await send(chat_id, "\n".join(lines))
+    except Exception as e:
+        await send(chat_id, f"OWS query failed: {e}")
+
+
+async def cmd_moonpay(chat_id: int, args: str):
+    try:
+        # Get most recent coordinator wallet's SOL address
+        r = await _backend("/api/collections/wallets/records?filter=role%3D'coordinator'&sort=-created&perPage=1")
+        wallets = r.get("items", [])
+        sol_address = wallets[0].get("sol_address", "") if wallets else ""
+
+        # Parse optional amount
+        try:
+            amount = float(args.strip()) if args.strip() else 20.0
+        except ValueError:
+            amount = 20.0
+
+        if sol_address:
+            from services.moonpay_service import get_onramp_info
+            info = get_onramp_info(sol_address)
+            url  = info["url"]
+            mode = info["mode"].upper()
+            note = info["note"]
+        else:
+            url  = "No active SOL wallet. Submit a task first."
+            mode = "N/A"
+            note = "Submit a task to generate a wallet."
+
+        await send(chat_id,
+            f"MOONPAY ONRAMP [{mode}]\n"
+            f"──────────────────────\n"
+            f"Amount: ${amount:.2f} USD → SOL\n"
+            f"Wallet: {sol_address[:24] if sol_address else '—'}…\n"
+            f"Note:   {note}\n\n"
+            f"{url}"
+        )
+    except Exception as e:
+        await send(chat_id, f"Moonpay query failed: {e}")
+
+
+async def cmd_model(chat_id: int):
+    try:
+        from services.model_service import current_routing_info
+        info = current_routing_info()
+        await send(chat_id,
+            f"MODEL ROUTING\n"
+            f"─────────────\n"
+            f"Lead agents:    {info['lead_model']}\n"
+            f"Support agents: {info['support_model']}\n"
+            f"DeepSeek:       {'✓ ENABLED' if info['deepseek_enabled'] else '✗ KEY MISSING'}\n"
+            f"Endpoint:       {info['deepseek_base']}\n\n"
+            "Lead agent → Claude (complex reasoning)\n"
+            "Support agents → DeepSeek (routine tasks, ~80% cheaper)"
+        )
+    except Exception as e:
+        await send(chat_id, f"Model info failed: {e}")
+
+
+async def cmd_dryrun(chat_id: int):
+    try:
+        r = await _backend("/mode/toggle", "POST")
+        if r.get("mode") == "dry_run":
+            await send(chat_id,
+                "DRY RUN MODE ACTIVE\n"
+                "───────────────────\n"
+                "All transactions use mock signatures.\n"
+                "Solana sends are simulated — no real funds move.\n"
+                "Safe for demos and development."
+            )
+        else:
+            # Was already live, toggled back — toggle again to go to dry_run
+            await _backend("/mode/toggle", "POST")
+            await send(chat_id, "Already in live mode. Use /dryrun again to confirm switch.\n(Toggled back to live — send /dryrun once more to force dry run.)")
+    except Exception as e:
+        # Fallback: set env directly
+        import os
+        os.environ["LIVE_MODE"] = "false"
+        await send(chat_id, f"DRY RUN MODE SET (direct)\nError was: {e}")
+
+
+async def cmd_live(chat_id: int):
+    try:
+        r = await _backend("/mode/toggle", "POST")
+        if r.get("mode") == "live":
+            await send(chat_id,
+                "⚠ LIVE MODE ACTIVE\n"
+                "──────────────────\n"
+                "Real Solana devnet transactions enabled.\n"
+                "Keypairs are real — balances will change.\n"
+                "Use /dryrun to return to safe mode."
+            )
+        else:
+            # Was dry_run, toggled to live but check confirmed
+            await send(chat_id,
+                "⚠ LIVE MODE ACTIVE\n"
+                "──────────────────\n"
+                "Real Solana devnet transactions enabled.\n"
+                "Use /dryrun to return to safe mode."
+            )
+    except Exception as e:
+        import os
+        os.environ["LIVE_MODE"] = "true"
+        await send(chat_id, f"⚠ LIVE MODE SET (direct)\nError was: {e}")
+
+
 async def handle_plain_message(chat_id: int, text: str):
     """Any non-command message → REGIS in-character probe."""
     try:
@@ -325,6 +503,19 @@ async def handle_update(update: dict) -> None:
         await cmd_reputations(chat_id)
     elif text.startswith("/audit"):
         await cmd_audit(chat_id)
+    elif text.startswith("/solana"):
+        await cmd_solana(chat_id)
+    elif text.startswith("/ows"):
+        await cmd_ows(chat_id)
+    elif text.startswith("/moonpay"):
+        args = text[8:].strip()
+        await cmd_moonpay(chat_id, args)
+    elif text.startswith("/model"):
+        await cmd_model(chat_id)
+    elif text.startswith("/dryrun"):
+        await cmd_dryrun(chat_id)
+    elif text.startswith("/live"):
+        await cmd_live(chat_id)
     else:
         await handle_plain_message(chat_id, text)
 

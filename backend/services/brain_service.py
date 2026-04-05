@@ -60,7 +60,7 @@ class BrainService:
 
         summary = (
             f"Task '{task.get('description', '')[:50]}' complete. "
-            f"Paid {len(signed)} agent(s) {total:.4f} ETH total. "
+            f"Paid {len(signed)} agent(s) {total:.4f} USDC total. "
         )
         for p in blocked:
             st = next((s for s in sub_tasks if s.get("wallet_id") == p.get("to_wallet_id")), {})

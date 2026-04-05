@@ -5,6 +5,7 @@ import TaskForm from "@/components/TaskForm";
 import Dashboard from "@/components/Dashboard";
 import AuditLog from "@/components/AuditLog";
 import ModeToggle from "@/components/ModeToggle";
+import DryRunBadge from "@/components/DryRunBadge";
 import SwarmPanel from "@/components/SwarmPanel";
 import StackDiagram from "@/components/StackDiagram";
 import { useSwarmStore } from "@/lib/store";
@@ -76,6 +77,7 @@ export default function Home() {
             >
               ARCH
             </button>
+            <DryRunBadge />
             <ModeToggle />
             {isActive && (
               <button

@@ -20,6 +20,7 @@ export interface SubTask {
   status: "spawned" | "working" | "complete" | "paid" | "blocked" | "failed" | "timed_out";
   output: string;
   created: string;
+  is_lead?: boolean;
 }
 
 export interface Payment {

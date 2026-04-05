@@ -92,8 +92,6 @@ function AgentSkillRow({ agentId }: { agentId: string }) {
   const set = AGENT_SKILLS[agentId];
   if (!set) return null;
 
-  const tiers: SkillTier[] = ["core", "financial", "advanced", "business"];
-
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2">

@@ -64,6 +64,37 @@ async def health_check():
     return {"status": "healthy"}
 
 
+# ── Dry Run / Live Mode toggle ─────────────────────────────────────────────────
+
+def _live_mode() -> bool:
+    return os.environ.get("LIVE_MODE", "false").lower() in ("true", "1", "yes")
+
+
+@app.get("/mode")
+async def get_mode():
+    """Return current execution mode."""
+    live = _live_mode()
+    return {
+        "mode": "live" if live else "dry_run",
+        "live": live,
+        "description": "Real Solana devnet transactions" if live else "Mock wallets and signatures — safe to demo",
+    }
+
+
+@app.post("/mode/toggle")
+async def toggle_mode():
+    """Toggle between dry run and live mode (runtime only — persists until restart)."""
+    current = _live_mode()
+    new_val = "false" if current else "true"
+    os.environ["LIVE_MODE"] = new_val
+    live = new_val == "true"
+    return {
+        "mode": "live" if live else "dry_run",
+        "live": live,
+        "message": f"Switched to {'LIVE' if live else 'DRY RUN'} mode",
+    }
+
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request, exc):
     return JSONResponse(

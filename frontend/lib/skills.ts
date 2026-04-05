@@ -205,7 +205,7 @@ export const AGENT_SKILLS: Record<string, AgentSkillSet> = {
         id: "peer-payment-receive",
         name: "Peer Payment Receive",
         tier: "financial",
-        description: "Receive 0.002 ETH compliance review fee from FORGE via peer payment chain",
+        description: "Receive 0.002 USDC compliance review fee from FORGE via peer payment chain",
         active: true,
       },
       {

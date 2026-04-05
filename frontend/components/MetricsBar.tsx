@@ -60,9 +60,9 @@ export default function MetricsBar({ taskState }: Props) {
     >
       {/* Stats row */}
       <div className="flex flex-wrap gap-6 items-end mb-3">
-        <Stat label="Total Budget" value={`${Number(task.total_budget).toFixed(2)} ETH`} />
-        <Stat label={isOffice ? "Disbursed" : "Spent"} value={`${totalSpent.toFixed(4)} ETH`} color="var(--signed)" />
-        <Stat label={isOffice ? "Held" : "Blocked"} value={`${totalBlocked.toFixed(4)} ETH`} color="var(--blocked)" />
+        <Stat label="Total Budget" value={`${Number(task.total_budget).toFixed(2)} USDC`} />
+        <Stat label={isOffice ? "Disbursed" : "Spent"} value={`${totalSpent.toFixed(4)} USDC`} color="var(--signed)" />
+        <Stat label={isOffice ? "Held" : "Blocked"} value={`${totalBlocked.toFixed(4)} USDC`} color="var(--blocked)" />
 
         <div className="h-8 w-px" style={{ background: "var(--border)" }} />
 

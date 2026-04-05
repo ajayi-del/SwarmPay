@@ -81,7 +81,7 @@ class ReputationPolicyEngine:
             if threshold.level == ReputationLevel.BLOCKED:
                 return {
                     "allow": False,
-                    "reason": f"REP BLOCK: reputation {reputation:.1f} insufficient for {amount:.3f} ETH",
+                    "reason": f"REP BLOCK: reputation {reputation:.1f} insufficient for {amount:.3f} USDC",
                     "threshold": threshold,
                     "reputation": reputation
                 }
@@ -90,7 +90,7 @@ class ReputationPolicyEngine:
             if amount <= threshold.max_auto_approve:
                 return {
                     "allow": True,
-                    "reason": f"REP APPROVE: {amount:.3f} ETH within {threshold.level.value} limit",
+                    "reason": f"REP APPROVE: {amount:.3f} USDC within {threshold.level.value} limit",
                     "threshold": threshold,
                     "reputation": reputation
                 }
@@ -99,7 +99,7 @@ class ReputationPolicyEngine:
             if threshold.requires_coordinator:
                 return {
                     "allow": False,
-                    "reason": f"REP BLOCK: reputation {reputation:.1f} requires coordinator approval for {amount:.3f} ETH",
+                    "reason": f"REP BLOCK: reputation {reputation:.1f} requires coordinator approval for {amount:.3f} USDC",
                     "threshold": threshold,
                     "reputation": reputation,
                     "requires_coordinator": True
@@ -108,7 +108,7 @@ class ReputationPolicyEngine:
             # Amount exceeds limit
             return {
                 "allow": False,
-                "reason": f"BUDGET BLOCK: {amount:.3f} ETH exceeds {threshold.level.value} limit of {threshold.max_auto_approve:.3f}",
+                "reason": f"BUDGET BLOCK: {amount:.3f} USDC exceeds {threshold.level.value} limit of {threshold.max_auto_approve:.3f}",
                 "threshold": threshold,
                 "reputation": reputation
             }
