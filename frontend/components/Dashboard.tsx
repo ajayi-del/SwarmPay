@@ -8,14 +8,14 @@ import { useModeStore } from "@/lib/modeStore";
 import AgentCard from "./AgentCard";
 import SleepingAgentCard from "./SleepingAgentCard";
 import CoordinatorCard from "./CoordinatorCard";
-import RegisCard from "./RegisCard";
-import MetricsBar from "./MetricsBar";
+import RegisRow from "./RegisRow";
 import RegisConsole from "./RegisConsole";
 import SkillsPanel from "./SkillsPanel";
 import SwarmOrbit from "./SwarmOrbit";
 import X402Panel from "./X402Panel";
 import TelegramPanel from "./TelegramPanel";
 import SovereigntyPanel from "./SovereigntyPanel";
+import SwarmPanel from "./SwarmPanel";
 import { ErrorBoundary } from "./ErrorBoundary";
 
 // Active statuses — these agents are always expanded
@@ -59,6 +59,7 @@ export default function Dashboard() {
   const ALL_AGENTS = ["ATLAS", "CIPHER", "FORGE", "BISHOP", "SØN"];
   const activeAgentIds = new Set(sub_tasks.map((st) => st.agent_id));
   const sleepingAgents = ALL_AGENTS.filter((a) => !activeAgentIds.has(a));
+
   function toggleExpanded(id: string) {
     setExpandedIds((prev) => {
       const next = new Set(prev);
@@ -70,12 +71,17 @@ export default function Dashboard() {
 
   return (
     <div className="w-full space-y-4">
-      {/* Kingdom: compact REGIS sigil card | Office: full coordinator card */}
+      {/* ── 1. REGIS compact row / Office coordinator card ── */}
       {coordinator_wallet && (
         <ErrorBoundary>
           {isKingdom ? (
-            <div className="flex justify-center">
-              <RegisCard wallet={coordinator_wallet} task={task} />
+            <div className="flex justify-center py-2">
+              <RegisRow
+                wallet={coordinator_wallet}
+                task={task}
+                subTasks={sub_tasks}
+                payments={payments}
+              />
             </div>
           ) : (
             <CoordinatorCard wallet={coordinator_wallet} task={task} />
@@ -84,23 +90,7 @@ export default function Dashboard() {
         </ErrorBoundary>
       )}
 
-      {/* Sovereignty race — always show once data available */}
-      <ErrorBoundary>
-        <SovereigntyPanel />
-      </ErrorBoundary>
-
-      {/* CSS-only orbit constellation — no Three.js */}
-      {sub_tasks.length > 0 && (
-        <ErrorBoundary>
-          <SwarmOrbit
-            subTasks={sub_tasks}
-            payments={payments}
-            taskStatus={task.status}
-          />
-        </ErrorBoundary>
-      )}
-
-      {/* Agent grid */}
+      {/* ── 2. Agent grid (the workers) ── */}
       {sub_tasks.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {sub_tasks.map((st, i) => {
@@ -111,7 +101,6 @@ export default function Dashboard() {
               (p) => p.to_wallet_id === st.wallet_id && p.policy_reason?.startsWith("PEER:")
             );
 
-            // Active agents always expand; terminal agents collapse unless user expanded them
             const isTerminal = !ACTIVE_STATUSES.has(st.status);
             const isCollapsed = isTerminal && !expandedIds.has(st.id);
 
@@ -139,31 +128,47 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Metrics bar */}
-      {sub_tasks.length > 0 && (
-        <ErrorBoundary>
-          <MetricsBar taskState={taskState} />
-        </ErrorBoundary>
-      )}
+      {/* ── 3. Sovereignty race ── */}
+      <ErrorBoundary>
+        <SovereigntyPanel />
+      </ErrorBoundary>
 
-      {/* x402 payment rail */}
+      {/* ── 4. x402 Payment Rail (proof of Solana) ── */}
       {payments.length > 0 && (
         <ErrorBoundary>
           <X402Panel payments={payments} subTasks={sub_tasks} />
         </ErrorBoundary>
       )}
 
-      {/* Telegram signal feed */}
+      {/* ── 5. Telegram signal feed ── */}
       {sub_tasks.length > 0 && (
         <ErrorBoundary>
           <TelegramPanel />
         </ErrorBoundary>
       )}
 
-      {/* Skills registry */}
+      {/* ── 6. Swarm Intelligence / Governance score (lifetime stats) ── */}
+      {sub_tasks.length > 0 && (
+        <ErrorBoundary>
+          <SwarmPanel />
+        </ErrorBoundary>
+      )}
+
+      {/* ── 7. Skills Registry (capability map) ── */}
       {sub_tasks.length > 0 && (
         <ErrorBoundary>
           <SkillsPanel />
+        </ErrorBoundary>
+      )}
+
+      {/* ── 8. CSS-only orbit constellation — decorative, at bottom ── */}
+      {sub_tasks.length > 0 && (
+        <ErrorBoundary>
+          <SwarmOrbit
+            subTasks={sub_tasks}
+            payments={payments}
+            taskStatus={task.status}
+          />
         </ErrorBoundary>
       )}
     </div>

@@ -197,6 +197,8 @@ export default function Home() {
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <button
             onClick={() => setShowArch(true)}
+            aria-label="View architecture diagram"
+            title="Architecture: system overview, tech stack, and service topology"
             style={{
               background: "var(--surface)",
               border: "1px solid var(--border)",
@@ -216,6 +218,8 @@ export default function Home() {
           {isActive && (
             <button
               onClick={reset}
+              aria-label="Start a new task"
+              title="Reset dashboard and start a new task"
               style={{
                 background: "var(--surface)",
                 border: "1px solid var(--border)",
@@ -374,11 +378,6 @@ export default function Home() {
                     transition={{ duration: 0.2 }}
                   >
                     <Dashboard />
-
-                    {/* Swarm stats below agents */}
-                    <div style={{ marginTop: 16 }}>
-                      <SwarmPanel />
-                    </div>
                   </motion.div>
                 )}
               </AnimatePresence>

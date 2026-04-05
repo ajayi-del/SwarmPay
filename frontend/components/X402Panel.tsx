@@ -173,15 +173,17 @@ export default function X402Panel({ payments, subTasks }: Props) {
                     style={{
                       fontFamily: "monospace",
                       fontSize: 8,
-                      color: "#333",
-                      textDecoration: "none",
+                      color: "#9945FF",
+                      textDecoration: "underline",
+                      textDecorationColor: "rgba(153,69,255,0.35)",
                       letterSpacing: "0.02em",
                       display: "block",
                       overflow: "hidden",
                       textOverflow: "ellipsis",
                       whiteSpace: "nowrap",
+                      opacity: 0.85,
                     }}
-                    title={p.tx_hash}
+                    title={`View on Solscan devnet: ${p.tx_hash}`}
                   >
                     {p.tx_hash.slice(0, 8)}…{p.tx_hash.slice(-6)} ↗
                   </a>

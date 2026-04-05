@@ -52,7 +52,11 @@ export default function DryRunBadge() {
       onClick={toggle}
       disabled={toggling}
       whileTap={{ scale: 0.95 }}
-      title={modeInfo.description}
+      title={
+        isLive
+          ? "LIVE MODE: transactions broadcast to Solana devnet — real SOL movements"
+          : "DRY RUN: transactions simulated, not broadcast to Solana — no real SOL spent. Click to switch to LIVE."
+      }
       className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-jb transition-all"
       style={{
         background: isLive ? "rgba(34,197,94,0.1)" : "rgba(245,158,11,0.1)",

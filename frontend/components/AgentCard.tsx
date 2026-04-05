@@ -145,9 +145,16 @@ function CodeBlock({ code, output, rc }: { code: string; output: string; rc: str
   );
 }
 
+function repStarColor(rep: number): string {
+  if (rep >= 4.0) return "#FFD700";
+  if (rep >= 3.0) return "#f59e0b";
+  return "#ef4444";
+}
+
 function Stars({ n }: { n: number }) {
   const filled = Math.floor(n);
   const half = n - filled >= 0.5;
+  const starColor = repStarColor(n);
   return (
     <span className="flex items-center gap-px text-xs" aria-label={`${n} of 5 stars`}>
       {Array.from({ length: 5 }, (_, i) => (
@@ -156,14 +163,14 @@ function Stars({ n }: { n: number }) {
           style={{
             color:
               i < filled
-                ? "#FFD700"
+                ? starColor
                 : i === filled && half
-                ? "#FFD70066"
+                ? starColor + "88"
                 : "var(--border-hover)",
           }}
         >★</span>
       ))}
-      <span className="ml-1 font-jb" style={{ color: "var(--text-dim)", fontSize: "0.6rem" }}>
+      <span className="ml-1 font-jb" style={{ color: starColor, fontSize: "0.6rem", opacity: 0.9 }}>
         {n.toFixed(1)}
       </span>
     </span>
@@ -768,10 +775,22 @@ export default function AgentCard({ subTask, payment, peerPayment, index, reputa
               {payment.policy_reason}
             </p>
           )}
-          {payment.tx_hash && (
-            <p className="text-xs font-jb truncate" style={{ color: "var(--text-dim)" }}>
-              tx: {payment.tx_hash.slice(0, 28)}…
-            </p>
+          {payment.tx_hash && payment.tx_hash.length > 10 && (
+            <a
+              href={`https://solscan.io/tx/${payment.tx_hash}?cluster=devnet`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs font-jb truncate block"
+              style={{
+                color: payment.status === "signed" ? "#22c55e" : "#ef444488",
+                textDecoration: "underline",
+                textDecorationColor: "currentColor",
+                opacity: 0.7,
+              }}
+              title={`View on Solscan devnet: ${payment.tx_hash}`}
+            >
+              tx: {payment.tx_hash.slice(0, 16)}…{payment.tx_hash.slice(-8)} ↗
+            </a>
           )}
         </motion.div>
       )}

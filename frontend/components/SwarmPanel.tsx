@@ -108,10 +108,16 @@ export default function SwarmPanel() {
 
       <div className="flex flex-wrap gap-6 items-center">
         {/* ── Health ring ── */}
-        <div className="flex flex-col items-center gap-1">
+        <div className="flex flex-col items-center gap-0.5">
           <HealthRing score={stats.health_score} />
-          <span className="text-xs font-jb" style={{ color: "var(--text-dim)" }}>
-            {isOffice ? "Efficiency" : "Health"}
+          <span className="text-xs font-jb font-semibold" style={{ color: "var(--text-dim)" }}>
+            {isOffice ? "Efficiency" : "Governance Score"}
+          </span>
+          <span
+            className="text-[8px] font-jb text-center"
+            style={{ color: "#333", maxWidth: 90, lineHeight: 1.3 }}
+          >
+            Payment accuracy · Policy compliance · Agent performance
           </span>
         </div>
 

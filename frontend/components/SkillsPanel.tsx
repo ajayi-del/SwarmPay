@@ -146,8 +146,15 @@ export default function SkillsPanel() {
           <span
             className="text-[10px] px-2 py-0.5 rounded-full font-jb"
             style={{ background: "#a78bfa18", color: "#a78bfa", border: "1px solid #a78bfa30" }}
+            title="Skills unlock as agents complete tasks"
           >
             {totalActive}/{totalSkills} active
+          </span>
+          <span
+            className="text-[9px] font-jb hidden sm:inline"
+            style={{ color: "#444" }}
+          >
+            Skills unlock as agents complete tasks
           </span>
         </div>
         <div className="flex items-center gap-3">

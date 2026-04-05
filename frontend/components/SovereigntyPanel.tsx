@@ -150,7 +150,7 @@ export default function SovereigntyPanel() {
         )}
 
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          {board.map((entry, i) => {
+          {board.map((entry) => {
             const color = AGENT_COLORS[entry.agent_id] ?? "#555";
             const barPct = maxEarnings > 0
               ? Math.min(100, (entry.lifetime_earnings_usdc / maxEarnings) * 100)

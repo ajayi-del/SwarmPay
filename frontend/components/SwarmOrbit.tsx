@@ -54,7 +54,7 @@ export default function SwarmOrbit({ subTasks, payments }: Props) {
       }}
     >
       {/* Radial SVG diagram */}
-      <svg width={220} height={200} viewBox="0 0 220 200" style={{ flexShrink: 0 }}>
+      <svg width={260} height={200} viewBox="-20 0 260 200" style={{ flexShrink: 0 }}>
         {/* Orbit rings */}
         <circle cx={CX} cy={CY} r={RADIUS}        fill="none" stroke="#ffffff06" strokeWidth="1" strokeDasharray="4 6" />
         <circle cx={CX} cy={CY} r={RADIUS * 0.55} fill="none" stroke="#ffffff04" strokeWidth="1" />
@@ -96,6 +96,12 @@ export default function SwarmOrbit({ subTasks, payments }: Props) {
           const dotR   = 5.5 + ((st.budget_allocated ?? 0) / totalBudget) * 7;
           const isActive = st.status === "working";
 
+          // Position label outside the dot, away from center
+          const labelDist = dotR + 10;
+          const lx = CX + Math.cos(angle) * (r + labelDist);
+          const ly = CY + Math.sin(angle) * (r + labelDist);
+          const labelAnchor = Math.cos(angle) > 0.1 ? "start" : Math.cos(angle) < -0.1 ? "end" : "middle";
+
           return (
             <g key={st.id}>
               {st.is_lead && (
@@ -114,6 +120,17 @@ export default function SwarmOrbit({ subTasks, payments }: Props) {
                 {st.agent_id.slice(0, 2)}
               </text>
               <circle cx={x + dotR - 1} cy={y - dotR + 1} r={2} fill={sColor} />
+              {/* Agent name label outside orbit */}
+              <text
+                x={lx} y={ly + 3}
+                textAnchor={labelAnchor}
+                fontSize={7}
+                fill={color}
+                fontFamily="monospace"
+                opacity={0.75}
+              >
+                {st.agent_id}
+              </text>
             </g>
           );
         })}

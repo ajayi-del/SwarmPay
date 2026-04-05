@@ -1,19 +1,16 @@
 "use client";
 
 /**
- * RegisCard — Compact institutional sigil card.
+ * RegisCard — Compact institutional sigil card (center column of RegisRow).
  *
  * Bloomberg terminal meets medieval seal.
- * Replaces the emoji-based CoordinatorCard header in Kingdom mode.
- * Used in the split-layout right panel, centered above agent grid.
- *
- * Width: ~280px  Height: auto  Background: #0A0A0A
+ * Width: 240px max. Height: compact — 30% smaller than before.
+ * USDC line removed (treasury shown in flanking stats).
  */
 
 import { motion } from "framer-motion";
 import type { Wallet, Task } from "@/lib/api";
 import { COORDINATOR_PERSONA } from "@/lib/personas";
-import { useSolRate } from "@/lib/useSolRate";
 
 interface Props {
   wallet: Wallet;
@@ -34,8 +31,7 @@ function RegisSigil({ isActive }: { isActive: boolean }) {
           transform-origin: center;
         }
         .rc-sigil-resting {
-          animation: rc-spin 20s linear infinite;
-          animation-play-state: paused;
+          animation: rc-spin 60s linear infinite;
           transform-origin: center;
         }
       `}</style>
@@ -43,7 +39,7 @@ function RegisSigil({ isActive }: { isActive: boolean }) {
         className={isActive ? "rc-sigil-active" : "rc-sigil-resting"}
         style={{ display: "flex", alignItems: "center", justifyContent: "center" }}
       >
-        <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+        <svg width="40" height="40" viewBox="0 0 48 48" fill="none">
           {/* Outer octagon */}
           <polygon
             points="24,2 38,8 46,22 46,26 38,40 24,46 10,40 2,26 2,22 10,8"
@@ -78,7 +74,7 @@ function Stars({ n }: { n: number }) {
   return (
     <span style={{ display: "inline-flex", gap: 1 }}>
       {Array.from({ length: 5 }, (_, i) => (
-        <span key={i} style={{ color: i < n ? "#F59E0B" : "#333", fontSize: 9 }}>★</span>
+        <span key={i} style={{ color: i < n ? "#F59E0B" : "#333", fontSize: 8 }}>★</span>
       ))}
     </span>
   );
@@ -86,40 +82,39 @@ function Stars({ n }: { n: number }) {
 
 // ── Main card ──────────────────────────────────────────────────────────────────
 
-export default function RegisCard({ wallet, task }: Props) {
-  const { toSol } = useSolRate();
+export default function RegisCard({ task }: Props) {
   const p = COORDINATOR_PERSONA;
 
   const isActive = task.status !== "complete" && task.status !== "failed";
   const statusLabel = isActive ? "MANAGING" : "RESTING";
-  const statusColor = isActive ? "#F59E0B" : "#555";
+  const statusColor = isActive ? "#F59E0B" : "#666";
 
   return (
     <motion.div
       initial={{ opacity: 0, y: -8 }}
       animate={{ opacity: 1, y: 0 }}
       style={{
-        width: 280,
+        width: 220,
         background: "#0A0A0A",
         border: "1px solid #F59E0B",
-        borderRadius: 12,
-        boxShadow: "0 0 12px rgba(245,158,11,0.15)",
-        padding: "16px 18px",
+        borderRadius: 10,
+        boxShadow: "0 0 16px rgba(245,158,11,0.18)",
+        padding: "12px 14px",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
-        gap: 10,
+        gap: 7,
       }}
     >
       {/* Seal inscription */}
       <div
         style={{
           fontFamily: "monospace",
-          fontSize: 11,
+          fontSize: 10,
           color: "#F59E0B",
           letterSpacing: "0.3em",
           textTransform: "uppercase",
-          fontWeight: 600,
+          fontWeight: 700,
           textAlign: "center",
         }}
       >
@@ -130,72 +125,31 @@ export default function RegisCard({ wallet, task }: Props) {
       <RegisSigil isActive={isActive} />
 
       {/* Status */}
-      <div style={{ textAlign: "center" }}>
-        <div
-          style={{
-            fontFamily: "monospace",
-            fontSize: 10,
-            color: statusColor,
-            letterSpacing: "0.2em",
-            textTransform: "uppercase",
-          }}
-        >
-          {statusLabel}
-        </div>
-      </div>
-
-      {/* Treasury */}
-      <div style={{ textAlign: "center" }}>
-        <div
-          style={{
-            fontFamily: "'JetBrains Mono', monospace",
-            fontSize: 20,
-            fontWeight: 700,
-            color: "#F59E0B",
-            letterSpacing: "0.02em",
-            lineHeight: 1,
-          }}
-        >
-          {toSol(Number(wallet.budget_cap), 3)}
-        </div>
-        <div
-          style={{
-            fontFamily: "monospace",
-            fontSize: 9,
-            color: "#444",
-            marginTop: 2,
-            letterSpacing: "0.08em",
-          }}
-        >
-          {Number(wallet.budget_cap).toFixed(2)} USDC
-        </div>
-      </div>
-
-      {/* Stats row */}
       <div
         style={{
           fontFamily: "monospace",
           fontSize: 9,
-          color: "#555",
-          letterSpacing: "0.06em",
-          textAlign: "center",
+          color: statusColor,
+          letterSpacing: "0.2em",
+          textTransform: "uppercase",
         }}
       >
-        T:{p.stats.tasks} · {p.stats.successRate}% · {p.stats.avgSpeed}s avg
+        {statusLabel}
       </div>
 
       <Stars n={p.reputation} />
 
-      {/* Skills — minimal text dots, no pills */}
+      {/* Skills — minimal text dots */}
       <div
         style={{
           fontFamily: "monospace",
-          fontSize: 8,
+          fontSize: 7,
           color: "#3a3000",
           letterSpacing: "0.12em",
           textTransform: "uppercase",
           textAlign: "center",
-          lineHeight: 1.8,
+          lineHeight: 1.6,
+          whiteSpace: "nowrap",
         }}
       >
         {p.skills.join("  ·  ")}
