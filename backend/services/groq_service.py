@@ -37,7 +37,7 @@ def call_groq(
     prompt: str,
     max_tokens: int = 600,
     system: str = "",
-) -> Optional[str]:
+) -> Optional[tuple[str, int]]:
     """
     Call Groq for a support agent.
     Returns the text response string, or None if unavailable/failed.
@@ -76,7 +76,9 @@ def call_groq(
             "[groq] %s · model=%s · %dms · %d tokens",
             agent_name, model, latency_ms, tokens,
         )
-        return text or None
+        if not text:
+            return None
+        return (text, tokens)
 
     except Exception as exc:
         logger.warning("[groq] %s failed (model=%s): %s", agent_name, model, exc)

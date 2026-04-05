@@ -30,6 +30,7 @@ import uvicorn
 
 from routers import tasks, audit, regis
 from routers import sovereignty
+from routers import analytics
 
 # ── Logging ────────────────────────────────────────────────────────────────────
 
@@ -151,6 +152,7 @@ app.include_router(tasks.router)
 app.include_router(audit.router)
 app.include_router(regis.router)
 app.include_router(sovereignty.router)
+app.include_router(analytics.router)
 
 
 # ── Health / root ──────────────────────────────────────────────────────────────

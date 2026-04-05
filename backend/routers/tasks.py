@@ -361,6 +361,7 @@ async def execute_task_background(task_id: str):
                     sub_task.get("wallet_id", ""), is_lead,
                     dict(shared_context),   # snapshot — don't pass reference
                     task_goal,
+                    task_id,
                 )
 
                 # ── Quality evaluation (DeepSeek, ~80 tokens) ─────────────

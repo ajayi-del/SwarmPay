@@ -199,6 +199,58 @@ export default function RegisRow({ wallet, task, subTasks, payments }: Props) {
           value={subTasks.length > 0 ? `${completedCount}/${subTasks.length}` : "0/0"}
           color="#888"
         />
+        {/* Budget health mini bars */}
+        {totalBudget > 0 && (
+          <div style={{ marginTop: 2 }}>
+            <div style={{ fontFamily: "monospace", fontSize: 7, color: "#333", letterSpacing: "0.12em", marginBottom: 5 }}>
+              BUDGET
+            </div>
+            {/* Agent payments bar */}
+            <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 3 }}>
+              <div style={{ flex: 1, height: 3, background: "#111", borderRadius: 2, overflow: "hidden" }}>
+                <div
+                  style={{
+                    width: `${Math.min(100, (totalSpent / totalBudget) * 100)}%`,
+                    height: "100%",
+                    background: "#22c55e",
+                    borderRadius: 2,
+                  }}
+                />
+              </div>
+              <span style={{ fontFamily: "monospace", fontSize: 6, color: "#22c55e", minWidth: 28, textAlign: "right" }}>
+                {Math.round((totalSpent / totalBudget) * 100)}%
+              </span>
+            </div>
+            {/* Remaining bar */}
+            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <div style={{ flex: 1, height: 3, background: "#111", borderRadius: 2, overflow: "hidden" }}>
+                {(() => {
+                  const remaining = Math.max(0, totalBudget - totalSpent - totalBlocked);
+                  const pct = Math.min(100, (remaining / totalBudget) * 100);
+                  const color = pct < 10 ? "#ef4444" : pct < 20 ? "#f59e0b" : "#F59E0B";
+                  return (
+                    <div style={{ width: `${pct}%`, height: "100%", background: color, borderRadius: 2 }} />
+                  );
+                })()}
+              </div>
+              <span
+                style={{
+                  fontFamily: "monospace",
+                  fontSize: 6,
+                  color: (() => {
+                    const remaining = Math.max(0, totalBudget - totalSpent - totalBlocked);
+                    const pct = (remaining / totalBudget) * 100;
+                    return pct < 10 ? "#ef4444" : pct < 20 ? "#f59e0b" : "#F59E0B";
+                  })(),
+                  minWidth: 28,
+                  textAlign: "right",
+                }}
+              >
+                {Math.round((Math.max(0, totalBudget - totalSpent - totalBlocked) / totalBudget) * 100)}%
+              </span>
+            </div>
+          </div>
+        )}
       </div>
     </div>
 

@@ -11,12 +11,96 @@ doesn't fail an entire task.
 
 import logging
 import os
+import threading
 import time
 
 import httpx
 from anthropic import Anthropic, APIError, APIConnectionError, RateLimitError
 
 logger = logging.getLogger("swarmpay.models")
+
+# Token cost per token (USD)
+TOKEN_COSTS: dict[str, float] = {
+    "deepseek-chat":              0.00000014,   # $0.14/1M
+    "llama-3.1-8b-instant":       0.0,          # Groq free
+    "llama-3.3-70b-versatile":    0.0,          # Groq free
+    "claude-haiku-4-5-20251001":  0.00000025,   # $0.25/1M
+    "duckduckgo":                 0.0,
+    "fallback":                   0.0,
+}
+
+# Thread-safe in-memory token log (no PocketBase dep)
+_log_lock = threading.Lock()
+_token_log: list[dict] = []   # [{task_id, agent, model, tokens, cost_usd, ts}]
+
+_deepseek_last_tokens: list[int] = [0]  # thread-unsafe but fine for estimating
+
+
+def record_tokens(task_id: str, agent: str, model: str, tokens: int) -> None:
+    """Record token usage for a call. Graceful — never raises."""
+    if not tokens or not task_id:
+        return
+    cost = tokens * TOKEN_COSTS.get(model, 0.0)
+    with _log_lock:
+        _token_log.append({
+            "task_id": task_id,
+            "agent":   agent,
+            "model":   model,
+            "tokens":  tokens,
+            "cost_usd": cost,
+            "ts":      time.time(),
+        })
+
+
+def get_session_summary(task_id: str) -> dict:
+    """
+    Aggregate token usage for a task into summary dict.
+    Returns empty-safe structure if no data.
+    """
+    with _log_lock:
+        records = [r for r in _token_log if r["task_id"] == task_id]
+
+    if not records:
+        return {
+            "total_tokens": 0, "total_cost_usd": 0.0,
+            "by_provider": {}, "by_agent": [],
+        }
+
+    by_agent: dict[str, dict] = {}
+    for r in records:
+        a = r["agent"]
+        if a not in by_agent:
+            by_agent[a] = {"agent": a, "model": r["model"], "tokens": 0, "cost_usd": 0.0}
+        by_agent[a]["tokens"]   += r["tokens"]
+        by_agent[a]["cost_usd"] += r["cost_usd"]
+
+    by_provider: dict[str, dict] = {}
+    for r in records:
+        provider = _model_to_provider(r["model"])
+        if provider not in by_provider:
+            by_provider[provider] = {"tokens": 0, "cost_usd": 0.0, "free": TOKEN_COSTS.get(r["model"], 1) == 0.0}
+        by_provider[provider]["tokens"]   += r["tokens"]
+        by_provider[provider]["cost_usd"] += r["cost_usd"]
+
+    total_tokens   = sum(r["tokens"]   for r in records)
+    total_cost_usd = sum(r["cost_usd"] for r in records)
+
+    return {
+        "total_tokens":   total_tokens,
+        "total_cost_usd": total_cost_usd,
+        "by_provider":    by_provider,
+        "by_agent":       list(by_agent.values()),
+    }
+
+
+def _model_to_provider(model: str) -> str:
+    if model.startswith("llama") or model.startswith("gemma") or model.startswith("mixtral"):
+        return "groq"
+    if model.startswith("claude"):
+        return "anthropic"
+    if model.startswith("deepseek"):
+        return "deepseek"
+    return "other"
 
 ANTHROPIC_KEY  = os.environ.get("ANTHROPIC_API_KEY", "")
 DEEPSEEK_KEY   = os.environ.get("DEEPSEEK_API_KEY", "")
@@ -106,7 +190,12 @@ def call_deepseek(prompt: str, max_tokens: int = 300, system: str = "") -> str:
                 )
                 r.raise_for_status()
                 data = r.json()
-                return data["choices"][0]["message"]["content"].strip()
+                content = data["choices"][0]["message"]["content"].strip()
+                # Capture usage for token tracking (best-effort)
+                usage = data.get("usage", {})
+                _deepseek_last_tokens[0] = int(usage.get("total_tokens", 0) or
+                                                usage.get("prompt_tokens", 0) + usage.get("completion_tokens", 0))
+                return content
         except httpx.TimeoutException as exc:
             logger.warning("[deepseek] timeout (attempt %d/%d)", attempt + 1, _MAX_RETRIES + 1)
             last_exc = exc
@@ -149,6 +238,7 @@ def route_for_agent(
     prompt: str,
     max_tokens: int = 600,
     system: str = "",
+    task_id: str = "",
 ) -> tuple[str, str]:
     """
     Route LLM call based on agent name. Returns (text, provider_label).
@@ -163,14 +253,26 @@ def route_for_agent(
     if agent_name in GROQ_AGENTS:
         try:
             from services.groq_service import call_groq, get_model_for_agent
-            text = call_groq(agent_name, prompt, max_tokens, system)
-            if text:
+            groq_result = call_groq(agent_name, prompt, max_tokens, system)
+            if groq_result:
+                # call_groq returns (text, tokens) tuple
+                if isinstance(groq_result, tuple):
+                    text, tokens = groq_result
+                else:
+                    text, tokens = groq_result, 0
+                if task_id and tokens:
+                    record_tokens(task_id, agent_name, get_model_for_agent(agent_name), tokens)
                 return text, f"groq/{get_model_for_agent(agent_name)}"
         except Exception as exc:
             logger.warning("[model] groq routing failed for %s: %s", agent_name, exc)
 
-    # Fall back to DeepSeek (→ Claude if DeepSeek unavailable)
+    # Fall back to DeepSeek
+    _deepseek_last_tokens[0] = 0
     text = call_deepseek(prompt, max_tokens, system)
+    if task_id:
+        tokens = _deepseek_last_tokens[0]
+        if tokens:
+            record_tokens(task_id, agent_name, DEEPSEEK_MODEL, tokens)
     return text, "deepseek/deepseek-chat"
 
 

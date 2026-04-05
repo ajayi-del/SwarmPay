@@ -273,6 +273,7 @@ class AgentService:
         is_lead: bool = False,
         context: Optional[Dict[str, str]] = None,
         task_goal: str = "",
+        task_id: str = "",
     ) -> str:
         """
         Dispatch to agent-specific execution path.
@@ -289,14 +290,14 @@ class AgentService:
         }
         fn = dispatch.get(agent_name)
         if fn:
-            return fn(sub_task_description, wallet_id=wallet_id, is_lead=is_lead, context=ctx)
-        return self._execute_default(sub_task_description, agent_name, is_lead=is_lead, context=ctx)
+            return fn(sub_task_description, wallet_id=wallet_id, is_lead=is_lead, context=ctx, task_id=task_id)
+        return self._execute_default(sub_task_description, agent_name, is_lead=is_lead, context=ctx, task_id=task_id)
 
     # ── ATLAS — Firecrawl web search ──────────────────────────────────────────
 
     def _execute_atlas(
         self, description: str, wallet_id: str = "",
-        is_lead: bool = False, context: Dict[str, str] = {}
+        is_lead: bool = False, context: Dict[str, str] = {}, task_id: str = ""
     ) -> str:
         from services.x402_service import x402_service
         t0 = time.monotonic()
@@ -355,7 +356,7 @@ class AgentService:
         )
         llm_provider = "deepseek/deepseek-chat"
         try:
-            text, llm_provider = route_for_agent("ATLAS", prompt, max_tokens=600)
+            text, llm_provider = route_for_agent("ATLAS", prompt, max_tokens=600, task_id=task_id)
         except Exception as exc:
             print(f"[atlas llm] {exc}")
             text = persona["fallback"] if persona else "Recherche abgeschlossen."
@@ -411,7 +412,7 @@ class AgentService:
 
     def _execute_cipher(
         self, description: str, wallet_id: str = "",
-        is_lead: bool = False, context: Dict[str, str] = {}
+        is_lead: bool = False, context: Dict[str, str] = {}, task_id: str = ""
     ) -> str:
         from services.x402_service import x402_service
         t0 = time.monotonic()
@@ -443,7 +444,7 @@ class AgentService:
         )
         provider = "deepseek/deepseek-chat"
         try:
-            text, provider = route_for_agent("CIPHER", prompt, max_tokens=600)
+            text, provider = route_for_agent("CIPHER", prompt, max_tokens=600, task_id=task_id)
         except Exception as exc:
             print(f"[cipher llm] {exc}")
             text = persona["fallback"] if persona else "分析完了。"
@@ -506,7 +507,7 @@ class AgentService:
 
     def _execute_forge(
         self, description: str, wallet_id: str = "",
-        is_lead: bool = False, context: Dict[str, str] = {}
+        is_lead: bool = False, context: Dict[str, str] = {}, task_id: str = ""
     ) -> str:
         from services.x402_service import x402_service
         t0 = time.monotonic()
@@ -538,7 +539,7 @@ class AgentService:
         provider = "deepseek/deepseek-chat"
 
         try:
-            raw, provider = route_for_agent("FORGE", prompt, max_tokens=700)
+            raw, provider = route_for_agent("FORGE", prompt, max_tokens=700, task_id=task_id)
             if "---" in raw:
                 parts = raw.split("---", 1)
                 text = parts[0].strip()
@@ -585,7 +586,7 @@ class AgentService:
 
     def _execute_bishop(
         self, description: str, wallet_id: str = "",
-        is_lead: bool = False, context: Dict[str, str] = {}
+        is_lead: bool = False, context: Dict[str, str] = {}, task_id: str = ""
     ) -> str:
         t0 = time.monotonic()
         persona = _find_persona("BISHOP")
@@ -628,7 +629,7 @@ class AgentService:
         )
         provider = "deepseek/deepseek-chat"
         try:
-            text, provider = route_for_agent("BISHOP", prompt, max_tokens=600)
+            text, provider = route_for_agent("BISHOP", prompt, max_tokens=600, task_id=task_id)
         except Exception as exc:
             print(f"[bishop llm] {exc}")
             text = persona["fallback"] if persona else "Opus completum est."
@@ -660,7 +661,7 @@ class AgentService:
 
     def _execute_son(
         self, description: str, wallet_id: str = "",
-        is_lead: bool = False, context: Dict[str, str] = {}
+        is_lead: bool = False, context: Dict[str, str] = {}, task_id: str = ""
     ) -> str:
         t0 = time.monotonic()
         persona = _find_persona("SØN")
@@ -715,7 +716,7 @@ class AgentService:
         )
         provider = "deepseek/deepseek-chat"
         try:
-            text, provider = route_for_agent("SØN", prompt, max_tokens=600)
+            text, provider = route_for_agent("SØN", prompt, max_tokens=600, task_id=task_id)
         except Exception as exc:
             print(f"[son llm] {exc}")
             text = persona["fallback"] if persona else "Uppdraget är slutfört!"
@@ -737,7 +738,7 @@ class AgentService:
 
     def _execute_default(
         self, description: str, agent_name: str,
-        is_lead: bool = False, context: Dict[str, str] = {}
+        is_lead: bool = False, context: Dict[str, str] = {}, task_id: str = ""
     ) -> str:
         persona = _find_persona(agent_name)
         prompt_lang = persona["prompt_lang"] if persona else "English"
@@ -756,7 +757,7 @@ class AgentService:
                 "3. Recommendations or next steps\n"
                 "Stay fully in character."
             )
-            text = model_route(is_lead, prompt, max_tokens=500)
+            text, _ = route_for_agent(agent_name, prompt, max_tokens=500, task_id=task_id)
         except Exception as exc:
             print(f"[execute fallback {agent_name}] {exc}")
             text = persona["fallback"] if persona else f"Task completed by {agent_name}."

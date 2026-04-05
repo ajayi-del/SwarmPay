@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import TaskForm from "@/components/TaskForm";
 import Dashboard from "@/components/Dashboard";
 import AuditLog from "@/components/AuditLog";
+import TokenEconomy from "@/components/TokenEconomy";
 import ModeToggle from "@/components/ModeToggle";
 import DryRunBadge from "@/components/DryRunBadge";
 import StatusBar from "@/components/StatusBar";
@@ -31,7 +32,7 @@ const STARS = (() => {
 
 // ── Token Ticker ──────────────────────────────────────────────────────────────
 
-function TokenTicker({ taskState }: { taskState: TaskState | undefined }) {
+function LiveTicker({ taskState }: { taskState: TaskState | undefined }) {
   const { toSol } = useSolRate();
 
   if (!taskState) return null;
@@ -87,6 +88,63 @@ function TokenTicker({ taskState }: { taskState: TaskState | undefined }) {
       </>}
       <span style={{ color: "#444" }}>·</span>
       <span style={{ color: "#333" }}>{sub_tasks.length} agents</span>
+    </div>
+  );
+}
+
+// ── Token Ticker (header badge) ───────────────────────────────────────────────
+
+function TokenTicker({ taskId }: { taskId: string }) {
+  const { data } = useQuery({
+    queryKey: ["token-ticker", taskId],
+    queryFn: async () => {
+      const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+      const r = await fetch(`${API}/analytics/tokens?task_id=${taskId}`);
+      if (!r.ok) return null;
+      return r.json();
+    },
+    enabled: !!taskId,
+    refetchInterval: 5_000,
+    staleTime: 4_000,
+  });
+
+  if (!data || data.total_tokens === 0) return null;
+
+  const providers = Object.keys(data.by_provider ?? {}).filter(
+    (k) => (data.by_provider[k]?.tokens ?? 0) > 0
+  );
+
+  return (
+    <div
+      title={providers.map((p) => {
+        const v = data.by_provider[p];
+        return `${p}: ${v.tokens.toLocaleString()} tok${v.cost_usd > 0 ? ` ($${v.cost_usd.toFixed(5)})` : " (FREE)"}`;
+      }).join("\n")}
+      style={{
+        fontFamily: "monospace",
+        fontSize: 9,
+        color: "#555",
+        display: "flex",
+        alignItems: "center",
+        gap: 4,
+        padding: "4px 8px",
+        background: "var(--surface)",
+        border: "1px solid var(--border)",
+        borderRadius: 6,
+        cursor: "default",
+        whiteSpace: "nowrap",
+      }}
+    >
+      <span style={{ color: "#333" }}>🧠</span>
+      <span>{data.total_tokens.toLocaleString()} tok</span>
+      {data.total_cost_sol > 0 && (
+        <>
+          <span style={{ color: "#222" }}>·</span>
+          <span style={{ color: "#9945FF" }}>◎{data.total_cost_sol.toFixed(6)}</span>
+        </>
+      )}
+      <span style={{ color: "#222" }}>·</span>
+      <span>{providers.length} provider{providers.length !== 1 ? "s" : ""}</span>
     </div>
   );
 }
@@ -195,6 +253,10 @@ export default function Home() {
 
         {/* Right: controls */}
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {/* Token ticker — shows during active tasks */}
+          {isActive && taskState && (
+            <TokenTicker taskId={taskId ?? ""} />
+          )}
           <button
             onClick={() => setShowArch(true)}
             aria-label="View architecture diagram"
@@ -252,10 +314,11 @@ export default function Home() {
           }}
         >
           {/* Wrapper forces AuditLog to fill full panel height */}
-          <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+          <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column", minHeight: 0 }}>
             <div style={{ flex: 1, minHeight: 0 }} className="audit-panel-fill">
               <AuditLog />
             </div>
+            <TokenEconomy />
           </div>
         </div>
 
@@ -384,7 +447,7 @@ export default function Home() {
             </div>
 
             {/* Token ticker at bottom — active tasks only */}
-            <TokenTicker taskState={taskState} />
+            <LiveTicker taskState={taskState} />
           </div>
         </div>
       </div>
