@@ -204,7 +204,7 @@ class AgentService:
             'JSON only: {"agents":["NAME"],"lead":"NAME","subtasks":{"NAME":"specific task using specific tools"}}'
         )
         try:
-            raw = call_claude(prompt, max_tokens=500)
+            raw = call_deepseek(prompt, max_tokens=500)
             s, e = raw.find("{"), raw.rfind("}") + 1
             if s != -1 and e > s:
                 parsed = json.loads(raw[s:e])

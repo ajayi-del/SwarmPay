@@ -12,9 +12,9 @@ from typing import Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from anthropic import Anthropic
 
 from services.brain_service import brain_service
+from services.model_service import call_deepseek
 from services.pocketbase import PocketBaseService
 from services.meteora_service import get_sol_usdc_rate
 from services.moonpay_service import get_onramp_info
@@ -31,7 +31,6 @@ async def _notify(message: str) -> None:
 router = APIRouter(prefix="/regis", tags=["regis"])
 
 pb = PocketBaseService()
-claude = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
 
 REGIS_SYSTEM = (
     "You are REGIS, sovereign monarch and treasury coordinator of the SwarmPay agent economy. "
@@ -75,14 +74,12 @@ async def probe_regis(request: ProbeRequest):
             f"## Recent Audit Log\n{log_text}"
         )
 
-        resp = await asyncio.to_thread(
-            claude.messages.create,
-            model="claude-haiku-4-5-20251001",
-            max_tokens=400,
-            system=f"{REGIS_SYSTEM}\n\nYour memory:\n{context}",
-            messages=[{"role": "user", "content": request.question}],
+        answer = await asyncio.to_thread(
+            call_deepseek,
+            request.question,
+            400,
+            f"{REGIS_SYSTEM}\n\nYour memory:\n{context}",
         )
-        answer = resp.content[0].text.strip()
 
         await asyncio.to_thread(brain_service.append_probe, request.question, answer)
 
@@ -138,13 +135,7 @@ async def audit_regis():
             '{"score": 82, "verdict": "PASSED", "reason": "...", "improvement": "..."}'
         )
 
-        resp = await asyncio.to_thread(
-            claude.messages.create,
-            model="claude-haiku-4-5-20251001",
-            max_tokens=250,
-            messages=[{"role": "user", "content": eval_prompt}],
-        )
-        raw = resp.content[0].text.strip()
+        raw = await asyncio.to_thread(call_deepseek, eval_prompt, 250)
         s, e = raw.find("{"), raw.rfind("}") + 1
         data = json.loads(raw[s:e]) if s >= 0 and e > s else {}
 
@@ -224,14 +215,12 @@ async def punish_regis(request: PunishRequest):
                 "and commit to stricter policy enforcement going forward. "
                 "Be dignified but fully accept the consequence."
             )
-            rpt_resp = await asyncio.to_thread(
-                claude.messages.create,
-                model="claude-haiku-4-5-20251001",
-                max_tokens=300,
-                system=f"{REGIS_SYSTEM}\n\nYour memory:\n{brain}",
-                messages=[{"role": "user", "content": rpt_prompt}],
+            result["report"] = await asyncio.to_thread(
+                call_deepseek,
+                rpt_prompt,
+                300,
+                f"{REGIS_SYSTEM}\n\nYour memory:\n{brain}",
             )
-            result["report"] = rpt_resp.content[0].text.strip()
 
         # REGIS acknowledges the punishment in character
         ack_prompt = (
@@ -239,14 +228,12 @@ async def punish_regis(request: PunishRequest):
             "Respond in 2-3 sentences — show dignity, acknowledge the consequence, "
             "and reaffirm commitment to the treasury. Stay in character as sovereign monarch."
         )
-        ack_resp = await asyncio.to_thread(
-            claude.messages.create,
-            model="claude-haiku-4-5-20251001",
-            max_tokens=200,
-            system=f"{REGIS_SYSTEM}\n\nYour memory:\n{brain}",
-            messages=[{"role": "user", "content": ack_prompt}],
+        regis_response = await asyncio.to_thread(
+            call_deepseek,
+            ack_prompt,
+            200,
+            f"{REGIS_SYSTEM}\n\nYour memory:\n{brain}",
         )
-        regis_response = ack_resp.content[0].text.strip()
 
         await asyncio.to_thread(brain_service.append_punishment, ptype, regis_response)
 

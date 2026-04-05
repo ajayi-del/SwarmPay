@@ -1,8 +1,10 @@
 """
 Model Service — Unified LLM routing for SwarmPay agents.
 
-Lead agents  → Claude Haiku (complex reasoning, character, coordination)
-Support agents → DeepSeek Chat (routine tasks, cost saving ~80%)
+DeepSeek Chat is the PRIMARY model for ALL tasks — reasoning, task delegation,
+agent execution, and governance. Claude is reserved ONLY for REGIS challenge
+adjudication (the marquee governance feature) or as a fallback when
+DEEPSEEK_API_KEY is missing.
 
 DeepSeek is OpenAI-compatible — we call it via httpx directly,
 no extra packages needed.
@@ -70,20 +72,19 @@ def call_deepseek(prompt: str, max_tokens: int = 300, system: str = "") -> str:
 
 def route(is_lead: bool, prompt: str, max_tokens: int = 300, system: str = "") -> str:
     """
-    Route to the right model based on agent role:
-    - Lead agent  → Claude Haiku (nuanced, costly)
-    - Support agent → DeepSeek Chat (fast, cheap)
+    DeepSeek handles ALL agent work — lead and support alike.
+    Claude is reserved exclusively for REGIS challenge adjudication.
+    Falls back to Claude if DEEPSEEK_API_KEY is missing.
     """
-    if is_lead:
-        return call_claude(prompt, max_tokens, system)
     return call_deepseek(prompt, max_tokens, system)
 
 
 def current_routing_info() -> dict:
     """Return human-readable info about current model routing."""
     return {
-        "lead_model": CLAUDE_MODEL,
-        "support_model": DEEPSEEK_MODEL if DEEPSEEK_KEY else f"{CLAUDE_MODEL} (DeepSeek key missing)",
+        "primary_model": DEEPSEEK_MODEL if DEEPSEEK_KEY else f"{CLAUDE_MODEL} (DeepSeek key missing)",
+        "governance_model": CLAUDE_MODEL,
         "deepseek_enabled": bool(DEEPSEEK_KEY),
         "deepseek_base": DEEPSEEK_BASE,
+        "note": "DeepSeek primary for all tasks; Claude reserved for REGIS challenge adjudication",
     }

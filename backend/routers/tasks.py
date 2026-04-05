@@ -108,7 +108,7 @@ async def clarify_task(http_req: Request, request: TaskClarifyRequest):
     Returns empty list if task description is already clear enough.
     """
     try:
-        from services.model_service import call_claude
+        from services.model_service import call_deepseek
         prompt = (
             f'Task description: "{request.description}"\n\n'
             "You are REGIS, SwarmPay coordinator. Analyze this task.\n"
@@ -121,7 +121,7 @@ async def clarify_task(http_req: Request, request: TaskClarifyRequest):
             "JSON only:\n"
             '{"needs_clarification": true, "questions": ["Q1", "Q2"], "suggested_budget": 5.0}'
         )
-        raw = await asyncio.to_thread(call_claude, prompt, 300)
+        raw = await asyncio.to_thread(call_deepseek, prompt, 300)
         s, e = raw.find("{"), raw.rfind("}") + 1
         if s != -1 and e > s:
             parsed = json.loads(raw[s:e])

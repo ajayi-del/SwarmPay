@@ -136,7 +136,7 @@ export default function Home() {
         {/* Footer */}
         <footer className="flex items-center justify-between pb-2">
           <p className="text-xs font-jb" style={{ color: "var(--text-dim)", letterSpacing: "0.06em" }}>
-            FASTAPI · CLAUDE HAIKU 4.5 · POCKETBASE · NEXT.JS 14 · SOLANA DEVNET
+            FASTAPI · DEEPSEEK · CLAUDE HAIKU 4.5 · POCKETBASE · NEXT.JS 14 · SOLANA DEVNET
           </p>
           <p className="text-xs font-jb" style={{ color: "var(--text-dim)", letterSpacing: "0.04em" }}>
             OWS HACKATHON · SOLANA x402 TRACK
