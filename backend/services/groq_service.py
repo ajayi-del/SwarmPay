@@ -20,12 +20,13 @@ logger = logging.getLogger("swarmpay.groq")
 
 GROQ_KEY = os.environ.get("GROQ_API_KEY", "").strip()
 
-# Model assignments — fastest capable model for each agent role
+# Model assignments — fastest capable current Groq models (Apr 2026)
+# mixtral-8x7b-32768 and gemma2-9b-it were decommissioned by Groq
 GROQ_MODELS: dict[str, str] = {
-    "CIPHER": "llama-3.1-8b-instant",   # fast analyst
-    "FORGE":  "llama-3.1-8b-instant",   # fast synthesizer
-    "SØN":    "gemma2-9b-it",           # learning model
-    "BISHOP": "mixtral-8x7b-32768",     # compliance — long context
+    "CIPHER": "llama-3.1-8b-instant",    # fast analyst
+    "FORGE":  "llama-3.1-8b-instant",    # fast synthesizer
+    "SØN":    "llama-3.1-8b-instant",    # learning model (gemma2-9b-it decommissioned)
+    "BISHOP": "llama-3.3-70b-versatile", # compliance — larger model for legal reasoning
 }
 _DEFAULT_MODEL = "llama-3.1-8b-instant"
 _TIMEOUT = 25.0   # seconds
