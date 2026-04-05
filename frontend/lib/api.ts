@@ -5,6 +5,7 @@ export interface Wallet {
   name: string;
   role: "coordinator" | "sub-agent";
   eth_address: string;
+  sol_address?: string;
   budget_cap: number;
   balance: number;
 }
@@ -191,6 +192,21 @@ export interface MeteoraRate {
 
 export async function getMeteoraRate(): Promise<MeteoraRate> {
   const res = await fetch(`${API}/regis/meteora`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export interface MoonpayOnramp {
+  url: string | null;
+  currency: string;
+  fiat: string;
+  suggested_amount: number;
+  note: string;
+  wallet: string;
+}
+
+export async function getMoonpayOnramp(walletAddress: string): Promise<MoonpayOnramp> {
+  const res = await fetch(`${API}/regis/moonpay?wallet=${encodeURIComponent(walletAddress)}`);
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }

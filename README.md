@@ -19,9 +19,13 @@
 | + | Real Agent Tools — Firecrawl web search, E2B Python sandboxes | ✅ |
 | + | REGIS Sovereign Brain — append-only memory, probe/audit/punish system | ✅ |
 | + | x402 on Solana Devnet — real on-chain micropayments, Explorer links | ✅ |
-| + | Meteora Integration — live SOL/USDC rate displayed in treasury card | ✅ |
+| + | Meteora Integration — live SOL/USDC rate + DLMM position in treasury card | ✅ |
+| + | Moonpay Onramp — fiat→SOL Buy widget pre-filled per treasury wallet | ✅ |
+| + | Agent Skills Registry — typed skill sets, tier badges, tool bindings | ✅ |
+| + | Extended Peer Chain — ATLAS→CIPHER→FORGE→BISHOP 4-hop micro-economy | ✅ |
+| + | Email Skill — ATLAS + BISHOP auto-draft stakeholder emails | ✅ |
 | + | Stack Architecture Diagram — animated 6-layer overlay, hover tooltips | ✅ |
-| + | Railway Deployment — Dockerfile + railway.toml for backend + PocketBase | ✅ |
+| + | Railway Deployment — Dockerfile + Rust toolchain + railway.toml | ✅ |
 
 ---
 
@@ -615,17 +619,34 @@ Then deploy frontend to Vercel or Railway as a third service.
 | Layer | Tech |
 |-------|------|
 | Backend | FastAPI 0.115 · Uvicorn · Python 3.11 |
-| LLM | Anthropic Claude Haiku (claude-3-haiku-20240307) |
-| Real tools | e2b-code-interpreter · firecrawl-py |
-| Blockchain | solders 0.21+ · Solana devnet RPC |
+| LLM | Anthropic Claude Haiku 4.5 (claude-haiku-4-5-20251001) |
+| Real tools | e2b-code-interpreter ≥2.0 · firecrawl-py ≥4.0 |
+| Blockchain | solders ≥0.21 · Solana devnet RPC |
 | Payment Protocol | x402 (HTTP 402 two-phase, SOL micropayments) |
-| DEX Integration | Meteora DLMM (SOL/USDC rate) |
+| DEX Integration | Meteora DLMM → Jupiter → CoinGecko fallback chain |
+| Fiat Onramp | Moonpay Buy widget (SOL, pre-filled per treasury wallet) |
 | Persistence | PocketBase 0.22 (SQLite, single binary) |
 | Frontend | Next.js 14 · TypeScript · Tailwind CSS |
 | State | TanStack Query v5 · Zustand v5 |
 | Animation | Framer Motion v12 |
-| Deployment | Railway (Dockerfile + railway.toml) |
+| Deployment | Railway (Dockerfile + rustup for solders · railway.toml) |
 | Fonts | Bricolage Grotesque · JetBrains Mono |
+
+---
+
+## Agent Skills Registry
+
+Each agent exposes a typed skill set — active skills are wired to live tools, locked skills are roadmap items:
+
+| Agent | Active Skills | Key Tools |
+|-------|--------------|-----------|
+| ATLAS | Web Search · x402 Search Gate · Market Research · Email Brief | Firecrawl · x402/Solana |
+| CIPHER | E2B Python Sandbox · x402 Analysis Gate · Statistical Analysis | E2B · x402/Solana |
+| FORGE | E2B File Write · x402 Publish Gate · Report Generation | E2B · x402/Solana |
+| BISHOP | Compliance Review · Compliance Email · Audit Validation · Peer Receive | x402 peer chain |
+| SØN | Task Execution · Adaptive Learning | — |
+
+The **SkillsPanel** component renders live in the UI — click any badge to inspect its tool binding, tier, micropayment cost, and active/locked status.
 
 ---
 

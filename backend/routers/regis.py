@@ -17,6 +17,7 @@ from anthropic import Anthropic
 from services.brain_service import brain_service
 from services.pocketbase import PocketBaseService
 from services.meteora_service import get_sol_usdc_rate
+from services.moonpay_service import get_onramp_info
 
 router = APIRouter(prefix="/regis", tags=["regis"])
 
@@ -251,3 +252,12 @@ async def get_meteora_rate():
         return {"rate": None, "source": "unavailable", "available": False}
     except Exception as e:
         return {"rate": None, "source": str(e), "available": False}
+
+
+@router.get("/moonpay")
+async def get_moonpay_onramp(wallet: str):
+    """Return Moonpay onramp URL for the given Solana wallet address."""
+    if not wallet or len(wallet) < 20:
+        return {"url": None, "error": "Invalid wallet address"}
+    info = get_onramp_info(wallet)
+    return info

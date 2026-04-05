@@ -26,6 +26,8 @@ interface X402Payment {
 
 interface ParsedOutput {
   text: string;
+  english_text?: string;
+  lang?: string;
   ms?: number;
   tools?: { name: string; result: string }[];
   sources?: string[];
@@ -46,6 +48,8 @@ function parseOutput(raw: string): ParsedOutput {
     const p = JSON.parse(raw);
     return {
       text: p.text ?? raw,
+      english_text: p.english_text,
+      lang: p.lang,
       ms: p.ms,
       tools: p.tools,
       sources: p.sources,
@@ -189,6 +193,94 @@ function Sparkline({ data, color }: { data: number[]; color: string }) {
   );
 }
 
+/* ── Translation toggle ──────────────────────────────────────────────── */
+
+function TranslationToggle({ original, english, lang }: { original: string; english: string; lang: string }) {
+  const [showEnglish, setShowEnglish] = useState(false);
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => setShowEnglish(false)}
+          className="text-[9px] px-1.5 py-0.5 rounded font-jb transition-all"
+          style={{
+            background: !showEnglish ? "rgba(108,99,255,0.2)" : "transparent",
+            color: !showEnglish ? "#a78bfa" : "var(--text-dim)",
+            border: `1px solid ${!showEnglish ? "rgba(108,99,255,0.35)" : "transparent"}`,
+          }}
+        >
+          {lang || "Original"}
+        </button>
+        <button
+          onClick={() => setShowEnglish(true)}
+          className="text-[9px] px-1.5 py-0.5 rounded font-jb transition-all"
+          style={{
+            background: showEnglish ? "rgba(16,185,129,0.15)" : "transparent",
+            color: showEnglish ? "#10b981" : "var(--text-dim)",
+            border: `1px solid ${showEnglish ? "rgba(16,185,129,0.3)" : "transparent"}`,
+          }}
+        >
+          EN
+        </button>
+      </div>
+      <AnimatePresence mode="wait">
+        <motion.p
+          key={showEnglish ? "en" : "orig"}
+          initial={{ opacity: 0, y: 2 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.15 }}
+          className="text-xs leading-relaxed"
+          style={{ color: "var(--text-muted)" }}
+        >
+          {showEnglish ? english : original}
+        </motion.p>
+      </AnimatePresence>
+    </div>
+  );
+}
+
+/* ── Output text block ───────────────────────────────────────────────── */
+
+function OutputTextBlock({ parsed, approxTokens }: { parsed: ParsedOutput; approxTokens: number }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, height: 0 }}
+      animate={{ opacity: 1, height: "auto" }}
+      className="rounded-lg px-3 py-2.5 space-y-1.5"
+      style={{ background: "var(--surface-2)", border: "1px solid var(--border)" }}
+    >
+      {parsed.english_text ? (
+        <TranslationToggle
+          original={parsed.text}
+          english={parsed.english_text}
+          lang={parsed.lang ?? ""}
+        />
+      ) : (
+        <p className="text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
+          {parsed.text}
+        </p>
+      )}
+      {/* Sources */}
+      {parsed.sources && parsed.sources.length > 0 && (
+        <div className="space-y-0.5">
+          <span className="text-xs" style={{ color: "var(--text-dim)" }}>Sources:</span>
+          {parsed.sources.map((url, i) => (
+            <div key={i} className="text-xs font-jb truncate" style={{ color: "#3b82f6" }}>{url}</div>
+          ))}
+        </div>
+      )}
+      <div className="flex gap-3 text-xs font-jb" style={{ color: "var(--text-dim)" }}>
+        {parsed.ms !== undefined && <span>{parsed.ms}ms</span>}
+        {approxTokens > 0 && <span>~{approxTokens} tokens</span>}
+        {parsed.code_execution_ms !== undefined && parsed.code_execution_ms > 0 && (
+          <span style={{ color: "#a78bfa" }}>E2B: {parsed.code_execution_ms}ms</span>
+        )}
+      </div>
+    </motion.div>
+  );
+}
+
 /* ── Status pill ─────────────────────────────────────────────────────── */
 
 function StatusPill({ agentName, status }: { agentName: string; status: string }) {
@@ -217,10 +309,10 @@ function StatusPill({ agentName, status }: { agentName: string; status: string }
 
 // Spend limit derived from reputation score — mirrors policy_service.py _REP_TIERS
 function repLimit(rep: number): number {
-  if (rep >= 5.0) return 0.20;
-  if (rep >= 4.0) return 0.12;
-  if (rep >= 3.0) return 0.06;
-  if (rep >= 2.0) return 0.02;
+  if (rep >= 5.0) return 10.0;
+  if (rep >= 4.0) return 2.0;
+  if (rep >= 3.0) return 1.0;
+  if (rep >= 2.0) return 0.5;
   return 0.0;
 }
 
@@ -395,34 +487,7 @@ export default function AgentCard({ subTask, payment, peerPayment, index, reputa
 
       {/* ── Output area ── */}
       {parsed.text && (
-        <motion.div
-          initial={{ opacity: 0, height: 0 }}
-          animate={{ opacity: 1, height: "auto" }}
-          className="rounded-lg px-3 py-2.5 space-y-1.5"
-          style={{ background: "var(--surface-2)", border: "1px solid var(--border)" }}
-        >
-          <p className="text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
-            {parsed.text}
-          </p>
-          {/* ATLAS — sources */}
-          {parsed.sources && parsed.sources.length > 0 && (
-            <div className="space-y-0.5">
-              <span className="text-xs" style={{ color: "var(--text-dim)" }}>Sources:</span>
-              {parsed.sources.map((url, i) => (
-                <div key={i} className="text-xs font-jb truncate" style={{ color: "#3b82f6" }}>
-                  {url}
-                </div>
-              ))}
-            </div>
-          )}
-          <div className="flex gap-3 text-xs font-jb" style={{ color: "var(--text-dim)" }}>
-            {parsed.ms !== undefined && <span>{parsed.ms}ms</span>}
-            {approxTokens > 0 && <span>~{approxTokens} tokens</span>}
-            {parsed.code_execution_ms !== undefined && parsed.code_execution_ms > 0 && (
-              <span style={{ color: "#a78bfa" }}>E2B: {parsed.code_execution_ms}ms</span>
-            )}
-          </div>
-        </motion.div>
+        <OutputTextBlock parsed={parsed} approxTokens={approxTokens} />
       )}
 
       {/* ── Tools used ── */}
@@ -503,6 +568,29 @@ export default function AgentCard({ subTask, payment, peerPayment, index, reputa
         </div>
       )}
 
+      {/* ── Email draft (ATLAS + BISHOP) ── */}
+      {(parsed as unknown as { email_summary?: { subject: string; body: string; to: string } }).email_summary && (() => {
+        const em = (parsed as unknown as { email_summary: { subject: string; body: string; to: string } }).email_summary;
+        return (
+          <details className="mt-2">
+            <summary
+              className="text-[10px] cursor-pointer select-none font-semibold"
+              style={{ color: "#a78bfa" }}
+            >
+              Email Draft
+            </summary>
+            <div
+              className="mt-1 rounded-md p-2 text-[10px] font-jb whitespace-pre-wrap"
+              style={{ background: "#a78bfa10", color: "var(--text-muted)", border: "1px solid #a78bfa25" }}
+            >
+              <div style={{ color: "#a78bfa88" }}>To: {em.to}</div>
+              <div style={{ color: "#a78bfa88" }} className="mb-1">Subject: {em.subject}</div>
+              {em.body}
+            </div>
+          </details>
+        );
+      })()}
+
       {/* ── Footer: budget + rep limit + wallet ── */}
       <div
         className="flex items-center justify-between text-xs font-jb pt-1 border-t"
@@ -519,7 +607,7 @@ export default function AgentCard({ subTask, payment, peerPayment, index, reputa
           <span>
             Limit:{" "}
             <span style={{ color: rc }}>
-              {repLimit(liveRep).toFixed(2)} ETH
+              ${repLimit(liveRep).toFixed(2)}
             </span>
           </span>
         </span>

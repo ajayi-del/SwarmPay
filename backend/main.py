@@ -2,7 +2,9 @@
 SwarmPay Backend - FastAPI main application
 """
 
+import asyncio
 import os
+from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -14,17 +16,35 @@ import uvicorn
 
 from routers import tasks, audit, regis
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Start background services on startup."""
+    # Telegram bot — fire and forget, non-blocking
+    try:
+        from services.telegram_service import poll_loop
+        tg_task = asyncio.create_task(poll_loop())
+    except Exception as e:
+        print(f"[telegram] Startup error: {e}")
+        tg_task = None
+    yield
+    # Shutdown
+    if tg_task and not tg_task.done():
+        tg_task.cancel()
+
+
 app = FastAPI(
     title="SwarmPay API",
     description="Agent swarm dispatcher with OWS wallet integration",
     version="2.0.0",
+    lifespan=lifespan,
 )
 
-# CORS middleware
+# CORS — allow all origins for Railway/Vercel deployment
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )

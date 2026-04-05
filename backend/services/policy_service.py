@@ -17,17 +17,17 @@ class PolicyResult(BaseModel):
     reason: Optional[str] = None
 
 
-# Spend limits per star tier — calibrated to actual agent allocations:
-#   5★ CIPHER  0.100 ETH → approved (limit 0.20)
-#   4★ ATLAS   0.100 ETH → approved (limit 0.12)
-#   4★ BISHOP  0.120 ETH → approved (limit 0.12)
-#   4★ FORGE   0.150 ETH → REP BLOCK (0.15 > 0.12) ← demo block
-#   3★ SØN     0.050 ETH → approved (limit 0.06)
+# Spend limits per star tier — calibrated to $15 task budget (~$1.5-2.0 per agent):
+#   5★ CIPHER  ~$1.55  → approved (limit $10.0)
+#   4★ ATLAS   ~$1.55  → approved (limit $2.0)
+#   4★ BISHOP  ~$1.86  → approved (limit $2.0)
+#   4★ FORGE   ~$2.32  → REP BLOCK ($2.32 > $2.0) ← demo quality-bonus block
+#   3★ SØN     ~$0.77  → approved (limit $1.0)
 _REP_TIERS = [
-    (5.0, 0.20),
-    (4.0, 0.12),
-    (3.0, 0.06),
-    (2.0, 0.02),
+    (5.0, 10.0),
+    (4.0, 2.0),
+    (3.0, 1.0),
+    (2.0, 0.5),
 ]
 
 

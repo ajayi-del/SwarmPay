@@ -223,26 +223,44 @@ class AgentService:
             print(f"[atlas llm] {exc}")
             text = persona["fallback"] if persona else "Research complete."
 
+        # Email summary draft for ATLAS
+        email_summary = {
+            "to": "stakeholders@swarm.pay",
+            "subject": f"Research Brief: {description[:60]}",
+            "body": f"Guten Tag,\n\nAnliegend der Forschungsbericht zu: {description}\n\n{text}\n\nMit freundlichen Grüßen,\nATLAS · SwarmPay Research Division",
+        }
+
         ms = int((time.monotonic() - t0) * 1000)
         return json.dumps({"text": text, "ms": ms, "tools": tools, "sources": sources,
-                           "x402_payments": x402_payments})
+                           "x402_payments": x402_payments, "email_summary": email_summary})
 
     def _firecrawl_search(self, query: str) -> dict:
         try:
             from firecrawl import FirecrawlApp
             app = FirecrawlApp(api_key=FIRECRAWL_KEY)
             raw = app.search(query, limit=3)
-            data = raw if isinstance(raw, list) else raw.get("data", [])
+            # Handle firecrawl v2 SearchData object, list, or dict
+            if hasattr(raw, "web"):
+                data = raw.web or []
+            elif isinstance(raw, list):
+                data = raw
+            else:
+                data = raw.get("data", []) if isinstance(raw, dict) else []
             sources, parts = [], []
             for item in data[:3]:
-                if not isinstance(item, dict):
-                    continue
-                url = item.get("url", "")
+                if hasattr(item, "url"):
+                    url = item.url or ""
+                    desc = getattr(item, "description", "") or getattr(item, "markdown", "") or ""
+                    title = getattr(item, "title", "") or ""
+                else:
+                    url = item.get("url", "")
+                    desc = item.get("markdown") or item.get("content") or item.get("description", "")
+                    title = item.get("title", "")
                 if url:
                     sources.append(url)
-                md = item.get("markdown") or item.get("content") or item.get("description", "")
-                if md:
-                    parts.append(str(md)[:600])
+                text = f"{title}: {desc}" if title else str(desc)
+                if text.strip():
+                    parts.append(text[:600])
             return {
                 "enabled": bool(sources),
                 "sources": sources,
@@ -338,8 +356,11 @@ class AgentService:
 
             from e2b_code_interpreter import Sandbox
             t_exec = time.monotonic()
-            with Sandbox(api_key=E2B_KEY) as sbx:
+            sbx = Sandbox.create(api_key=E2B_KEY)
+            try:
                 execution = sbx.run_code(raw_code)
+            finally:
+                sbx.kill()
             elapsed_ms = int((time.monotonic() - t_exec) * 1000)
 
             stdout = "\n".join(str(s) for s in (execution.logs.stdout or [])).strip()
@@ -415,13 +436,30 @@ class AgentService:
                     f'    f.write(content)\n'
                     f'print(f"Written {{len(content)}} chars → swarm_report.md")\n'
                 )
-                with Sandbox(api_key=E2B_KEY) as sbx:
+                sbx = Sandbox.create(api_key=E2B_KEY)
+                try:
                     execution = sbx.run_code(write_code)
+                finally:
+                    sbx.kill()
                 stdout = "\n".join(str(s) for s in (execution.logs.stdout or [])).strip()
                 tools.append({"name": "E2B File Write", "result": stdout or "swarm_report.md written"})
             except Exception as e:
                 print(f"[e2b forge] {e}")
                 tools.append({"name": "E2B File Write", "result": "swarm_report.md written (local)"})
+
+        # English clean summary for FORGE (strips Yoruba phrases)
+        english_text = ""
+        try:
+            tr = self.client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=150,
+                messages=[{"role": "user", "content":
+                    f"Translate/clean this to plain English only. Remove any Yoruba phrases. "
+                    f"Keep it professional and 1-2 sentences:\n\n{text}"}],
+            )
+            english_text = tr.content[0].text.strip()
+        except Exception:
+            pass
 
         ms = int((time.monotonic() - t0) * 1000)
         return json.dumps({
@@ -431,6 +469,8 @@ class AgentService:
             "report_content": report_md,
             "report_filename": "swarm_report.md",
             "x402_payments": x402_payments,
+            "lang": "English/Yoruba",
+            "english_text": english_text,
         })
 
     # ── Default (BISHOP, SØN) ─────────────────────────────────────────
@@ -439,8 +479,10 @@ class AgentService:
         persona = _find_persona(agent_name)
         prompt_lang = persona["prompt_lang"] if persona else "English"
         role        = persona["role"]        if persona else "Agent"
+        needs_translation = prompt_lang.lower() not in ("english",)
 
         t0 = time.monotonic()
+        text = ""
         try:
             prompt = (
                 f"You are {agent_name}, the {role}. Respond in {prompt_lang}.\n"
@@ -460,8 +502,40 @@ class AgentService:
             print(f"[execute fallback] {exc}")
             text = persona["fallback"] if persona else f"Task completed by {agent_name}."
 
+        # English translation for non-English agents (BISHOP Latin/Italian, SØN Norwegian)
+        english_text = ""
+        if needs_translation and text:
+            try:
+                tr = self.client.messages.create(
+                    model="claude-haiku-4-5-20251001",
+                    max_tokens=200,
+                    messages=[{"role": "user", "content":
+                        f"Translate this to English. Keep it concise and professional. "
+                        f"Output only the translation, no preamble:\n\n{text}"}],
+                )
+                english_text = tr.content[0].text.strip()
+            except Exception:
+                pass
+
         ms = int((time.monotonic() - t0) * 1000)
-        return json.dumps({"text": text, "ms": ms, "tools": []})
+        result: dict = {"text": text, "ms": ms, "tools": [], "lang": prompt_lang}
+        if english_text:
+            result["english_text"] = english_text
+
+        # BISHOP generates a compliance email draft
+        if agent_name == "BISHOP":
+            result["email_summary"] = {
+                "to": "compliance@swarm.pay",
+                "subject": f"Compliance Report: {description[:60]}",
+                "body": (
+                    f"Pax vobiscum,\n\n"
+                    f"Compliance review completed for: {description}\n\n"
+                    f"{english_text or text}\n\n"
+                    "In faith and governance,\nBISHOP · SwarmPay Compliance Office"
+                ),
+            }
+
+        return json.dumps(result)
 
     def get_agent_name(self, agent_index: int) -> str:
         if 0 <= agent_index < len(AGENT_PERSONAS):

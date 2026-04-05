@@ -432,6 +432,7 @@ async def _do_peer_payments(sub_tasks: List[Dict]):
     routes = [
         ("ATLAS",  "CIPHER", 0.005, "research handoff"),
         ("CIPHER", "FORGE",  0.003, "analysis delivery"),
+        ("FORGE",  "BISHOP", 0.002, "compliance review"),
     ]
 
     for sender, receiver, amount, label in routes:
@@ -439,8 +440,9 @@ async def _do_peer_payments(sub_tasks: List[Dict]):
         receiver_wallet = wallet_map.get(receiver)
         if not sender_wallet or not receiver_wallet:
             continue
-        # Only send if the originating agent wasn't blocked/failed
-        if status_map.get(sender) not in ("paid", "complete"):
+        # Allow peer payments if sender completed work (paid or blocked for quality bonus)
+        # "blocked" = coordinator denied fee, but work was still produced
+        if status_map.get(sender) not in ("paid", "complete", "blocked"):
             continue
         try:
             tx = await asyncio.to_thread(

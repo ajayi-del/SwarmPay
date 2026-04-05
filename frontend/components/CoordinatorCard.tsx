@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import type { Wallet, Task } from "@/lib/api";
-import { getMeteoraRate } from "@/lib/api";
+import { getMeteoraRate, getMoonpayOnramp } from "@/lib/api";
 import { COORDINATOR_PERSONA, OFFICE_COORDINATOR } from "@/lib/personas";
 import { useModeStore } from "@/lib/modeStore";
 
@@ -56,6 +56,7 @@ export default function CoordinatorCard({ wallet, task }: Props) {
   const isOffice = mode === "office";
   const [meteoraRate, setMeteoraRate] = useState<number | null>(null);
   const [meteoraSource, setMeteoraSource] = useState<string>("");
+  const [moonpayUrl, setMoonpayUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (task.status === "complete") {
@@ -64,6 +65,14 @@ export default function CoordinatorCard({ wallet, task }: Props) {
         .catch(() => {});
     }
   }, [task.status]);
+
+  useEffect(() => {
+    if (wallet.sol_address) {
+      getMoonpayOnramp(wallet.sol_address)
+        .then((d) => { if (d.url) setMoonpayUrl(d.url); })
+        .catch(() => {});
+    }
+  }, [wallet.sol_address]);
   const p = COORDINATOR_PERSONA;
   const statusColor = TASK_STATUS_COLOR[task.status] ?? "#888";
 
@@ -172,10 +181,29 @@ export default function CoordinatorCard({ wallet, task }: Props) {
           {meteoraRate && (
             <p className="text-xs font-jb mt-1" style={{ color: "#06b6d4" }}>
               Treasury valued at ≈ ${(Number(wallet.budget_cap) * meteoraRate / 3200).toFixed(0)} USD
-              <span className="block text-[10px]" style={{ color: "#555" }}>
+              <span className="block text-[10px] mt-0.5" style={{ color: "#555" }}>
                 SOL/USDC {meteoraRate} · {meteoraSource}
               </span>
+              <span className="block text-[10px] mt-0.5" style={{ color: "#a78bfa" }}>
+                Position: {(Number(wallet.budget_cap) * 0.4).toFixed(3)} SOL / {(Number(wallet.budget_cap) * 0.6 * meteoraRate).toFixed(0)} USDC · Est. APR ~8.4%
+              </span>
             </p>
+          )}
+          {moonpayUrl && (
+            <a
+              href={moonpayUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block mt-2 text-xs px-2.5 py-1 rounded-md font-semibold"
+              style={{
+                background: "#7c3aed18",
+                color: "#a78bfa",
+                border: "1px solid #7c3aed35",
+                textDecoration: "none",
+              }}
+            >
+              + Top Up via Moonpay
+            </a>
           )}
         </div>
       </div>

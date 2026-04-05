@@ -8,6 +8,7 @@ import AgentCard from "./AgentCard";
 import CoordinatorCard from "./CoordinatorCard";
 import MetricsBar from "./MetricsBar";
 import RegisConsole from "./RegisConsole";
+import SkillsPanel from "./SkillsPanel";
 import { ErrorBoundary } from "./ErrorBoundary";
 
 export default function Dashboard() {
@@ -81,6 +82,13 @@ export default function Dashboard() {
       {sub_tasks.length > 0 && (
         <ErrorBoundary>
           <MetricsBar taskState={taskState} />
+        </ErrorBoundary>
+      )}
+
+      {/* Skills registry */}
+      {sub_tasks.length > 0 && (
+        <ErrorBoundary>
+          <SkillsPanel />
         </ErrorBoundary>
       )}
     </div>

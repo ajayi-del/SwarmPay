@@ -9,8 +9,11 @@ restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3
 
 # Required environment variables (set in Railway dashboard):
-# ANTHROPIC_API_KEY   — Claude Haiku
-# POCKETBASE_URL      — e.g. https://swarmpay-pb.railway.app
-# SOLANA_RPC_URL      — optional, defaults to https://api.devnet.solana.com
-# E2B_API_KEY         — optional, E2B code sandbox
-# FIRECRAWL_API_KEY   — optional, Firecrawl web search
+# ANTHROPIC_API_KEY      — Claude Haiku 4.5
+# POCKETBASE_URL         — e.g. https://swarmpay-pb.railway.app
+# SOLANA_RPC_URL         — optional, defaults to https://api.devnet.solana.com
+# E2B_API_KEY            — optional, E2B code sandbox
+# FIRECRAWL_API_KEY      — optional, Firecrawl web search
+# TELEGRAM_BOT_TOKEN     — REGIS Telegram bot token
+# TELEGRAM_CHAT_ID       — authorized Telegram chat ID (default: 7102469944)
+# BACKEND_URL            — public backend URL for Telegram bot self-calls

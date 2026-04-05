@@ -22,87 +22,127 @@ export default function Home() {
   }, [mode]);
 
   return (
-    <div className="min-h-screen px-5 py-8 max-w-7xl mx-auto space-y-6">
-      {/* Header */}
-      <motion.div
-        initial={{ opacity: 0, y: -12 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="flex items-center justify-between"
-      >
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">SwarmPay</h1>
-          <p className="text-xs mt-0.5 font-jb" style={{ color: "var(--text-muted)" }}>
-            Multi-Agent Autonomous Economy · Open Wallet Standard · Category 04
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          {/* Policy legend */}
-          <div className="hidden md:flex gap-3 text-xs font-jb" style={{ color: "var(--text-dim)" }}>
-            <span>① budget cap</span>
-            <span>② coordinator sign</span>
-            <span>③ no double-pay</span>
-            <span style={{ color: "var(--blocked)" }}>FORGE +50% → BLOCKED</span>
+    <div className="min-h-screen perspective-container">
+      {/* Top accent bar */}
+      <div className="accent-line fixed top-0 left-0 right-0 z-50" />
+
+      <div className="px-5 py-8 max-w-7xl mx-auto space-y-6">
+        {/* Header */}
+        <motion.header
+          initial={{ opacity: 0, y: -12 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex items-center justify-between"
+        >
+          <div className="space-y-0.5">
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-bold tracking-tight" style={{ letterSpacing: "-0.03em" }}>
+                SwarmPay
+              </h1>
+              <span
+                className="badge"
+                style={{ background: "var(--accent-deep)", color: "var(--accent-2)", border: "1px solid rgba(108,99,255,0.2)" }}
+              >
+                v2.0 · DEVNET
+              </span>
+            </div>
+            <p className="text-xs font-jb" style={{ color: "var(--text-dim)", letterSpacing: "0.06em" }}>
+              MULTI-AGENT AUTONOMOUS ECONOMY · OWS · SOLANA DEVNET · x402
+            </p>
           </div>
-          <button
-            onClick={() => setShowArch(true)}
-            className="text-xs px-3 py-1.5 rounded-lg transition-colors"
-            style={{
-              background: "var(--surface)",
-              border: "1px solid var(--border)",
-              color: "var(--text-muted)",
-            }}
-          >
-            📐 Architecture
-          </button>
-          <ModeToggle />
-          {isActive && (
+          <div className="flex items-center gap-2">
+            <div className="hidden lg:flex items-center gap-3 mr-2 text-xs font-jb" style={{ color: "var(--text-dim)" }}>
+              <span className="flex items-center gap-1.5">
+                <span style={{ color: "var(--signed)", fontSize: 8 }}>●</span>
+                budget gate
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span style={{ color: "var(--working)", fontSize: 8 }}>●</span>
+                rep gate
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span style={{ color: "var(--blocked)", fontSize: 8 }}>●</span>
+                FORGE +50% blocked
+              </span>
+            </div>
             <button
-              onClick={reset}
-              className="text-xs px-3 py-1.5 rounded-lg transition-colors"
+              onClick={() => setShowArch(true)}
+              className="text-xs px-3 py-1.5 rounded-lg transition-colors font-jb"
               style={{
                 background: "var(--surface)",
                 border: "1px solid var(--border)",
                 color: "var(--text-muted)",
+                letterSpacing: "0.04em",
               }}
             >
-              ← New Task
+              ARCH
             </button>
-          )}
-        </div>
-      </motion.div>
+            <ModeToggle />
+            {isActive && (
+              <button
+                onClick={reset}
+                className="text-xs px-3 py-1.5 rounded-lg transition-colors"
+                style={{
+                  background: "var(--surface)",
+                  border: "1px solid var(--border)",
+                  color: "var(--text-muted)",
+                }}
+              >
+                ← New Task
+              </button>
+            )}
+          </div>
+        </motion.header>
 
-      {/* Task form */}
-      {!isActive && <TaskForm />}
+        {/* Divider */}
+        <div className="divider" />
 
-      {/* Main content: dashboard + audit log side by side */}
-      {isActive && (
-        <AnimatePresence mode="wait">
+        {/* Task form */}
+        {!isActive && (
           <motion.div
-            key={mode}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.3 }}
-            className="flex flex-col xl:flex-row gap-4 items-start"
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
           >
-            <div className="flex-1 min-w-0">
-              <Dashboard />
-            </div>
-            <div className="w-full xl:w-72 shrink-0">
-              <AuditLog />
-            </div>
+            <TaskForm />
           </motion.div>
-        </AnimatePresence>
-      )}
+        )}
 
-      {/* Swarm Intelligence / Economy Dashboard */}
-      <SwarmPanel />
+        {/* Dashboard + Audit */}
+        {isActive && (
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={mode}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.25 }}
+              className="flex flex-col xl:flex-row gap-4 items-start"
+            >
+              <div className="flex-1 min-w-0">
+                <Dashboard />
+              </div>
+              <div className="w-full xl:w-72 shrink-0">
+                <AuditLog />
+              </div>
+            </motion.div>
+          </AnimatePresence>
+        )}
 
-      <p className="text-xs text-center pb-2 font-jb" style={{ color: "var(--text-dim)" }}>
-        FastAPI · Claude Haiku · PocketBase · Next.js 14 · OWS Policy Engine
-      </p>
+        {/* Swarm Intelligence Panel */}
+        <SwarmPanel />
 
-      {/* Architecture diagram modal */}
+        {/* Footer */}
+        <footer className="flex items-center justify-between pb-2">
+          <p className="text-xs font-jb" style={{ color: "var(--text-dim)", letterSpacing: "0.06em" }}>
+            FASTAPI · CLAUDE HAIKU 4.5 · POCKETBASE · NEXT.JS 14 · SOLANA DEVNET
+          </p>
+          <p className="text-xs font-jb" style={{ color: "var(--text-dim)", letterSpacing: "0.04em" }}>
+            OWS HACKATHON · SOLANA x402 TRACK
+          </p>
+        </footer>
+      </div>
+
+      {/* Architecture diagram */}
       <AnimatePresence>
         {showArch && <StackDiagram onClose={() => setShowArch(false)} />}
       </AnimatePresence>
