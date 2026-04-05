@@ -532,12 +532,30 @@ export default function AgentCard({ subTask, payment, peerPayment, index, reputa
                 {displaySubtitle}
               </p>
             </div>
-            <span
-              className="text-xs px-2 py-0.5 rounded-md font-semibold shrink-0"
-              style={{ background: `${rc}18`, color: rc, border: `1px solid ${rc}30` }}
-            >
-              {displayRole}
-            </span>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <span
+                className="text-xs px-2 py-0.5 rounded-md font-semibold"
+                style={{ background: `${rc}18`, color: rc, border: `1px solid ${rc}30` }}
+              >
+                {displayRole}
+              </span>
+              {/* Collapse button — only terminal agents can be re-collapsed */}
+              {isTerminal && onToggleCollapse && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); onToggleCollapse(); }}
+                  title="Collapse card"
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    color: "var(--text-dim)",
+                    cursor: "pointer",
+                    fontSize: 11,
+                    padding: "2px 4px",
+                    lineHeight: 1,
+                  }}
+                >▲</button>
+              )}
+            </div>
           </div>
         </div>
       </div>

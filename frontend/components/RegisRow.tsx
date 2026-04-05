@@ -10,6 +10,7 @@
  */
 
 import RegisCard from "./RegisCard";
+import SovereigntyRaceMini from "./SovereigntyRaceMini";
 import type { Wallet, Task, SubTask, Payment } from "@/lib/api";
 import { useSolRate } from "@/lib/useSolRate";
 import { useModeStore } from "@/lib/modeStore";
@@ -127,12 +128,14 @@ export default function RegisRow({ wallet, task, subTasks, payments }: Props) {
   const activeColor = activeCount > 0 ? "#f59e0b" : "#444";
 
   return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 0, width: "100%" }}>
     <div
       style={{
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         gap: 0,
+        width: "100%",
       }}
     >
       {/* LEFT STATS */}
@@ -197,6 +200,12 @@ export default function RegisRow({ wallet, task, subTasks, payments }: Props) {
           color="#888"
         />
       </div>
+    </div>
+
+    {/* Sovereignty race — full-width, below the 3-column row */}
+    <div style={{ width: "100%", maxWidth: 520 }}>
+      <SovereigntyRaceMini />
+    </div>
     </div>
   );
 }

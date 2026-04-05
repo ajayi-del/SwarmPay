@@ -154,6 +154,7 @@ export default function RegisCard({ task }: Props) {
       >
         {p.skills.join("  ·  ")}
       </div>
+
     </motion.div>
   );
 }

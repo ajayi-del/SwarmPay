@@ -26,7 +26,7 @@ import time
 import uuid
 from typing import List, Dict, Any, Optional
 
-from services.model_service import call_claude, call_deepseek, route as model_route, route_for_agent
+from services.model_service import call_deepseek, route as model_route, route_for_agent
 
 FIRECRAWL_KEY: str = os.environ.get("FIRECRAWL_API_KEY", "")
 E2B_KEY: str       = os.environ.get("E2B_API_KEY", "")
@@ -148,7 +148,7 @@ def _build_context_block(context: Dict[str, str]) -> str:
 
 
 def _translate_to_english(text: str, is_lead: bool = False) -> str:
-    """Translate non-English text. Uses Claude for leads, DeepSeek for support."""
+    """Translate non-English text using DeepSeek (cheaper than Claude, quality sufficient)."""
     if not text.strip():
         return ""
     prompt = (
@@ -157,8 +157,6 @@ def _translate_to_english(text: str, is_lead: bool = False) -> str:
         + text
     )
     try:
-        if is_lead:
-            return call_claude(prompt, max_tokens=400)
         return call_deepseek(prompt, max_tokens=400)
     except Exception:
         return ""
@@ -317,24 +315,24 @@ class AgentService:
             except Exception as e:
                 print(f"[x402 atlas] {e}")
 
-        # ── Perplexity real-time research (primary) ──────────────────────
-        perplexity_used = False
+        # ── DuckDuckGo real-time search (primary, free, no API key) ─────
+        ddg_used = False
         try:
-            from services.perplexity_service import research as perplexity_research
-            px_result = perplexity_research(description, "ATLAS")
-            if px_result:
-                sources = px_result.get("sources", [])
-                search_context = px_result.get("text", "")
-                perplexity_used = True
+            from services.search_service import research as ddg_research
+            ddg_result = ddg_research(description, "ATLAS")
+            if ddg_result:
+                sources = ddg_result.get("sources", [])
+                search_context = ddg_result.get("text", "")
+                ddg_used = True
                 tools.append({
-                    "name": "Perplexity Real-Time Search",
+                    "name": "DuckDuckGo Search",
                     "result": f"{len(sources)} live sources · {search_context[:80]}…",
                 })
         except Exception as e:
-            print(f"[atlas perplexity] {e}")
+            print(f"[atlas ddg] {e}")
 
-        # ── Firecrawl fallback (if Perplexity not available/failed) ──────
-        if not perplexity_used and FIRECRAWL_KEY:
+        # ── Firecrawl fallback (if DDG not available/failed) ─────────────
+        if not ddg_used and FIRECRAWL_KEY:
             sr = self._firecrawl_search(description)
             if sr["enabled"]:
                 sources = sr["sources"]
@@ -355,15 +353,15 @@ class AgentService:
             "4. Einschätzung: Was bedeutet das für den Auftraggeber?\n"
             "Schreibe professionell und detailliert (6-10 Sätze)."
         )
-        provider = "perplexity/sonar-large" if perplexity_used else "deepseek/deepseek-chat"
+        llm_provider = "deepseek/deepseek-chat"
         try:
-            text = model_route(is_lead, prompt, max_tokens=600)
+            text, llm_provider = route_for_agent("ATLAS", prompt, max_tokens=600)
         except Exception as exc:
             print(f"[atlas llm] {exc}")
             text = persona["fallback"] if persona else "Recherche abgeschlossen."
 
         # Translation for UI toggle — ATLAS always writes in German
-        english_text = _translate_to_english(text, is_lead)
+        english_text = _translate_to_english(text)
 
         email_summary = {
             "to": "stakeholders@swarm.pay",
@@ -372,12 +370,14 @@ class AgentService:
         }
 
         ms = int((time.monotonic() - t0) * 1000)
+        # Merge search provider (DDG/Firecrawl) with LLM provider
+        search_provider = "duckduckgo/ddgs" if ddg_used else None
+        final_provider = f"{search_provider}+{llm_provider}" if search_provider else llm_provider
         return json.dumps({
             "text": text, "english_text": english_text, "lang": "German",
             "ms": ms, "tools": tools, "sources": sources,
             "x402_payments": x402_payments, "email_summary": email_summary,
-            "provider": provider,
-            "model": "claude" if is_lead else "deepseek",
+            "provider": final_provider,
         })
 
     def _firecrawl_search(self, query: str) -> dict:
@@ -449,7 +449,7 @@ class AgentService:
             text = persona["fallback"] if persona else "分析完了。"
 
         # Translation for UI toggle — CIPHER always writes in Japanese
-        english_text = _translate_to_english(text, is_lead)
+        english_text = _translate_to_english(text)
 
         code, code_output, code_execution_ms = "", "", 0
         if E2B_KEY:
@@ -468,7 +468,6 @@ class AgentService:
             "code": code, "code_output": code_output, "code_execution_ms": code_execution_ms,
             "x402_payments": x402_payments,
             "provider": provider,
-            "model": "claude" if is_lead else "deepseek",
         })
 
     def _e2b_execute(self, description: str, context: Dict[str, str] = {}, is_lead: bool = False) -> dict:
@@ -571,7 +570,7 @@ class AgentService:
                 tools.append({"name": "E2B File Write", "result": "swarm_report.md written (local)"})
 
         # English translation
-        english_text = _translate_to_english(text, is_lead)
+        english_text = _translate_to_english(text)
 
         ms = int((time.monotonic() - t0) * 1000)
         return json.dumps({
@@ -580,7 +579,6 @@ class AgentService:
             "report_content": report_md, "report_filename": "swarm_report.md",
             "x402_payments": x402_payments,
             "provider": provider,
-            "model": "claude" if is_lead else "deepseek",
         })
 
     # ── BISHOP — MoonPay compliance + payment policy ─────────────────────────
@@ -635,7 +633,7 @@ class AgentService:
             print(f"[bishop llm] {exc}")
             text = persona["fallback"] if persona else "Opus completum est."
 
-        english_text = _translate_to_english(text, is_lead)
+        english_text = _translate_to_english(text)
 
         ms = int((time.monotonic() - t0) * 1000)
         return json.dumps({
@@ -646,7 +644,6 @@ class AgentService:
             "tools": tools,
             "moonpay_info": moonpay_info,
             "provider": provider,
-            "model": "claude" if is_lead else "deepseek",
             "email_summary": {
                 "to": "compliance@swarm.pay",
                 "subject": f"Compliance Report: {description[:60]}",
@@ -723,7 +720,7 @@ class AgentService:
             print(f"[son llm] {exc}")
             text = persona["fallback"] if persona else "Uppdraget är slutfört!"
 
-        english_text = _translate_to_english(text, is_lead)
+        english_text = _translate_to_english(text)
 
         ms = int((time.monotonic() - t0) * 1000)
         return json.dumps({
@@ -734,7 +731,6 @@ class AgentService:
             "tools": tools,
             "sol_data": sol_data,
             "provider": provider,
-            "model": "claude" if is_lead else "deepseek",
         })
 
     # ── Default fallback (unknown agents) ────────────────────────────────────
@@ -766,12 +762,11 @@ class AgentService:
             text = persona["fallback"] if persona else f"Task completed by {agent_name}."
 
         needs_translation = "english" not in prompt_lang.lower()
-        english_text = _translate_to_english(text, is_lead) if needs_translation and text else ""
+        english_text = _translate_to_english(text) if needs_translation and text else ""
 
         ms = int((time.monotonic() - t0) * 1000)
         result: dict = {
             "text": text, "ms": ms, "tools": [], "lang": prompt_lang,
-            "model": "claude" if is_lead else "deepseek",
         }
         if english_text:
             result["english_text"] = english_text
