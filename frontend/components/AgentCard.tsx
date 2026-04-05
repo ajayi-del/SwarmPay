@@ -374,9 +374,14 @@ interface Props {
   /** When true: shows compact strip (idle agents). User can click to expand. */
   collapsed?: boolean;
   onToggleCollapse?: () => void;
+  flags?: {
+    topEarner?: boolean;      // 🔥 highest earner this session
+    lastCompleted?: boolean;  // ⚡ completed last task
+    lowRepWarning?: boolean;  // ⚠️ FORGE with low rep
+  };
 }
 
-export default function AgentCard({ subTask, payment, peerPayment, index, reputation, collapsed = false, onToggleCollapse }: Props) {
+export default function AgentCard({ subTask, payment, peerPayment, index, reputation, collapsed = false, onToggleCollapse, flags }: Props) {
   const { mode } = useModeStore();
   const isOffice = mode === "office";
   const { toSol } = useSolRate();
@@ -460,6 +465,16 @@ export default function AgentCard({ subTask, payment, peerPayment, index, reputa
               · {persona.city}
             </span>
             <Stars n={liveRep} />
+            {/* Performance flags */}
+            {flags?.topEarner && (
+              <span title="Top earner this session" style={{ fontSize: 10 }}>🔥</span>
+            )}
+            {flags?.lastCompleted && (
+              <span title="Completed last task" style={{ fontSize: 10 }}>⚡</span>
+            )}
+            {flags?.lowRepWarning && (
+              <span title="Low reputation warning" style={{ fontSize: 10 }}>⚠️</span>
+            )}
           </div>
           <span
             style={{ color: "var(--text-dim)", fontSize: 10, flexShrink: 0 }}

@@ -18,6 +18,7 @@ interface Props {
   subTasks: SubTask[];
   payments: Payment[];
   taskStatus: string;
+  compact?: boolean;
 }
 
 const STATUS_COLOR: Record<string, string> = {
@@ -30,7 +31,7 @@ const STATUS_COLOR: Record<string, string> = {
   timed_out: "#333",
 };
 
-export default function SwarmOrbit({ subTasks, payments }: Props) {
+export default function SwarmOrbit({ subTasks, payments, compact = false }: Props) {
   if (subTasks.length === 0) return null;
 
   const totalBudget = subTasks.reduce((s, st) => s + (st.budget_allocated ?? 0), 0) || 1;
@@ -45,16 +46,17 @@ export default function SwarmOrbit({ subTasks, payments }: Props) {
       style={{
         background: "var(--surface)",
         border: "1px solid var(--border)",
-        height: 220,
+        height: compact ? "100%" : 220,
+        minHeight: compact ? 200 : undefined,
         display: "flex",
         alignItems: "center",
-        justifyContent: "space-between",
-        padding: "0 20px",
+        justifyContent: compact ? "center" : "space-between",
+        padding: compact ? "12px 10px" : "0 20px",
         gap: 12,
       }}
     >
       {/* Radial SVG diagram */}
-      <svg width={260} height={200} viewBox="-20 0 260 200" style={{ flexShrink: 0 }}>
+      <svg width={compact ? "100%" : 260} height={200} viewBox="-20 0 260 200" style={{ flexShrink: 0 }}>
         {/* Orbit rings */}
         <circle cx={CX} cy={CY} r={RADIUS}        fill="none" stroke="#ffffff06" strokeWidth="1" strokeDasharray="4 6" />
         <circle cx={CX} cy={CY} r={RADIUS * 0.55} fill="none" stroke="#ffffff04" strokeWidth="1" />
@@ -137,7 +139,7 @@ export default function SwarmOrbit({ subTasks, payments }: Props) {
       </svg>
 
       {/* Legend */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 10, fontFamily: "monospace", minWidth: 100 }}>
+      {!compact && <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 10, fontFamily: "monospace", minWidth: 100 }}>
         <span style={{ color: "#444", letterSpacing: "0.12em", fontSize: 9, marginBottom: 2 }}>AGENTS</span>
         {subTasks.map(st => {
           const color  = AGENT_PERSONAS[st.agent_id]?.roleColor ?? "#6c63ff";
@@ -156,7 +158,7 @@ export default function SwarmOrbit({ subTasks, payments }: Props) {
             {payments.filter(p => p.status === "blocked").length} blocked
           </div>
         )}
-      </div>
+      </div>}
     </div>
   );
 }
