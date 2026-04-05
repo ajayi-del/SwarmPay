@@ -8,7 +8,7 @@ import { AGENT_PERSONAS } from "@/lib/personas";
 const AGENT_ORDER = ["ATLAS", "CIPHER", "FORGE", "BISHOP", "SØN"];
 
 export default function SkillsCompact() {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
 
   const totalActive = AGENT_ORDER.reduce(
     (s, id) => s + (AGENT_SKILLS[id]?.skills.filter((sk) => sk.active).length ?? 0),

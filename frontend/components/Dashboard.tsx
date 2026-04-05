@@ -92,7 +92,7 @@ export default function Dashboard() {
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "180px 1fr 220px",
+                gridTemplateColumns: "160px 1fr 260px",
                 gap: 12,
                 alignItems: "stretch",
               }}
