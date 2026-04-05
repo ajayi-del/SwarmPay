@@ -94,6 +94,7 @@ def run_regis_challenge(challenger_name: str, regis_brain_content: str) -> Dict:
     """
     Claude evaluates whether the challenger should take REGIS position.
     Returns {"winner": str, "score": float, "verdict": str}
+    Fires a Telegram notification on both outcomes — especially REGIS overthrow.
     """
     challenger_scores = _quality_history.get(challenger_name, [])[-5:]
     avg = get_avg_quality(challenger_name)
@@ -104,16 +105,68 @@ def run_regis_challenge(challenger_name: str, regis_brain_content: str) -> Dict:
         f"Challenger avg quality: {avg}/10\n\n"
         f"Should {challenger_name} replace REGIS as coordinator? "
         f"Consider: governance quality, decision consistency, rep track record.\n"
-        f'JSON only: {{"winner": "REGIS or {challenger_name}", "verdict": "reason in 1 sentence"}}'
+        f"Be decisive. If challenger scores are clearly superior, they win.\n"
+        f'JSON only: {{"winner": "REGIS or {challenger_name}", "verdict": "reason in 2 sentences"}}'
     )
+    winner  = "REGIS"
+    verdict = "Challenge evaluation failed"
     try:
-        raw = call_claude(prompt, max_tokens=120)
+        raw = call_claude(prompt, max_tokens=150)
         s, e = raw.find("{"), raw.rfind("}") + 1
         if s != -1 and e > s:
             parsed = json.loads(raw[s:e])
             winner  = parsed.get("winner", "REGIS")
             verdict = parsed.get("verdict", "")
-            return {"winner": winner, "verdict": verdict, "challenger_avg": avg}
     except Exception as exc:
         print(f"[challenge] {exc}")
-    return {"winner": "REGIS", "verdict": "Challenge evaluation failed", "challenger_avg": avg}
+
+    result = {"winner": winner, "verdict": verdict, "challenger_avg": avg}
+
+    # Telegram — fire and forget (sync context: use asyncio.create_task if in event loop)
+    _fire_challenge_notification(challenger_name, winner, verdict, avg, challenger_scores)
+
+    return result
+
+
+def _fire_challenge_notification(
+    challenger: str, winner: str, verdict: str, avg: float, scores: list
+) -> None:
+    """Send Telegram notification about challenge result (sync, best-effort)."""
+    import asyncio
+    try:
+        from services.telegram_service import send, ALLOWED_CHAT_ID
+
+        if winner != "REGIS":
+            msg = (
+                f"👑 REGIS OVERTHROWN!\n"
+                f"══════════════════════\n"
+                f"⚔️ Challenger: {challenger}\n"
+                f"New Coordinator: {winner}\n"
+                f"Avg Quality: {avg:.1f}/10\n"
+                f"Recent scores: {scores}\n"
+                f"─────────────────────\n"
+                f"Verdict: {verdict}\n"
+                f"REGIS has been dethroned. Long live {winner}."
+            )
+        else:
+            msg = (
+                f"⚔️ CHALLENGE DEFEATED\n"
+                f"─────────────────────\n"
+                f"{challenger} challenged REGIS and lost.\n"
+                f"Challenger avg quality: {avg:.1f}/10\n"
+                f"REGIS retains the crown.\n"
+                f"Verdict: {verdict}"
+            )
+
+        loop = None
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            pass
+
+        if loop and loop.is_running():
+            loop.create_task(send(ALLOWED_CHAT_ID, msg))
+        else:
+            asyncio.run(send(ALLOWED_CHAT_ID, msg))
+    except Exception as exc:
+        print(f"[challenge tg] {exc}")

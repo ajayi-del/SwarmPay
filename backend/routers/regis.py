@@ -19,6 +19,15 @@ from services.pocketbase import PocketBaseService
 from services.meteora_service import get_sol_usdc_rate
 from services.moonpay_service import get_onramp_info
 
+
+async def _notify(message: str) -> None:
+    """Non-blocking Telegram notification for all REGIS governance events."""
+    try:
+        from services.telegram_service import send, ALLOWED_CHAT_ID
+        await send(ALLOWED_CHAT_ID, message)
+    except Exception as exc:
+        print(f"[regis tg] {exc}")
+
 router = APIRouter(prefix="/regis", tags=["regis"])
 
 pb = PocketBaseService()
@@ -76,6 +85,14 @@ async def probe_regis(request: ProbeRequest):
         answer = resp.content[0].text.strip()
 
         await asyncio.to_thread(brain_service.append_probe, request.question, answer)
+
+        # Notify: REGIS was interrogated
+        await _notify(
+            f"🔍 REGIS INTERROGATED\n"
+            f"────────────────────\n"
+            f"Q: {request.question[:100]}\n"
+            f"A: {answer[:200]}"
+        )
 
         return {"response": answer}
 
@@ -141,6 +158,21 @@ async def audit_regis():
             await asyncio.to_thread(pb.update_reputation, "REGIS", rep_delta)
 
         await asyncio.to_thread(brain_service.append_audit, score, verdict, reason, rep_delta)
+
+        # Telegram: audit result with rep change
+        verdict_icon = "✅" if verdict == "PASSED" else ("⚠️" if verdict == "MARGINAL" else "❌")
+        rep_line = (
+            f"Rep: +{rep_delta:.1f}★ (rewarded)" if rep_delta > 0
+            else (f"Rep: {rep_delta:.1f}★ (penalised)" if rep_delta < 0 else "Rep: unchanged")
+        )
+        await _notify(
+            f"{verdict_icon} REGIS AUDIT — {verdict}\n"
+            f"──────────────────────────\n"
+            f"Score: {score}/100\n"
+            f"{rep_line}\n"
+            f"Finding: {reason[:150]}\n"
+            f"Action: {improvement[:100]}"
+        )
 
         return {
             "score":       score,
@@ -217,6 +249,28 @@ async def punish_regis(request: PunishRequest):
         regis_response = ack_resp.content[0].text.strip()
 
         await asyncio.to_thread(brain_service.append_punishment, ptype, regis_response)
+
+        # Telegram: punishment applied
+        icons = {
+            "slash_treasury":    "⚔️ TREASURY SLASHED",
+            "demote_reputation": "📉 REGIS DEMOTED",
+            "governance_report": "📜 GOVERNANCE REPORT ORDERED",
+        }
+        punishment_icon = icons.get(ptype, "🔨 PUNISHMENT")
+        extra = ""
+        if "new_budget_cap" in result:
+            extra = f"\nNew treasury cap: {result['new_budget_cap']:.4f} USDC"
+        elif "new_reputation" in result:
+            extra = f"\nNew reputation: {result['new_reputation']:.2f}★"
+        elif "report" in result:
+            extra = f"\n{result['report'][:150]}"
+
+        await _notify(
+            f"{punishment_icon}\n"
+            f"────────────────────────────\n"
+            f"REGIS: \"{regis_response[:200]}\""
+            f"{extra}"
+        )
 
         return {"punishment_type": ptype, "response": regis_response, **result}
 

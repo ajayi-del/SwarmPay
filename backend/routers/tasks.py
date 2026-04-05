@@ -611,6 +611,26 @@ async def _process_payment(coordinator_wallet: Dict, sub_task: Dict):
                      f"{agent_name} rep {direction} → {new_rep:.2f}★ (was {reputation:.2f}★)",
                      {"delta": delta, "new_reputation": new_rep})
 
+        # Telegram: payment outcome + rep update
+        if policy_result.allow:
+            tx_hash = payload.get("tx_hash", "")
+            tx_short = f" · tx {tx_hash[:16]}…" if tx_hash else ""
+            await _notify_telegram(
+                f"💸 PAID: {agent_name}\n"
+                f"────────────────\n"
+                f"Amount: {attempted:.4f} USDC{tx_short}\n"
+                f"Rep: {reputation:.2f}★ → {new_rep:.2f}★ (+0.1)\n"
+                f"Policy: {policy_result.reason or 'approved'}"
+            )
+        else:
+            await _notify_telegram(
+                f"🚫 PAYMENT BLOCKED: {agent_name}\n"
+                f"──────────────────────────\n"
+                f"Attempted: {attempted:.4f} USDC\n"
+                f"Rep: {reputation:.2f}★ → {new_rep:.2f}★ (-0.2)\n"
+                f"Reason: {policy_result.reason}"
+            )
+
     except Exception as exc:
         print(f"[payment error] {exc}")
 
@@ -660,6 +680,11 @@ async def _do_peer_payments(sub_tasks: List[Dict]):
                 f"⇄ {sender} → {receiver}  {amount:.3f} USDC  [{label}]",
                 {"from_agent": sender, "to_agent": receiver,
                  "amount": amount, "label": label},
+            )
+            await _notify_telegram(
+                f"⇄ PEER PAYMENT\n"
+                f"{sender} → {receiver}\n"
+                f"{amount:.3f} USDC · {label}"
             )
         except Exception as exc:
             print(f"[peer payment] {sender}→{receiver}: {exc}")
