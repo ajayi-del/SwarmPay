@@ -14,7 +14,7 @@ import hashlib
 import os
 import struct
 import time
-from typing import Optional
+from typing import List, Optional
 
 import httpx
 
@@ -231,6 +231,24 @@ class SolanaService:
             print(f"[solana legacytx] {e2}")
 
         raise Exception("Could not build or send Solana transaction")
+
+    def get_balance(self, pubkey: str) -> float:
+        """Return SOL balance for a pubkey (devnet). Falls back to 0.0 on error."""
+        try:
+            resp = self._rpc("getBalance", [pubkey])
+            lamports = resp.get("result", {}).get("value", 0)
+            return round(lamports / 1_000_000_000, 6)
+        except Exception:
+            return 0.0
+
+    def get_recent_transactions(self, pubkey: str, limit: int = 5) -> List[str]:
+        """Return list of recent tx signatures for a pubkey."""
+        try:
+            resp = self._rpc("getSignaturesForAddress", [pubkey, {"limit": limit}])
+            sigs = resp.get("result", []) or []
+            return [s["signature"] for s in sigs if isinstance(s, dict) and "signature" in s]
+        except Exception:
+            return []
 
     def explorer_url(self, sig: str) -> str:
         return f"{EXPLORER_BASE}/{sig}?cluster=devnet"

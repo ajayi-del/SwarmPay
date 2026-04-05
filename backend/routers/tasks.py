@@ -60,6 +60,48 @@ async def _audit(event_type: str, entity_id: str, message: str, metadata: dict =
     })
 
 
+class TaskClarifyRequest(BaseModel):
+    description: str
+
+class TaskClarifyResponse(BaseModel):
+    questions: List[str]
+    needs_clarification: bool
+    suggested_budget: float
+
+@router.post("/clarify", response_model=TaskClarifyResponse)
+async def clarify_task(request: TaskClarifyRequest):
+    """
+    REGIS asks 2-3 context questions before task starts.
+    Returns empty list if task description is already clear enough.
+    """
+    try:
+        from services.model_service import call_claude
+        prompt = (
+            f'Task description: "{request.description}"\n\n'
+            "You are REGIS, SwarmPay coordinator. Analyze this task.\n"
+            "Available services: OWS (wallets/payments), Solana (blockchain), "
+            "MoonPay (fiat onramp), X402 (micropayments), Firecrawl (web search), E2B (code execution).\n\n"
+            "Determine:\n"
+            "1. Does this task need clarification? (missing: budget, target, deadline, specific metric?)\n"
+            "2. If yes, write 2-3 SHORT clarifying questions (one line each)\n"
+            "3. Suggest a USD budget based on complexity\n\n"
+            "JSON only:\n"
+            '{"needs_clarification": true, "questions": ["Q1", "Q2"], "suggested_budget": 5.0}'
+        )
+        raw = await asyncio.to_thread(call_claude, prompt, 300)
+        s, e = raw.find("{"), raw.rfind("}") + 1
+        if s != -1 and e > s:
+            parsed = json.loads(raw[s:e])
+            return TaskClarifyResponse(
+                questions=parsed.get("questions", [])[:3],
+                needs_clarification=bool(parsed.get("needs_clarification", False)),
+                suggested_budget=float(parsed.get("suggested_budget", 5.0)),
+            )
+    except Exception as exc:
+        print(f"[clarify] {exc}")
+    return TaskClarifyResponse(questions=[], needs_clarification=False, suggested_budget=5.0)
+
+
 @router.post("/submit", response_model=TaskSubmitResponse)
 async def submit_task(request: TaskSubmitRequest):
     """Submit a new task and create REGIS coordinator wallet."""

@@ -1,0 +1,11 @@
+[build]
+builder = "nixpacks"
+
+[deploy]
+startCommand = "npm start"
+healthcheckPath = "/"
+healthcheckTimeout = 120
+restartPolicyType = "on_failure"
+
+# Required environment variables (set in Railway dashboard):
+# NEXT_PUBLIC_API_URL — public URL of the deployed backend service

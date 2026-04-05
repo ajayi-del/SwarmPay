@@ -43,12 +43,16 @@ def evaluate_work(
     # Tight prompt — ~80 tokens
     ctx = f"\nPrior work: {context_preview[:150]}" if context_preview else ""
     prompt = (
-        f'Task goal: "{task_goal[:100]}"\n'
-        f"{agent_name} output: \"{agent_output[:250]}\"{ctx}\n\n"
-        f'Score quality 0-10. JSON only: {{"score": 7, "reason": "brief reason"}}'
+        f'Task goal: "{task_goal[:150]}"\n'
+        f'{agent_name} output: "{agent_output[:400]}"{ctx}\n\n'
+        "Score the agent output quality 0-10 based on:\n"
+        "- Relevance to goal (does it actually address the mission?)\n"
+        "- Depth and specificity (concrete data vs vague statements)\n"
+        "- Actionability (can next agent build on this?)\n"
+        f'JSON only: {{"score": 7, "reason": "2-sentence specific reason"}}'
     )
     try:
-        raw = call_deepseek(prompt, max_tokens=60)
+        raw = call_deepseek(prompt, max_tokens=120)
         s, e = raw.find("{"), raw.rfind("}") + 1
         if s != -1 and e > s:
             parsed = json.loads(raw[s:e])

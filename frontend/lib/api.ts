@@ -211,3 +211,19 @@ export async function getMoonpayOnramp(walletAddress: string): Promise<MoonpayOn
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
+
+export interface ClarifyResponse {
+  questions: string[];
+  needs_clarification: boolean;
+  suggested_budget: number;
+}
+
+export async function clarifyTask(description: string): Promise<ClarifyResponse> {
+  const res = await fetch(`${API}/task/clarify`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ description }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}

@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { submitTask, decomposeTask, executeTask } from "@/lib/api";
+import { submitTask, decomposeTask, executeTask, clarifyTask } from "@/lib/api";
 import { useSwarmStore } from "@/lib/store";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 
@@ -24,6 +24,9 @@ export default function TaskForm() {
   const [loading, setLoading] = useState(false);
   const [activeStep, setActiveStep] = useState(-1);
   const [error, setError] = useState<string | null>(null);
+  const [clarifyQuestions, setClarifyQuestions] = useState<string[]>([]);
+  const [clarifyAnswers, setClarifyAnswers] = useState<string[]>([]);
+  const [clarifyDone, setClarifyDone] = useState(false);
 
   const { setTaskId, setPhase } = useSwarmStore();
 
@@ -34,15 +37,55 @@ export default function TaskForm() {
   const { state: speechState, start: startSpeech, stop: stopSpeech, supported: speechSupported, error: speechError } =
     useSpeechRecognition(onSpeechResult);
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleClarifyCheck(e: React.FormEvent) {
     e.preventDefault();
+    if (!description.trim()) return;
+
+    // If clarification already done or no questions needed, go straight to launch
+    if (clarifyDone || clarifyQuestions.length === 0) {
+      return handleLaunch();
+    }
+
+    // First time: ask REGIS for clarification
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await clarifyTask(description);
+      if (result.needs_clarification && result.questions.length > 0) {
+        setClarifyQuestions(result.questions);
+        setClarifyAnswers(new Array(result.questions.length).fill(""));
+        // Use suggested budget if user hasn't touched it
+        if (budget === "15" && result.suggested_budget > 0) {
+          setBudget(String(Math.round(result.suggested_budget)));
+        }
+        setLoading(false);
+        return; // Show the clarification panel
+      }
+    } catch {
+      // If clarify fails, proceed anyway
+    }
+    setLoading(false);
+    return handleLaunch();
+  }
+
+  async function handleLaunch() {
     if (!description.trim()) return;
     setLoading(true);
     setError(null);
     setActiveStep(0);
 
+    // Build enriched description with clarification context
+    let fullDescription = description;
+    if (clarifyQuestions.length > 0 && clarifyAnswers.some((a) => a.trim())) {
+      const context = clarifyQuestions
+        .map((q, i) => clarifyAnswers[i]?.trim() ? `${q}: ${clarifyAnswers[i]}` : null)
+        .filter(Boolean)
+        .join(" | ");
+      if (context) fullDescription = `${description} [Context: ${context}]`;
+    }
+
     try {
-      const { task_id } = await submitTask(description, parseFloat(budget) || 15);
+      const { task_id } = await submitTask(fullDescription, parseFloat(budget) || 15);
       setTaskId(task_id);
       setPhase("submitted");
       setActiveStep(1);
@@ -121,7 +164,7 @@ export default function TaskForm() {
 
         <div className="accent-line mb-5" />
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={clarifyQuestions.length > 0 && !clarifyDone ? (e) => { e.preventDefault(); setClarifyDone(true); } : handleClarifyCheck} className="space-y-4">
           {/* Description field */}
           <div>
             <div className="flex items-center justify-between mb-2">
@@ -215,57 +258,112 @@ export default function TaskForm() {
             ))}
           </div>
 
-          {/* Budget + Submit row */}
-          <div className="flex gap-3 items-end pt-1">
-            <div className="w-32">
-              <label className="text-label block mb-2">Budget (USDC)</label>
-              <input
-                type="number"
-                value={budget}
-                onChange={(e) => setBudget(e.target.value)}
-                step="1"
-                min="1"
-                className="w-full rounded-xl px-3 py-2.5 text-sm transition-all"
-                style={{
-                  background: "var(--surface-2)",
-                  border: "1px solid var(--border)",
-                  color: "var(--text)",
-                }}
-                disabled={loading}
-              />
-            </div>
+          {/* REGIS clarification panel */}
+          <AnimatePresence>
+            {clarifyQuestions.length > 0 && !clarifyDone && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className="rounded-xl p-4 space-y-3"
+                style={{ background: "rgba(108,99,255,0.06)", border: "1px solid rgba(108,99,255,0.2)" }}
+              >
+                <p className="text-[10px] font-jb" style={{ color: "#a78bfa" }}>
+                  REGIS needs context before dispatching:
+                </p>
+                {clarifyQuestions.map((q, i) => (
+                  <div key={i}>
+                    <label className="text-[10px] font-jb mb-1 block" style={{ color: "var(--text-dim)" }}>{q}</label>
+                    <input
+                      type="text"
+                      value={clarifyAnswers[i] ?? ""}
+                      onChange={(e) => {
+                        const next = [...clarifyAnswers];
+                        next[i] = e.target.value;
+                        setClarifyAnswers(next);
+                      }}
+                      placeholder="Optional — press Enter to skip"
+                      className="w-full rounded-lg px-3 py-2 text-sm"
+                      style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text)" }}
+                    />
+                  </div>
+                ))}
+                <div className="flex gap-2 pt-1">
+                  <button
+                    type="submit"
+                    className="text-[11px] px-3 py-1.5 rounded-lg font-jb"
+                    style={{ background: "rgba(108,99,255,0.2)", color: "#a78bfa", border: "1px solid rgba(108,99,255,0.3)" }}
+                  >
+                    Confirm & Launch →
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setClarifyDone(true); handleLaunch(); }}
+                    className="text-[11px] px-3 py-1.5 rounded-lg font-jb"
+                    style={{ color: "var(--text-muted)" }}
+                  >
+                    Skip
+                  </button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-            <motion.button
-              type="submit"
-              disabled={loading || !description.trim()}
-              whileHover={{ scale: 1.02, y: -1 }}
-              whileTap={{ scale: 0.97 }}
-              className="flex-1 py-2.5 rounded-xl font-semibold text-sm transition-all disabled:opacity-40"
-              style={{
-                background: loading
-                  ? "var(--surface-3)"
-                  : "linear-gradient(135deg, #6c63ff, #a78bfa)",
-                color: "#fff",
-                boxShadow: loading
-                  ? "none"
-                  : "0 4px 20px rgba(108,99,255,0.3), 0 1px 4px rgba(0,0,0,0.4), var(--shadow-inset)",
-                letterSpacing: "0.04em",
-              }}
-            >
-              {loading ? (
-                <span className="flex items-center justify-center gap-2">
-                  <motion.span
-                    animate={{ rotate: 360 }}
-                    transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }}
-                    className="inline-block w-3 h-3 border border-white/30 border-t-white rounded-full"
-                  />
-                  {STEPS[activeStep]?.label ?? "LAUNCHING"}…
-                </span>
-              ) : (
-                "LAUNCH SWARM →"
-              )}
-            </motion.button>
-          </div>
+          {/* Budget + Submit row — hidden while clarification panel is open */}
+          {(clarifyQuestions.length === 0 || clarifyDone) && (
+            <div className="flex gap-3 items-end pt-1">
+              <div className="w-32">
+                <label className="text-label block mb-2">Budget (USDC)</label>
+                <input
+                  type="number"
+                  value={budget}
+                  onChange={(e) => setBudget(e.target.value)}
+                  step="1"
+                  min="1"
+                  className="w-full rounded-xl px-3 py-2.5 text-sm transition-all"
+                  style={{
+                    background: "var(--surface-2)",
+                    border: "1px solid var(--border)",
+                    color: "var(--text)",
+                  }}
+                  disabled={loading}
+                />
+              </div>
+
+              <motion.button
+                type="submit"
+                disabled={loading || !description.trim()}
+                whileHover={{ scale: 1.02, y: -1 }}
+                whileTap={{ scale: 0.97 }}
+                className="flex-1 py-2.5 rounded-xl font-semibold text-sm transition-all disabled:opacity-40"
+                style={{
+                  background: loading
+                    ? "var(--surface-3)"
+                    : "linear-gradient(135deg, #6c63ff, #a78bfa)",
+                  color: "#fff",
+                  boxShadow: loading
+                    ? "none"
+                    : "0 4px 20px rgba(108,99,255,0.3), 0 1px 4px rgba(0,0,0,0.4), var(--shadow-inset)",
+                  letterSpacing: "0.04em",
+                }}
+              >
+                {loading ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <motion.span
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }}
+                      className="inline-block w-3 h-3 border border-white/30 border-t-white rounded-full"
+                    />
+                    {STEPS[activeStep]?.label ?? "LAUNCHING"}…
+                  </span>
+                ) : clarifyQuestions.length === 0 ? (
+                  "LAUNCH SWARM →"
+                ) : (
+                  "CONFIRM & LAUNCH →"
+                )}
+              </motion.button>
+            </div>
+          )}
 
           {/* Error */}
           <AnimatePresence>

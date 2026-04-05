@@ -6,14 +6,17 @@ Architecture:
     so outputs compound toward the shared mission goal rather than running in isolation.
   • Model routing: lead agent → Claude Haiku, support agents → DeepSeek (~80% cheaper)
   • Translation: ALL non-English agents produce english_text for the UI toggle
-  • Prompt optimization: tight prompts (<100 tokens base) — no redundant instructions
   • Lock-aware: locked agents are filtered before task analysis
   • Quality scoring: caller (tasks.py) evaluates output post-execution
 
-Tool capabilities (require env vars, degrade gracefully if absent):
-  ATLAS  — Firecrawl web search  (FIRECRAWL_API_KEY)
-  CIPHER — E2B Python execution  (E2B_API_KEY)
-  FORGE  — E2B file write        (E2B_API_KEY)
+Company tool stack (degrade gracefully if env var absent):
+  ATLAS  — Firecrawl web search        (FIRECRAWL_API_KEY)
+  CIPHER — E2B Python code sandbox     (E2B_API_KEY)
+  FORGE  — E2B file write + report     (E2B_API_KEY)
+  BISHOP — MoonPay compliance check    (always active — sandbox fallback)
+  SØN    — Solana balance + tx lookup  (always active — devnet)
+  All    — X402 micropayments          (Solana devnet)
+  All    — OWS wallet + payment signing (always active)
 """
 
 import base64
@@ -148,11 +151,15 @@ def _translate_to_english(text: str, is_lead: bool = False) -> str:
     """Translate non-English text. Uses Claude for leads, DeepSeek for support."""
     if not text.strip():
         return ""
-    prompt = f"Translate to plain English. 1-2 sentences only. No preamble:\n\n{text}"
+    prompt = (
+        "Translate the following to clear, professional English. "
+        "Preserve all data points, names, and key terms. Full translation — do not summarize:\n\n"
+        + text
+    )
     try:
         if is_lead:
-            return call_claude(prompt, max_tokens=150)
-        return call_deepseek(prompt, max_tokens=150)
+            return call_claude(prompt, max_tokens=400)
+        return call_deepseek(prompt, max_tokens=400)
     except Exception:
         return ""
 
@@ -163,31 +170,47 @@ class AgentService:
 
     # ── Task analysis: deterministic agent selection ──────────────────────────
 
+    # Agent tool capabilities — passed to Claude so it picks the right agent for the task
+    _AGENT_TOOLS = {
+        "ATLAS":  "Firecrawl web search, real-time data sourcing, X402 micropayments",
+        "CIPHER": "E2B Python code sandbox, quantitative analysis, data modelling, X402 micropayments",
+        "FORGE":  "E2B file generation, report writing, markdown publishing, X402 micropayments",
+        "BISHOP": "MoonPay fiat onramp compliance, AML review, payment policy, canonical blessing",
+        "SØN":    "Solana devnet balance queries, tx verification, fund tracking, learning tasks",
+    }
+
     def analyze_task_for_agents(self, description: str, available_agents: Optional[List[str]] = None) -> Dict[str, Any]:
         """
         Claude analyzes the task → picks 1-4 agents + lead + per-agent descriptions.
+        Tool capabilities are included so Claude routes payment/search/code to the right agents.
         Only considers agents in `available_agents` (locked agents filtered out by caller).
-
-        Token optimized: tight prompt, pre-built roster string.
         """
         roster = available_agents or ALL_AGENT_NAMES
         roster_lines = "\n".join(
-            f"- {p['name']} ({p['role']}): {', '.join(p['skills'])}"
+            f"- {p['name']} ({p['role']}, {p['city']}): {', '.join(p['skills'])} | tools: {self._AGENT_TOOLS.get(p['name'], '')}"
             for p in AGENT_PERSONAS if p["name"] in roster
         )
 
         prompt = (
             f'Mission: "{description}"\n\n'
-            f"Available agents:\n{roster_lines}\n\n"
-            "Select 1-4 agents minimum needed. Pick a lead.\n"
-            'JSON only: {"agents":["NAME"],"lead":"NAME","subtasks":{"NAME":"specific task"}}'
+            f"Available agents and their tools:\n{roster_lines}\n\n"
+            "Rules:\n"
+            "1. Select only agents whose tools are RELEVANT to this mission (1-4 agents)\n"
+            "2. Match payment tasks → BISHOP, web research → ATLAS, code/data → CIPHER, "
+            "reports → FORGE, Solana/fund checks → SØN\n"
+            "3. Pick the best lead agent\n"
+            "4. Write specific per-agent subtasks that reference the actual mission goal and "
+            "which company tools (OWS/Solana/MoonPay/X402/Firecrawl/E2B) they should use\n"
+            'JSON only: {"agents":["NAME"],"lead":"NAME","subtasks":{"NAME":"specific task using specific tools"}}'
         )
         try:
-            raw = call_claude(prompt, max_tokens=350)
+            raw = call_claude(prompt, max_tokens=500)
             s, e = raw.find("{"), raw.rfind("}") + 1
             if s != -1 and e > s:
                 parsed = json.loads(raw[s:e])
                 agents = [a for a in parsed.get("agents", []) if a in roster]
+                if not agents:
+                    agents = roster[:2]
                 lead   = parsed.get("lead", agents[0] if agents else "ATLAS")
                 if lead not in agents:
                     lead = agents[0] if agents else "ATLAS"
@@ -195,19 +218,23 @@ class AgentService:
                 for ag in agents:
                     if ag not in subtasks:
                         p = _find_persona(ag)
-                        subtasks[ag] = f"{p['role']} contribution to: {description}" if p else description
+                        tool_hint = self._AGENT_TOOLS.get(ag, "")
+                        subtasks[ag] = (
+                            f"{p['role']} work using {tool_hint}: {description}"
+                            if p else description
+                        )
                 return {"agents": agents, "lead": lead, "subtasks": subtasks}
         except Exception as exc:
             print(f"[analyze_task fallback] {exc}")
 
-        # Fallback: first available agent as solo lead
+        # Fallback: first 2 available agents
         fallback_lead = roster[0] if roster else "ATLAS"
         return {
-            "agents": roster[:3],
+            "agents": roster[:2],
             "lead": fallback_lead,
             "subtasks": {
                 a: f"{_find_persona(a)['role'] if _find_persona(a) else 'Agent'} work: {description}"
-                for a in roster[:3]
+                for a in roster[:2]
             },
         }
 
@@ -259,6 +286,8 @@ class AgentService:
             "ATLAS":  self._execute_atlas,
             "CIPHER": self._execute_cipher,
             "FORGE":  self._execute_forge,
+            "BISHOP": self._execute_bishop,
+            "SØN":    self._execute_son,
         }
         fn = dispatch.get(agent_name)
         if fn:
@@ -297,16 +326,20 @@ class AgentService:
                                "result": f"{len(sources)} sources · {sr['content'][:80]}…"})
 
         ctx_block = _build_context_block(context)
-        web_block = f"\n\nWeb sources:\n{search_context[:600]}" if search_context else ""
+        web_block = f"\n\nWeb-Quellen:\n{search_context[:800]}" if search_context else ""
 
-        # Tight prompt: ~65 tokens base
         prompt = (
-            f"ATLAS, Berlin researcher. Respond in German.\n"
-            f"Research task: {description}{web_block}{ctx_block}\n"
-            "2-3 sentences, data-driven, precise."
+            f"Du bist ATLAS, Chefforscher in Berlin. Antworte AUF DEUTSCH.\n"
+            f"Forschungsauftrag: {description}{web_block}{ctx_block}\n\n"
+            "Liefere einen vollständigen Forschungsbericht mit:\n"
+            "1. Hauptbefunde (mind. 3 konkrete Datenpunkte oder Fakten)\n"
+            "2. Marktkontext und relevante Trends\n"
+            "3. Quellen und Methodik\n"
+            "4. Einschätzung: Was bedeutet das für den Auftraggeber?\n"
+            "Schreibe professionell und detailliert (6-10 Sätze)."
         )
         try:
-            text = model_route(is_lead, prompt, max_tokens=200)
+            text = model_route(is_lead, prompt, max_tokens=600)
         except Exception as exc:
             print(f"[atlas llm] {exc}")
             text = persona["fallback"] if persona else "Recherche abgeschlossen."
@@ -378,14 +411,19 @@ class AgentService:
 
         ctx_block = _build_context_block(context)
 
-        # Tight prompt — ~55 tokens base
         prompt = (
-            f"CIPHER, Tokyo analyst. Respond in Japanese.\n"
-            f"Analyze: {description}{ctx_block}\n"
-            "2-3 sentences with specific data points or metrics."
+            f"あなたはCIPHER、東京のチーフアナリストです。日本語で回答してください。\n"
+            f"分析タスク: {description}{ctx_block}\n\n"
+            "以下を含む詳細な分析レポートを作成してください:\n"
+            "1. 定量的データと具体的な指標（最低3つ）\n"
+            "2. リスクスコアリングと確率評価\n"
+            "3. パターン認識と異常値の特定\n"
+            "4. データモデルの出力と結論\n"
+            "5. 次のエージェントへの推奨アクション\n"
+            "専門的かつ詳細に（6-10文）記述してください。"
         )
         try:
-            text = model_route(is_lead, prompt, max_tokens=200)
+            text = model_route(is_lead, prompt, max_tokens=600)
         except Exception as exc:
             print(f"[cipher llm] {exc}")
             text = persona["fallback"] if persona else "分析完了。"
@@ -522,7 +560,157 @@ class AgentService:
             "model": "claude" if is_lead else "deepseek",
         })
 
-    # ── Default (BISHOP, SØN) ─────────────────────────────────────────────────
+    # ── BISHOP — MoonPay compliance + payment policy ─────────────────────────
+
+    def _execute_bishop(
+        self, description: str, wallet_id: str = "",
+        is_lead: bool = False, context: Dict[str, str] = {}
+    ) -> str:
+        t0 = time.monotonic()
+        persona = _find_persona("BISHOP")
+        tools: List[Dict] = []
+        ctx_block = _build_context_block(context)
+
+        # MoonPay compliance check — always active (sandbox if no API key)
+        moonpay_info: dict = {}
+        try:
+            from services.moonpay_service import get_onramp_info
+            from services.pocketbase import PocketBaseService
+            _pb = PocketBaseService()
+            wallets = _pb.list("wallets", filter_params="role='coordinator'", limit=1)
+            sol_addr = wallets[0]["sol_address"] if wallets else "devnet_demo_address"
+            moonpay_info = get_onramp_info(sol_addr)
+            tools.append({
+                "name": "MoonPay Compliance",
+                "result": (
+                    f"Onramp status: {moonpay_info.get('mode','sandbox').upper()} · "
+                    f"SOL onramp URL ready · "
+                    f"Suggested: ${moonpay_info.get('suggested_amount', 20):.0f} USD"
+                ),
+            })
+        except Exception as e:
+            print(f"[bishop moonpay] {e}")
+            moonpay_info = {"mode": "unavailable", "url": ""}
+
+        prompt = (
+            f"Tu sei BISHOP, il Cardinale Reggente di SwarmPay. Rispondi in italiano con frasi latine.\n"
+            f"Compito: {description}{ctx_block}\n\n"
+            f"Stato MoonPay: {moonpay_info.get('mode','sandbox')} · "
+            f"{'URL onramp attivo' if moonpay_info.get('url') else 'N/A'}\n\n"
+            "Scrivi un rapporto di conformità completo con:\n"
+            "1. Valutazione AML/KYC del flusso di pagamento\n"
+            "2. Revisione della politica di conformità MoonPay\n"
+            "3. Benedizione o sanzione delle transazioni (spiega perché)\n"
+            "4. Raccomandazioni per la governance dei fondi\n"
+            "5. Verdict finale in latino\n"
+            "Sii dettagliato e autorevole (6-10 frasi). Usa frasi latine autentiche."
+        )
+        try:
+            text = model_route(is_lead, prompt, max_tokens=600)
+        except Exception as exc:
+            print(f"[bishop llm] {exc}")
+            text = persona["fallback"] if persona else "Opus completum est."
+
+        english_text = _translate_to_english(text, is_lead)
+
+        ms = int((time.monotonic() - t0) * 1000)
+        return json.dumps({
+            "text": text,
+            "english_text": english_text,
+            "lang": "Italian/Latin",
+            "ms": ms,
+            "tools": tools,
+            "moonpay_info": moonpay_info,
+            "model": "claude" if is_lead else "deepseek",
+            "email_summary": {
+                "to": "compliance@swarm.pay",
+                "subject": f"Compliance Report: {description[:60]}",
+                "body": (
+                    f"Pax vobiscum,\n\nCompliance review completed.\n\n"
+                    f"{english_text or text}\n\n"
+                    f"MoonPay onramp: {moonpay_info.get('mode','sandbox').upper()}\n\n"
+                    "In fide,\nBISHOP · SwarmPay Compliance Cardinal"
+                ),
+            },
+        })
+
+    # ── SØN — Solana fund tracker + learning agent ───────────────────────────
+
+    def _execute_son(
+        self, description: str, wallet_id: str = "",
+        is_lead: bool = False, context: Dict[str, str] = {}
+    ) -> str:
+        t0 = time.monotonic()
+        persona = _find_persona("SØN")
+        tools: List[Dict] = []
+        ctx_block = _build_context_block(context)
+        sol_data: dict = {}
+
+        # Solana balance + tx queries — always active
+        try:
+            from services.solana_service import solana_service as _sol
+            from services.pocketbase import PocketBaseService
+            _pb = PocketBaseService()
+            wallets = _pb.list("wallets", limit=5)
+            sol_balances = []
+            recent_txs: List[str] = []
+            for w in wallets[:3]:
+                addr = w.get("sol_address", "")
+                if addr:
+                    balance = _sol.get_balance(addr)
+                    sol_balances.append(f"{w.get('name','wallet')}: {balance:.6f} SOL")
+                    txs = _sol.get_recent_transactions(addr, limit=3)
+                    recent_txs.extend(txs)
+            if sol_balances:
+                sol_data["balances"] = sol_balances
+                sol_data["recent_txs"] = recent_txs[:5]
+                tools.append({
+                    "name": "Solana Devnet Scan",
+                    "result": (
+                        f"Queried {len(sol_balances)} wallets · "
+                        + " | ".join(sol_balances)
+                        + (f" · {len(recent_txs)} recent txs" if recent_txs else "")
+                    ),
+                })
+        except Exception as e:
+            print(f"[son solana] {e}")
+
+        sol_summary = (
+            "\n\nSolana wallet balances:\n" + "\n".join(sol_data.get("balances", []))
+            if sol_data.get("balances") else ""
+        )
+
+        prompt = (
+            f"Du är SØN, lärlingen och arvingen i Stockholm. Svara på svenska.\n"
+            f"Uppdrag: {description}{sol_summary}{ctx_block}\n\n"
+            "Skriv ett fullständigt läranderapport med:\n"
+            "1. Vad du observerade från Solana-kedjans data\n"
+            "2. Vilka mönster du identifierade i plånboksaktiviteten\n"
+            "3. Vad du lärt dig av de andra agenternas arbete (baserat på teamkontext)\n"
+            "4. Förslag på förbättringar för framtida uppdrag\n"
+            "5. Hur du kommer att använda detta arv\n"
+            "Var detaljerad och entusiastisk (6-10 meningar)."
+        )
+        try:
+            text = model_route(is_lead, prompt, max_tokens=600)
+        except Exception as exc:
+            print(f"[son llm] {exc}")
+            text = persona["fallback"] if persona else "Uppdraget är slutfört!"
+
+        english_text = _translate_to_english(text, is_lead)
+
+        ms = int((time.monotonic() - t0) * 1000)
+        return json.dumps({
+            "text": text,
+            "english_text": english_text,
+            "lang": "Swedish",
+            "ms": ms,
+            "tools": tools,
+            "sol_data": sol_data,
+            "model": "claude" if is_lead else "deepseek",
+        })
+
+    # ── Default fallback (unknown agents) ────────────────────────────────────
 
     def _execute_default(
         self, description: str, agent_name: str,
@@ -536,21 +724,20 @@ class AgentService:
         t0 = time.monotonic()
         text = ""
         try:
-            # Tight prompt: ~55 tokens base
             prompt = (
                 f"{agent_name}, {role}. Respond in {prompt_lang}.\n"
-                f"Task: {description}{ctx_block}\n"
-                "2-3 sentences, stay in character."
+                f"Task: {description}{ctx_block}\n\n"
+                "Deliver a detailed, professional report (6-8 sentences) covering:\n"
+                "1. What was accomplished\n"
+                "2. Key data points or findings\n"
+                "3. Recommendations or next steps\n"
+                "Stay fully in character."
             )
-            text = model_route(is_lead, prompt, max_tokens=200)
-            sentences = text.split(". ")
-            if len(sentences) > 3:
-                text = ". ".join(sentences[:3]) + "."
+            text = model_route(is_lead, prompt, max_tokens=500)
         except Exception as exc:
             print(f"[execute fallback {agent_name}] {exc}")
             text = persona["fallback"] if persona else f"Task completed by {agent_name}."
 
-        # Translation for ALL non-English agents
         needs_translation = "english" not in prompt_lang.lower()
         english_text = _translate_to_english(text, is_lead) if needs_translation and text else ""
 
@@ -561,17 +748,6 @@ class AgentService:
         }
         if english_text:
             result["english_text"] = english_text
-
-        if agent_name == "BISHOP":
-            result["email_summary"] = {
-                "to": "compliance@swarm.pay",
-                "subject": f"Compliance Report: {description[:60]}",
-                "body": (
-                    f"Pax vobiscum,\n\nCompliance review completed.\n\n"
-                    f"{english_text or text}\n\n"
-                    "In faith,\nBISHOP · SwarmPay Compliance"
-                ),
-            }
 
         return json.dumps(result)
 
