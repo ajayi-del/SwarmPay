@@ -14,10 +14,12 @@ from pydantic import BaseModel
 
 from services.pocketbase import PocketBaseService
 from services.ows_service import OWSService
-from services.agent_service import AgentService, AGENT_PERSONAS
+from services.agent_service import AgentService, AGENT_PERSONAS, EXECUTION_ORDER
 from services.policy_service import PolicyService
 from services.brain_service import brain_service
 from services.solana_service import solana_service
+from services.agent_lock_service import filter_available, is_locked
+from services.quality_service import evaluate_work, qualifies_for_challenge, run_regis_challenge
 
 router = APIRouter(prefix="/task", tags=["tasks"])
 
@@ -103,8 +105,11 @@ async def decompose_task(request: TaskDecomposeRequest):
         task = await asyncio.to_thread(pb.get, "tasks", request.task_id)
 
         # Step 1: Claude analyzes task → picks which agents to spawn + who leads
+        # Filter out locked agents before analysis
+        from services.agent_service import ALL_AGENT_NAMES
+        available = filter_available(ALL_AGENT_NAMES)
         analysis = await asyncio.to_thread(
-            agent_service.analyze_task_for_agents, task["description"]
+            agent_service.analyze_task_for_agents, task["description"], available
         )
         selected_agents = analysis["agents"]
         lead_agent      = analysis["lead"]
@@ -185,78 +190,148 @@ async def execute_task(request: TaskExecuteRequest, background_tasks: Background
         raise HTTPException(status_code=500, detail=f"Failed to start execution: {str(e)}")
 
 
+async def _notify_telegram(message: str) -> None:
+    """Non-blocking Telegram notification to REGIS chat."""
+    try:
+        from services.telegram_service import send, ALLOWED_CHAT_ID
+        await send(ALLOWED_CHAT_ID, message)
+    except Exception as e:
+        print(f"[tg notify] {e}")
+
+
 async def execute_task_background(task_id: str):
-    """Parallel agent execution + policy-gated payments."""
+    """
+    Goal-compounding sequential execution:
+      1. Agents run in priority order (ATLAS→CIPHER→FORGE→BISHOP→SØN)
+      2. Each agent receives a context summary of all previous agents' outputs
+      3. Quality is evaluated post-execution; payment scales with quality (0-10)
+      4. Telegram notifications at key milestones (Telegram as umbilical cord)
+      5. REGIS challenge check after task completion
+    """
     try:
         task = await asyncio.to_thread(pb.get, "tasks", task_id)
         sub_tasks = await asyncio.to_thread(pb.list, "sub_tasks", filter_params=f"task_id='{task_id}'")
         coordinator_wallet = await asyncio.to_thread(pb.get, "wallets", task["coordinator_wallet_id"])
+        task_goal = task.get("description", "")
 
         await asyncio.to_thread(pb.update, "tasks", task_id, {"status": "in_progress"})
 
-        async def run_agent(sub_task: Dict):
-            agent_name = sub_task["agent_id"]   # Already the persona name
+        # Notify task started
+        agent_names = [st["agent_id"] for st in sub_tasks]
+        lead_agent  = next((st["agent_id"] for st in sub_tasks if st.get("is_lead")), agent_names[0] if agent_names else "?")
+        await _notify_telegram(
+            f"🚀 SWARM ACTIVE\n"
+            f"──────────────\n"
+            f"Task: {task_goal[:80]}\n"
+            f"Agents: {' · '.join(agent_names)}\n"
+            f"Lead: {lead_agent} (Claude)\n"
+            f"Support: DeepSeek\n"
+            f"ID: {task_id[:12]}"
+        )
+
+        # Sort by EXECUTION_ORDER for goal-compounding
+        def _exec_priority(st: Dict) -> int:
+            name = st.get("agent_id", "")
+            return EXECUTION_ORDER.index(name) if name in EXECUTION_ORDER else 99
+
+        ordered_sub_tasks = sorted(sub_tasks, key=_exec_priority)
+
+        # Shared context: {agent_name: output_preview} — grows as agents complete
+        shared_context: Dict[str, str] = {}
+
+        async def run_agent(sub_task: Dict) -> None:
+            agent_name = sub_task["agent_id"]
+            is_lead    = bool(sub_task.get("is_lead", False))
             try:
                 await asyncio.to_thread(pb.update, "sub_tasks", sub_task["id"], {"status": "working"})
                 await _audit("work_started", sub_task["id"], f"{agent_name} commenced work")
 
-                # LLM call — lead uses Claude, support uses DeepSeek
-                is_lead = bool(sub_task.get("is_lead", False))
+                # Execute with accumulated team context (goal-compounding)
                 output_json = await asyncio.to_thread(
                     agent_service.execute_sub_task,
                     sub_task["description"], agent_name,
                     sub_task.get("wallet_id", ""), is_lead,
+                    dict(shared_context),   # snapshot — don't pass reference
+                    task_goal,
                 )
 
-                await asyncio.to_thread(pb.update, "sub_tasks", sub_task["id"], {
-                    "status": "complete",
-                    "output": output_json,
-                })
-
-                # Parse output for preview + x402 events
+                # ── Quality evaluation (DeepSeek, ~80 tokens) ─────────────
                 try:
                     parsed_out = json.loads(output_json)
-                    preview = parsed_out.get("text", "")[:100]
+                    output_text = parsed_out.get("text", "")[:300]
+                    ctx_preview = " | ".join(f"{k}: {v[:100]}" for k, v in shared_context.items())
+                    quality = await asyncio.to_thread(
+                        evaluate_work, task_goal, agent_name, output_text, ctx_preview
+                    )
+                    # Inject quality score into output JSON
+                    parsed_out["quality_score"]  = quality["score"]
+                    parsed_out["quality_reason"] = quality["reason"]
+                    output_json = json.dumps(parsed_out)
                     x402_payments = parsed_out.get("x402_payments", [])
-                except Exception:
-                    preview = output_json[:100]
+                except Exception as qe:
+                    print(f"[quality eval] {agent_name}: {qe}")
+                    quality = {"score": 5.0, "reason": "", "payment_multiplier": 0.5}
                     x402_payments = []
 
-                await _audit("work_complete", sub_task["id"],
-                             f"{agent_name} finished work",
-                             {"preview": preview})
+                await asyncio.to_thread(pb.update, "sub_tasks", sub_task["id"], {
+                    "status": "complete", "output": output_json,
+                })
 
-                # Log x402 micropayment events
+                # Add to shared context for subsequent agents (goal-compounding)
+                parsed_preview = json.loads(output_json)
+                if parsed_preview.get("text"):
+                    shared_context[agent_name] = parsed_preview["text"][:250]
+
+                preview = parsed_preview.get("text", "")[:80]
+                score   = quality.get("score", 5.0)
+                await _audit("work_complete", sub_task["id"],
+                             f"{agent_name} finished · quality {score:.1f}/10",
+                             {"preview": preview, "quality_score": score})
+
+                # Telegram: agent completed
+                lang    = parsed_preview.get("lang", "")
+                en_text = parsed_preview.get("english_text") or preview
+                model   = parsed_preview.get("model", "?")
+                await _notify_telegram(
+                    f"{'★ ' if is_lead else ''}✓ {agent_name} COMPLETE\n"
+                    f"Quality: {score:.1f}/10  |  Model: {model}\n"
+                    f"{en_text[:120]}"
+                )
+
                 for xp in x402_payments:
                     await _audit(
-                        "x402_payment",
-                        sub_task["id"],
+                        "x402_payment", sub_task["id"],
                         f"⚡ x402 · {agent_name} paid {xp.get('amount')} {xp.get('currency')} "
-                        f"via Solana · {xp.get('txHash', '')[:20]}…",
+                        f"via Solana · {xp.get('txHash','')[:20]}…",
                         {"wallet_id": xp.get("wallet_id"), "amount": xp.get("amount"),
                          "currency": xp.get("currency"), "endpoint": xp.get("endpoint"),
                          "tx": xp.get("txHash")},
                     )
 
-                await _process_payment(coordinator_wallet, sub_task)
+                # Quality-scaled payment
+                sub_task_with_quality = dict(sub_task)
+                sub_task_with_quality["_quality_multiplier"] = quality.get("payment_multiplier", 0.5)
+                await _process_payment(coordinator_wallet, sub_task_with_quality)
 
             except Exception as exc:
                 print(f"[agent error] {agent_name}: {exc}")
                 await asyncio.to_thread(pb.update, "sub_tasks", sub_task["id"], {"status": "failed"})
-                # Reputation penalty for failed work
                 new_rep = await asyncio.to_thread(pb.update_reputation, agent_name, -0.2)
                 await _audit("reputation_updated", agent_name,
                              f"{agent_name} rep penalised → {new_rep:.2f}★ (work failed)",
                              {"delta": -0.2, "new_reputation": new_rep})
+                await _notify_telegram(f"⚠ {agent_name} FAILED\n{str(exc)[:120]}")
 
-        async def run_agent_with_dms(sub_task: Dict):
-            """Wrap run_agent with a 120 s Dead Man's Switch."""
+        async def run_agent_with_dms(sub_task: Dict) -> None:
             try:
                 await asyncio.wait_for(run_agent(sub_task), timeout=120.0)
             except asyncio.TimeoutError:
                 await _trigger_dead_mans_switch(sub_task, coordinator_wallet)
+                await _notify_telegram(f"⏱ {sub_task['agent_id']} TIMED OUT — funds swept to treasury")
 
-        await asyncio.gather(*[run_agent_with_dms(st) for st in sub_tasks])
+        # ── Sequential goal-compounding execution ────────────────────────────
+        for sub_task in ordered_sub_tasks:
+            await run_agent_with_dms(sub_task)
 
         # ── Peer payments (inter-agent micro-economy) ─────────────────────
         fresh_sub_tasks = await asyncio.to_thread(
@@ -264,16 +339,17 @@ async def execute_task_background(task_id: str):
         )
         await _do_peer_payments(fresh_sub_tasks)
 
-        # ── Sync REGIS sovereign brain ────────────────────────────────────
+        # ── Sync REGIS sovereign brain + fetch payments once ─────────────
+        all_task_payments: List[Dict] = []
         try:
             all_payments = await asyncio.to_thread(pb.list, "payments", limit=50, sort="-created")
-            task_payments = [
+            all_task_payments = [
                 p for p in all_payments
                 if any(st["wallet_id"] in (p.get("from_wallet_id", ""), p.get("to_wallet_id", ""))
                        for st in fresh_sub_tasks)
             ]
             await asyncio.to_thread(
-                brain_service.update_after_task, task, fresh_sub_tasks, task_payments
+                brain_service.update_after_task, task, fresh_sub_tasks, all_task_payments
             )
         except Exception as exc:
             print(f"[brain sync] {exc}")
@@ -296,9 +372,65 @@ async def execute_task_background(task_id: str):
         await asyncio.to_thread(pb.update, "tasks", task_id, {"status": "complete"})
         await _audit("task_complete", task_id, "REGIS closed the treasury. All agents settled.")
 
+        # ── Task completion summary via Telegram ──────────────────────────
+        try:
+            fresh_sts     = fresh_sub_tasks  # already fetched above
+            task_payments = all_task_payments
+            paid_count    = sum(1 for p in task_payments if p.get("status") == "signed")
+            blocked_count = sum(1 for p in task_payments if p.get("status") == "blocked")
+            total_paid    = sum(float(p.get("amount", 0)) for p in task_payments if p.get("status") == "signed")
+
+            # Quality scores summary
+            quality_lines = []
+            for st in fresh_sts:
+                try:
+                    out = json.loads(st.get("output", "{}"))
+                    qs = out.get("quality_score")
+                    if qs is not None:
+                        quality_lines.append(f"  {st['agent_id']}: {qs:.1f}/10")
+                except Exception:
+                    pass
+
+            summary = (
+                f"✅ TASK COMPLETE\n"
+                f"────────────────\n"
+                f"Goal: {task_goal[:60]}\n"
+                f"Paid: {paid_count} · Blocked: {blocked_count}\n"
+                f"Treasury disbursed: {total_paid:.4f} USDC\n"
+            )
+            if quality_lines:
+                summary += "Quality:\n" + "\n".join(quality_lines) + "\n"
+            summary += f"ID: {task_id[:12]}\nUse /status for full report."
+            await _notify_telegram(summary)
+        except Exception as exc:
+            print(f"[task summary tg] {exc}")
+
+        # ── REGIS challenge check ─────────────────────────────────────────
+        try:
+            all_reps = await asyncio.to_thread(pb.get_all_reputations)
+            for agent_name, rep in all_reps.items():
+                if qualifies_for_challenge(agent_name, rep):
+                    from services.quality_service import get_avg_quality
+                    avg_q = get_avg_quality(agent_name)
+                    await _notify_telegram(
+                        f"⚔ REGIS CHALLENGE ELIGIBLE\n"
+                        f"──────────────────────────\n"
+                        f"{agent_name} qualifies to challenge REGIS!\n"
+                        f"Avg quality: {avg_q:.1f}/10  |  Rep: {rep:.2f}★\n"
+                        f"Send /challenge {agent_name} to initiate."
+                    )
+                    await _audit(
+                        "challenge_eligible", agent_name,
+                        f"{agent_name} qualifies to challenge REGIS — avg quality {avg_q:.1f}/10",
+                        {"rep": rep, "avg_quality": avg_q},
+                    )
+        except Exception as exc:
+            print(f"[challenge check] {exc}")
+
     except Exception as exc:
         print(f"[bg error] {exc}")
         await asyncio.to_thread(pb.update, "tasks", task_id, {"status": "failed"})
+        await _notify_telegram(f"❌ TASK FAILED\n{task_id[:12]}\n{str(exc)[:120]}")
 
 
 async def _trigger_dead_mans_switch(sub_task: Dict, coordinator_wallet: Dict):
@@ -374,7 +506,11 @@ async def _process_payment(coordinator_wallet: Dict, sub_task: Dict):
     agent_name = sub_task.get("agent_id", "AGENT")
     try:
         base = sub_task["budget_allocated"]
-        attempted = round(base * 1.5, 6) if agent_name == "FORGE" else base
+        # Quality-scaled: payment = base * quality_multiplier (0.0–1.0)
+        # FORGE still attempts +50% quality bonus on top of the quality-scaled amount
+        quality_multiplier = float(sub_task.get("_quality_multiplier", 0.5))
+        quality_scaled = round(base * quality_multiplier, 6)
+        attempted = round(quality_scaled * 1.5, 6) if agent_name == "FORGE" else quality_scaled
 
         # Fetch live reputation score before evaluating policy
         reputation = await asyncio.to_thread(pb.get_reputation, agent_name)

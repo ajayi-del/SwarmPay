@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getTaskStatus, type TaskState } from "@/lib/api";
 import { useSwarmStore } from "@/lib/store";
 import AgentCard from "./AgentCard";
+import SleepingAgentCard from "./SleepingAgentCard";
 import CoordinatorCard from "./CoordinatorCard";
 import MetricsBar from "./MetricsBar";
 import RegisConsole from "./RegisConsole";
@@ -38,6 +39,10 @@ export default function Dashboard() {
 
   const { task, coordinator_wallet, sub_tasks, payments, reputations = {} } = taskState;
 
+  const ALL_AGENTS = ["ATLAS", "CIPHER", "FORGE", "BISHOP", "SØN"];
+  const activeAgentIds = new Set(sub_tasks.map((st) => st.agent_id));
+  const sleepingAgents = ALL_AGENTS.filter((a) => !activeAgentIds.has(a));
+
   return (
     <div className="w-full space-y-4">
       {/* REGIS — coordinator */}
@@ -63,13 +68,11 @@ export default function Dashboard() {
       {sub_tasks.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {sub_tasks.map((st, i) => {
-            // Coordinator payment — excludes peer payments (which start with "PEER:")
             const payment = payments.find(
               (p) =>
                 p.to_wallet_id === st.wallet_id &&
                 !p.policy_reason?.startsWith("PEER:")
             );
-            // Peer payment received by this agent
             const peerPayment = payments.find(
               (p) =>
                 p.to_wallet_id === st.wallet_id &&
@@ -87,6 +90,11 @@ export default function Dashboard() {
               </ErrorBoundary>
             );
           })}
+          {sleepingAgents.map((agentId) => (
+            <ErrorBoundary key={`sleep-${agentId}`}>
+              <SleepingAgentCard agentId={agentId} />
+            </ErrorBoundary>
+          ))}
         </div>
       )}
 

@@ -104,8 +104,13 @@ async def cmd_help(chat_id: int):
         "/submit <task>    — launch new swarm\n"
         "/probe <question> — consult REGIS\n"
         "/brain            — recent memory\n"
-        "/reputations      — agent scores\n"
+        "/reputations      — agent scores with quality\n"
         "/audit            — governance audit\n"
+        "──── Agent Control ────\n"
+        "/lock <AGENT>     — suspend agent (skip spawning)\n"
+        "/unlock <AGENT>   — reactivate agent\n"
+        "/locked           — show suspended agents\n"
+        "/challenge <NAME> — challenge REGIS for coordinator\n"
         "──── Infrastructure ───\n"
         "/solana           — Solana devnet wallets\n"
         "/ows              — OWS wallet permissions\n"
@@ -259,12 +264,25 @@ async def cmd_reputations(chat_id: int):
             await send(chat_id, "No reputation records found.")
             return
         lines = ["AGENT REPUTATIONS\n─────────────────"]
-        stars = {5.0: "●●●●●", 4.0: "●●●●○", 3.0: "●●●○○", 2.0: "●●○○○", 1.0: "●○○○○"}
+        from services.quality_service import get_avg_quality, qualifies_for_challenge
+        from services.agent_lock_service import is_locked
+
+        def _stars(rep: float) -> str:
+            full = int(rep)
+            half = 1 if rep - full >= 0.5 else 0
+            empty = 5 - full - half
+            return "●" * full + "◐" * half + "○" * empty
+
         for rec in sorted(recs, key=lambda x: -float(x.get("current_reputation", 0))):
-            rep = float(rec.get("current_reputation", 0))
-            s = stars.get(round(rep), f"{rep:.1f}")
+            rep  = float(rec.get("current_reputation", 0))
             name = rec.get("agent_id", "?")
-            lines.append(f"{name:8} {s} {rep:.2f}★")
+            s    = _stars(rep)
+            avg_q = get_avg_quality(name)
+            locked_indicator = " 🔒" if is_locked(name) else ""
+            challenge_indicator = " ⚔" if qualifies_for_challenge(name, rep) else ""
+            lines.append(f"{name:8} {s} {rep:.2f}★  q:{avg_q:.1f}/10{locked_indicator}{challenge_indicator}")
+        lines.append("\n⚔ = eligible to challenge REGIS")
+        lines.append("🔒 = locked (use /unlock NAME)")
         await send(chat_id, "\n".join(lines))
     except Exception as e:
         await send(chat_id, f"Reputation query failed: {e}")
@@ -406,51 +424,158 @@ async def cmd_model(chat_id: int):
         await send(chat_id, f"Model info failed: {e}")
 
 
-async def cmd_dryrun(chat_id: int):
+async def cmd_lock(chat_id: int, args: str):
+    name = args.strip().upper()
+    if not name:
+        await send(chat_id, "Usage: /lock <AGENT>\nAgents: ATLAS · CIPHER · FORGE · BISHOP · SØN")
+        return
     try:
-        r = await _backend("/mode/toggle", "POST")
-        if r.get("mode") == "dry_run":
+        from services.agent_lock_service import lock_agent, VALID_AGENTS
+        if name not in VALID_AGENTS:
+            await send(chat_id, f"Unknown agent: {name}\nValid: {', '.join(VALID_AGENTS)}")
+            return
+        newly_locked = lock_agent(name, f"Locked via Telegram by authorized user")
+        if newly_locked:
             await send(chat_id,
-                "DRY RUN MODE ACTIVE\n"
-                "───────────────────\n"
-                "All transactions use mock signatures.\n"
-                "Solana sends are simulated — no real funds move.\n"
-                "Safe for demos and development."
+                f"🔒 {name} LOCKED\n"
+                f"─────────────\n"
+                f"Agent will be skipped in future task analysis.\n"
+                f"Existing tasks are unaffected.\n"
+                f"Use /unlock {name} to reactivate."
             )
         else:
-            # Was already live, toggled back — toggle again to go to dry_run
-            await _backend("/mode/toggle", "POST")
-            await send(chat_id, "Already in live mode. Use /dryrun again to confirm switch.\n(Toggled back to live — send /dryrun once more to force dry run.)")
+            await send(chat_id, f"{name} is already locked.")
     except Exception as e:
-        # Fallback: set env directly
-        import os
-        os.environ["LIVE_MODE"] = "false"
-        await send(chat_id, f"DRY RUN MODE SET (direct)\nError was: {e}")
+        await send(chat_id, f"Lock failed: {e}")
+
+
+async def cmd_unlock(chat_id: int, args: str):
+    name = args.strip().upper()
+    if not name:
+        await send(chat_id, "Usage: /unlock <AGENT>")
+        return
+    try:
+        from services.agent_lock_service import unlock_agent, VALID_AGENTS
+        if name not in VALID_AGENTS:
+            await send(chat_id, f"Unknown agent: {name}\nValid: {', '.join(VALID_AGENTS)}")
+            return
+        was_locked = unlock_agent(name)
+        if was_locked:
+            await send(chat_id,
+                f"🔓 {name} UNLOCKED\n"
+                f"────────────────\n"
+                f"Agent is active and eligible for future tasks."
+            )
+        else:
+            await send(chat_id, f"{name} was not locked.")
+    except Exception as e:
+        await send(chat_id, f"Unlock failed: {e}")
+
+
+async def cmd_locked(chat_id: int):
+    try:
+        from services.agent_lock_service import get_locked
+        locked = get_locked()
+        if not locked:
+            await send(chat_id, "No agents are currently locked.\nAll 5 agents are active.")
+            return
+        lines = ["LOCKED AGENTS\n─────────────"]
+        for name, reason in locked.items():
+            lines.append(f"🔒 {name}\n  Reason: {reason}")
+        lines.append(f"\nUse /unlock <AGENT> to reactivate.")
+        await send(chat_id, "\n".join(lines))
+    except Exception as e:
+        await send(chat_id, f"Lock status query failed: {e}")
+
+
+async def cmd_challenge(chat_id: int, args: str):
+    challenger = args.strip().upper()
+    if not challenger:
+        await send(chat_id, "Usage: /challenge <AGENT>\nExample: /challenge ATLAS")
+        return
+    try:
+        from services.quality_service import qualifies_for_challenge, run_regis_challenge, get_avg_quality
+        from services.agent_lock_service import VALID_AGENTS
+        if challenger not in VALID_AGENTS:
+            await send(chat_id, f"Unknown agent: {challenger}")
+            return
+
+        r = await _backend("/api/collections/agent_reputation/records?perPage=10")
+        recs = r.get("items", [])
+        rep_map = {rec["agent_id"]: float(rec.get("current_reputation", 3.0)) for rec in recs}
+        rep = rep_map.get(challenger, 3.0)
+
+        if not qualifies_for_challenge(challenger, rep):
+            avg_q = get_avg_quality(challenger)
+            await send(chat_id,
+                f"⚔ {challenger} does not yet qualify.\n"
+                f"Requires: avg quality ≥ 8.0 (current: {avg_q:.1f}), rep ≥ 4.5★ (current: {rep:.2f}★), ≥ 3 tasks.\n"
+                f"Keep working — quality compounds."
+            )
+            return
+
+        await send(chat_id, f"⚔ Challenge initiated: {challenger} vs REGIS…\nConvening tribunal…")
+
+        brain_r = await _backend("/regis/brain")
+        brain_content = brain_r.get("content", "")
+
+        result = await asyncio.to_thread(run_regis_challenge, challenger, brain_content)
+        winner  = result.get("winner", "REGIS")
+        verdict = result.get("verdict", "")
+        avg_q   = result.get("challenger_avg", 0)
+
+        if winner == challenger:
+            outcome = (
+                f"⚔ THRONE CHANGES HANDS\n"
+                f"──────────────────────\n"
+                f"{challenger} DEFEATS REGIS!\n"
+                f"Quality avg: {avg_q:.1f}/10\n"
+                f"Verdict: {verdict}\n\n"
+                f"REGIS is demoted. {challenger} is now coordinator.\n"
+                f"A new REGIS must be elected from the swarm."
+            )
+        else:
+            outcome = (
+                f"⚔ REGIS PREVAILS\n"
+                f"────────────────\n"
+                f"REGIS defeats {challenger}.\n"
+                f"Challenger avg: {avg_q:.1f}/10\n"
+                f"Verdict: {verdict}\n\n"
+                f"The throne holds. {challenger} may try again after 3 more tasks."
+            )
+
+        await send(chat_id, outcome)
+        # Log to brain
+        await _backend("/regis/probe", "POST", {"question": f"[CHALLENGE] {outcome}"})
+
+    except Exception as e:
+        await send(chat_id, f"Challenge failed: {e}")
+
+
+async def cmd_dryrun(chat_id: int):
+    """Force dry run mode — idempotent, no double-toggle confusion."""
+    import os
+    os.environ["LIVE_MODE"] = "false"
+    await send(chat_id,
+        "DRY RUN MODE ACTIVE\n"
+        "───────────────────\n"
+        "All transactions use mock signatures.\n"
+        "Solana sends are simulated — no real funds move.\n"
+        "Use /live to enable real devnet transactions."
+    )
 
 
 async def cmd_live(chat_id: int):
-    try:
-        r = await _backend("/mode/toggle", "POST")
-        if r.get("mode") == "live":
-            await send(chat_id,
-                "⚠ LIVE MODE ACTIVE\n"
-                "──────────────────\n"
-                "Real Solana devnet transactions enabled.\n"
-                "Keypairs are real — balances will change.\n"
-                "Use /dryrun to return to safe mode."
-            )
-        else:
-            # Was dry_run, toggled to live but check confirmed
-            await send(chat_id,
-                "⚠ LIVE MODE ACTIVE\n"
-                "──────────────────\n"
-                "Real Solana devnet transactions enabled.\n"
-                "Use /dryrun to return to safe mode."
-            )
-    except Exception as e:
-        import os
-        os.environ["LIVE_MODE"] = "true"
-        await send(chat_id, f"⚠ LIVE MODE SET (direct)\nError was: {e}")
+    """Force live mode — idempotent."""
+    import os
+    os.environ["LIVE_MODE"] = "true"
+    await send(chat_id,
+        "⚠ LIVE MODE ACTIVE\n"
+        "──────────────────\n"
+        "Real Solana devnet transactions enabled.\n"
+        "Keypairs are real — balances will change.\n"
+        "Use /dryrun to return to safe mode."
+    )
 
 
 async def handle_plain_message(chat_id: int, text: str):
@@ -516,6 +641,14 @@ async def handle_update(update: dict) -> None:
         await cmd_dryrun(chat_id)
     elif text.startswith("/live"):
         await cmd_live(chat_id)
+    elif text.startswith("/lock "):
+        await cmd_lock(chat_id, text[6:].strip())
+    elif text.startswith("/unlock "):
+        await cmd_unlock(chat_id, text[8:].strip())
+    elif text.startswith("/locked"):
+        await cmd_locked(chat_id)
+    elif text.startswith("/challenge "):
+        await cmd_challenge(chat_id, text[11:].strip())
     else:
         await handle_plain_message(chat_id, text)
 

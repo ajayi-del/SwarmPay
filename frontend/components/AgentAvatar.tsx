@@ -32,7 +32,8 @@ export type AgentStatus =
   | "paid"
   | "blocked"
   | "failed"
-  | "timed_out";
+  | "timed_out"
+  | "sleeping";
 
 interface Props {
   agentName: string;
