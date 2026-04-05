@@ -1,21 +1,32 @@
 # SwarmPay
 
+## 🚀 Live Demo — Test It Now
+
+> **[→ LAUNCH DEMO](https://frontend-production-9eb4.up.railway.app)** · Pick a task · Set budget · Watch 5 agents work and pay each other in real time on Solana devnet
+
+| Service | Live URL |
+|---------|----------|
+| **🌐 Frontend (Demo)** | **[https://frontend-production-9eb4.up.railway.app](https://frontend-production-9eb4.up.railway.app)** |
+| **⚙️ Backend API** | **[https://backend-production-4717.up.railway.app](https://backend-production-4717.up.railway.app)** |
+| **📊 PocketBase DB** | [https://pocketbase-production-bd4d.up.railway.app](https://pocketbase-production-bd4d.up.railway.app) |
+| **📖 API Docs** | [https://backend-production-4717.up.railway.app/docs](https://backend-production-4717.up.railway.app/docs) |
+| **🚂 Railway Project** | [grand-fulfillment · production](https://railway.com/project/78995748-b3fa-4f04-9a6d-d7bcfe2adb41) |
+
+```
+Quick test (30 seconds):
+1. Open https://frontend-production-9eb4.up.railway.app
+2. Pick "Analyze DeFi TVL across Raydium, Orca, and Jupiter"
+3. Click LAUNCH SWARM → watch FORGE get blocked by the REP GATE
+4. Click OWS PROOF on any agent card → see the live compliance chain
+5. Check the x402 Payment Rail → click any tx hash → opens Solscan devnet
+```
+
+---
+
 **Project:** grand-fulfillment · **Environment:** production  
 **Submitted to:** OWS Hackathon (Category 04 — Multi-Agent Systems) · Solana x402 Hackathon (Track: Best Trustless Agent Economy)
 
 > REGIS, a sovereign coordinator wallet, decomposes tasks across five specialised sub-agents. Each agent operates with a scoped OWS wallet, real Solana devnet keypair, quality-scored outputs, and a 120-second heartbeat dead man's switch. Payments scale with output quality (0–10). Agents compete for REGIS's coordinator role through lifetime earnings. Every decision is audited, every key can be revoked, every event fires to Telegram and email in real time. The agent who earns more than REGIS distributes seizes the throne — complete with farewell and coronation speeches via ElevenLabs.
-
----
-
-## Live Deployment
-
-| Service | URL |
-|---------|-----|
-| **Frontend** | https://frontend-production-9eb4.up.railway.app |
-| **Backend API** | https://backend-production-4717.up.railway.app |
-| **PocketBase** | https://pocketbase-production-bd4d.up.railway.app |
-| **API Docs** | https://backend-production-4717.up.railway.app/docs (dev only) |
-| **Railway Project** | https://railway.com/project/78995748-b3fa-4f04-9a6d-d7bcfe2adb41 |
 
 ---
 

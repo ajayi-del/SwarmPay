@@ -26,7 +26,7 @@ import time
 import uuid
 from typing import List, Dict, Any, Optional
 
-from services.model_service import call_claude, call_deepseek, route as model_route
+from services.model_service import call_claude, call_deepseek, route as model_route, route_for_agent
 
 FIRECRAWL_KEY: str = os.environ.get("FIRECRAWL_API_KEY", "")
 E2B_KEY: str       = os.environ.get("E2B_API_KEY", "")
@@ -317,7 +317,24 @@ class AgentService:
             except Exception as e:
                 print(f"[x402 atlas] {e}")
 
-        if FIRECRAWL_KEY:
+        # ── Perplexity real-time research (primary) ──────────────────────
+        perplexity_used = False
+        try:
+            from services.perplexity_service import research as perplexity_research
+            px_result = perplexity_research(description, "ATLAS")
+            if px_result:
+                sources = px_result.get("sources", [])
+                search_context = px_result.get("text", "")
+                perplexity_used = True
+                tools.append({
+                    "name": "Perplexity Real-Time Search",
+                    "result": f"{len(sources)} live sources · {search_context[:80]}…",
+                })
+        except Exception as e:
+            print(f"[atlas perplexity] {e}")
+
+        # ── Firecrawl fallback (if Perplexity not available/failed) ──────
+        if not perplexity_used and FIRECRAWL_KEY:
             sr = self._firecrawl_search(description)
             if sr["enabled"]:
                 sources = sr["sources"]
@@ -338,6 +355,7 @@ class AgentService:
             "4. Einschätzung: Was bedeutet das für den Auftraggeber?\n"
             "Schreibe professionell und detailliert (6-10 Sätze)."
         )
+        provider = "perplexity/sonar-large" if perplexity_used else "deepseek/deepseek-chat"
         try:
             text = model_route(is_lead, prompt, max_tokens=600)
         except Exception as exc:
@@ -358,6 +376,7 @@ class AgentService:
             "text": text, "english_text": english_text, "lang": "German",
             "ms": ms, "tools": tools, "sources": sources,
             "x402_payments": x402_payments, "email_summary": email_summary,
+            "provider": provider,
             "model": "claude" if is_lead else "deepseek",
         })
 
@@ -422,8 +441,9 @@ class AgentService:
             "5. 次のエージェントへの推奨アクション\n"
             "専門的かつ詳細に（6-10文）記述してください。"
         )
+        provider = "deepseek/deepseek-chat"
         try:
-            text = model_route(is_lead, prompt, max_tokens=600)
+            text, provider = route_for_agent("CIPHER", prompt, max_tokens=600)
         except Exception as exc:
             print(f"[cipher llm] {exc}")
             text = persona["fallback"] if persona else "分析完了。"
@@ -447,6 +467,7 @@ class AgentService:
             "ms": ms, "tools": tools,
             "code": code, "code_output": code_output, "code_execution_ms": code_execution_ms,
             "x402_payments": x402_payments,
+            "provider": provider,
             "model": "claude" if is_lead else "deepseek",
         })
 
@@ -515,9 +536,10 @@ class AgentService:
         )
         text = persona["fallback"] if persona else "Report compiled."
         report_md = f"# SwarmPay Report\n\n## Task\n\n{description}"
+        provider = "deepseek/deepseek-chat"
 
         try:
-            raw = model_route(is_lead, prompt, max_tokens=700)
+            raw, provider = route_for_agent("FORGE", prompt, max_tokens=700)
             if "---" in raw:
                 parts = raw.split("---", 1)
                 text = parts[0].strip()
@@ -557,6 +579,7 @@ class AgentService:
             "ms": ms, "tools": tools,
             "report_content": report_md, "report_filename": "swarm_report.md",
             "x402_payments": x402_payments,
+            "provider": provider,
             "model": "claude" if is_lead else "deepseek",
         })
 
@@ -605,8 +628,9 @@ class AgentService:
             "5. Verdict finale in latino\n"
             "Sii dettagliato e autorevole (6-10 frasi). Usa frasi latine autentiche."
         )
+        provider = "deepseek/deepseek-chat"
         try:
-            text = model_route(is_lead, prompt, max_tokens=600)
+            text, provider = route_for_agent("BISHOP", prompt, max_tokens=600)
         except Exception as exc:
             print(f"[bishop llm] {exc}")
             text = persona["fallback"] if persona else "Opus completum est."
@@ -621,6 +645,7 @@ class AgentService:
             "ms": ms,
             "tools": tools,
             "moonpay_info": moonpay_info,
+            "provider": provider,
             "model": "claude" if is_lead else "deepseek",
             "email_summary": {
                 "to": "compliance@swarm.pay",
@@ -691,8 +716,9 @@ class AgentService:
             "5. Hur du kommer att använda detta arv\n"
             "Var detaljerad och entusiastisk (6-10 meningar)."
         )
+        provider = "deepseek/deepseek-chat"
         try:
-            text = model_route(is_lead, prompt, max_tokens=600)
+            text, provider = route_for_agent("SØN", prompt, max_tokens=600)
         except Exception as exc:
             print(f"[son llm] {exc}")
             text = persona["fallback"] if persona else "Uppdraget är slutfört!"
@@ -707,6 +733,7 @@ class AgentService:
             "ms": ms,
             "tools": tools,
             "sol_data": sol_data,
+            "provider": provider,
             "model": "claude" if is_lead else "deepseek",
         })
 

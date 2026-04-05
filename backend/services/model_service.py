@@ -24,6 +24,9 @@ DEEPSEEK_BASE  = "https://api.deepseek.com/v1"
 DEEPSEEK_MODEL = "deepseek-chat"
 CLAUDE_MODEL   = "claude-haiku-4-5-20251001"
 
+# Agents routed to Groq (speed + cost savings vs DeepSeek)
+GROQ_AGENTS = {"CIPHER", "FORGE", "SØN", "BISHOP"}
+
 _MAX_RETRIES = 2
 _RETRY_DELAY = 1.5   # seconds between retries
 
@@ -136,17 +139,54 @@ def route(is_lead: bool, prompt: str, max_tokens: int = 300, system: str = "") -
     DeepSeek handles ALL agent work — lead and support alike.
     Claude is reserved exclusively for REGIS challenge adjudication.
     Falls back to Claude if DEEPSEEK_API_KEY is missing.
+    Preserved for backward compatibility — new code uses route_for_agent().
     """
     return call_deepseek(prompt, max_tokens, system)
 
 
+def route_for_agent(
+    agent_name: str,
+    prompt: str,
+    max_tokens: int = 600,
+    system: str = "",
+) -> tuple[str, str]:
+    """
+    Route LLM call based on agent name. Returns (text, provider_label).
+
+    Routing priority:
+      CIPHER / FORGE / SØN / BISHOP → Groq (fast, cheap) → DeepSeek fallback
+      ATLAS / REGIS / others        → DeepSeek → Claude fallback
+
+    provider_label format: "groq/model-name" | "deepseek/deepseek-chat"
+    Used in output JSON for audit trail and UI display.
+    """
+    if agent_name in GROQ_AGENTS:
+        try:
+            from services.groq_service import call_groq, get_model_for_agent
+            text = call_groq(agent_name, prompt, max_tokens, system)
+            if text:
+                return text, f"groq/{get_model_for_agent(agent_name)}"
+        except Exception as exc:
+            logger.warning("[model] groq routing failed for %s: %s", agent_name, exc)
+
+    # Fall back to DeepSeek (→ Claude if DeepSeek unavailable)
+    text = call_deepseek(prompt, max_tokens, system)
+    return text, "deepseek/deepseek-chat"
+
+
 def current_routing_info() -> dict:
     """Return human-readable info about current model routing."""
+    groq_key = os.environ.get("GROQ_API_KEY", "")
     primary = DEEPSEEK_MODEL if DEEPSEEK_KEY else f"{CLAUDE_MODEL} (DeepSeek key missing)"
     return {
         "primary_model":    primary,
         "governance_model": CLAUDE_MODEL,
         "deepseek_enabled": bool(DEEPSEEK_KEY),
         "deepseek_base":    DEEPSEEK_BASE,
-        "note": "DeepSeek primary for all tasks; Claude reserved for REGIS challenge adjudication",
+        "groq_enabled":     bool(groq_key),
+        "groq_agents":      list(GROQ_AGENTS),
+        "note": (
+            "Groq (Llama/Gemma/Mixtral) for CIPHER/FORGE/SØN/BISHOP; "
+            "DeepSeek for ATLAS/REGIS; Claude for governance adjudication"
+        ),
     }

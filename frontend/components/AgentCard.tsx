@@ -43,6 +43,10 @@ interface ParsedOutput {
   swept_amount?: number;
   x402_payments?: X402Payment[];
   model?: "claude" | "deepseek";
+  provider?: string;            // e.g. "groq/llama-3.1-8b-instant"
+  quality_score?: number;
+  quality_reason?: string;
+  scorer?: string;              // "huggingface/bart-large-mnli" | "deepseek/deepseek-chat"
 }
 
 function parseOutput(raw: string): ParsedOutput {
@@ -287,17 +291,38 @@ function OutputTextBlock({ parsed, approxTokens }: { parsed: ParsedOutput; appro
         {parsed.code_execution_ms !== undefined && parsed.code_execution_ms > 0 && (
           <span style={{ color: "#a78bfa" }}>E2B: {parsed.code_execution_ms}ms</span>
         )}
-        {parsed.model && (
+        {(parsed.provider || parsed.model) && (() => {
+          const p = parsed.provider ?? (parsed.model === "claude" ? "anthropic/claude-haiku" : "deepseek/deepseek-chat");
+          const isGroq = p.startsWith("groq/");
+          const isPerplexity = p.startsWith("perplexity/");
+          const isClaude = p.startsWith("anthropic/") || p === "claude";
+          const isHF = p.startsWith("huggingface/");
+          const color = isGroq ? "#f97316" : isPerplexity ? "#3b82f6" : isClaude ? "#a78bfa" : isHF ? "#f59e0b" : "#22c55e";
+          const bg = `${color}12`;
+          const border = `${color}30`;
+          const label = isGroq ? `Groq · ${p.split("/")[1]}` : isPerplexity ? "Perplexity · Sonar" : isClaude ? "Claude Haiku" : isHF ? "HuggingFace" : "DeepSeek";
+          return (
+            <span
+              className="px-1.5 py-0.5 rounded text-[9px]"
+              style={{ background: bg, color, border: `1px solid ${border}`, letterSpacing: "0.05em" }}
+              title={p}
+            >
+              {label}
+            </span>
+          );
+        })()}
+        {parsed.quality_score !== undefined && (
           <span
             className="px-1.5 py-0.5 rounded text-[9px]"
             style={{
-              background: parsed.model === "claude" ? "rgba(108,99,255,0.12)" : "rgba(34,197,94,0.10)",
-              color: parsed.model === "claude" ? "#a78bfa" : "#22c55e",
-              border: `1px solid ${parsed.model === "claude" ? "rgba(108,99,255,0.25)" : "rgba(34,197,94,0.25)"}`,
+              background: "rgba(34,197,94,0.08)",
+              color: parsed.quality_score >= 7 ? "#22c55e" : parsed.quality_score >= 5 ? "#f59e0b" : "#ef4444",
+              border: "1px solid rgba(34,197,94,0.2)",
               letterSpacing: "0.05em",
             }}
+            title={parsed.quality_reason ?? "Quality score"}
           >
-            {parsed.model === "claude" ? "Claude Haiku" : "DeepSeek"}
+            Q:{parsed.quality_score.toFixed(1)}
           </span>
         )}
       </div>

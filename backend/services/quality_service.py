@@ -37,10 +37,29 @@ def evaluate_work(
     context_preview: str = "",
 ) -> Dict:
     """
-    Ask DeepSeek to score agent output quality relative to task goal.
-    Returns {"score": float, "reason": str, "payment_multiplier": float}
+    Score agent output quality relative to task goal. Returns 0-10.
+    Scoring priority:
+      1. HuggingFace zero-shot classification (BART-large-MNLI)
+      2. DeepSeek LLM evaluation (fallback)
+    Returns {"score": float, "reason": str, "payment_multiplier": float, "scorer": str}
     """
-    # Tight prompt — ~80 tokens
+    # ── 1. Try HuggingFace zero-shot scoring ─────────────────────────────────
+    try:
+        from services.hf_service import score_output as hf_score_output
+        hf_score = hf_score_output(agent_output, task_goal)
+        if hf_score is not None:
+            multiplier = round(hf_score / 10.0, 3)
+            _quality_history[agent_name].append(hf_score)
+            return {
+                "score": hf_score,
+                "reason": f"HuggingFace zero-shot classification · {hf_score:.1f}/10",
+                "payment_multiplier": multiplier,
+                "scorer": "huggingface/bart-large-mnli",
+            }
+    except Exception as exc:
+        print(f"[quality] HF scoring failed for {agent_name}: {exc}")
+
+    # ── 2. DeepSeek LLM scoring (fallback) ───────────────────────────────────
     ctx = f"\nPrior work: {context_preview[:150]}" if context_preview else ""
     prompt = (
         f'Task goal: "{task_goal[:150]}"\n'
@@ -51,6 +70,8 @@ def evaluate_work(
         "- Actionability (can next agent build on this?)\n"
         f'JSON only: {{"score": 7, "reason": "2-sentence specific reason"}}'
     )
+    score = 5.0
+    reason = "evaluation error"
     try:
         raw = call_deepseek(prompt, max_tokens=120)
         s, e = raw.find("{"), raw.rfind("}") + 1
@@ -59,17 +80,19 @@ def evaluate_work(
             score = min(10.0, max(0.0, float(parsed.get("score", 5.0))))
             reason = str(parsed.get("reason", ""))[:120]
         else:
-            score = 5.0
             reason = "evaluation parse failed"
     except Exception as exc:
         print(f"[quality] {agent_name}: {exc}")
-        score = 5.0
-        reason = "evaluation error"
 
     multiplier = round(score / 10.0, 3)
     _quality_history[agent_name].append(score)
 
-    return {"score": score, "reason": reason, "payment_multiplier": multiplier}
+    return {
+        "score": score,
+        "reason": reason,
+        "payment_multiplier": multiplier,
+        "scorer": "deepseek/deepseek-chat",
+    }
 
 
 def get_avg_quality(agent_name: str) -> float:
