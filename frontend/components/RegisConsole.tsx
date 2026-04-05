@@ -13,6 +13,7 @@ import {
 interface Message {
   role: "user" | "regis";
   text: string;
+  audio_b64?: string | null;
 }
 
 interface Props {
@@ -52,7 +53,7 @@ export default function RegisConsole({ coordinatorWalletId }: Props) {
     setLoading(true);
     try {
       const data = await probeRegis(q);
-      setMessages((m) => [...m, { role: "regis", text: data.response }]);
+      setMessages((m) => [...m, { role: "regis", text: data.response, audio_b64: data.audio_b64 }]);
     } catch {
       setMessages((m) => [
         ...m,
@@ -279,12 +280,33 @@ export default function RegisConsole({ coordinatorWalletId }: Props) {
                         }
                       >
                         {msg.role === "regis" && (
-                          <span
-                            className="block text-[10px] font-bold mb-1 uppercase tracking-widest"
-                            style={{ color: accent }}
-                          >
-                            {isKingdom ? "REGIS" : "AI GOVERNOR"}
-                          </span>
+                          <div className="flex items-center justify-between mb-1">
+                            <span
+                              className="text-[10px] font-bold uppercase tracking-widest"
+                              style={{ color: accent }}
+                            >
+                              {isKingdom ? "REGIS" : "AI GOVERNOR"}
+                            </span>
+                            {msg.audio_b64 && (
+                              <button
+                                onClick={() => {
+                                  const src = `data:audio/mpeg;base64,${msg.audio_b64}`;
+                                  new Audio(src).play().catch(() => {});
+                                }}
+                                title="Play REGIS voice"
+                                style={{
+                                  background: "none",
+                                  border: "none",
+                                  cursor: "pointer",
+                                  color: accent,
+                                  fontSize: 11,
+                                  padding: 0,
+                                }}
+                              >
+                                ▶ voice
+                              </button>
+                            )}
+                          </div>
                         )}
                         {msg.text}
                       </div>

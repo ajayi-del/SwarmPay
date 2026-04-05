@@ -78,6 +78,20 @@ collections = [
             {"name": "tasks_completed", "type": "number"},
             {"name": "locked", "type": "bool"}
         ]
+    },
+    {
+        "name": "sovereignty",
+        "type": "base",
+        "schema": [
+            {"name": "agent_id",                  "type": "text"},
+            {"name": "lifetime_earnings_usdc",    "type": "number"},
+            {"name": "lifetime_distributed_usdc", "type": "number"},
+            {"name": "is_ruler",                  "type": "bool"},
+            {"name": "times_ruled",               "type": "number"},
+            {"name": "overthrow_count",           "type": "number"},
+            {"name": "ascended_at",               "type": "text"},
+            {"name": "deposed_at",                "type": "text"}
+        ]
     }
 ]
 

@@ -126,6 +126,7 @@ export async function getSwarmStats(): Promise<SwarmStats> {
 
 export interface ProbeResponse {
   response: string;
+  audio_b64?: string | null;  // base64 MP3 from ElevenLabs — null when key not set
 }
 
 export interface AuditResult {

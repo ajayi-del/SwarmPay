@@ -88,6 +88,23 @@ class BrainService:
     def append_punishment(self, punishment_type: str, regis_response: str):
         self.append("PUNISHMENT_RECEIVED", f"type={punishment_type} response={regis_response[:180]}")
 
+    def append_overthrow(
+        self,
+        old_ruler: str,
+        new_ruler: str,
+        new_ruler_earnings_usdc: float,
+        old_ruler_distributed_usdc: float,
+    ):
+        self.append(
+            "SUCCESSION_EVENT",
+            (
+                f"{old_ruler} overthrown by {new_ruler} · "
+                f"{new_ruler} earned {new_ruler_earnings_usdc:.4f} USDC vs "
+                f"{old_ruler} distributed {old_ruler_distributed_usdc:.4f} USDC · "
+                f"margin {new_ruler_earnings_usdc - old_ruler_distributed_usdc:.4f} USDC"
+            ),
+        )
+
 
 # Singleton — imported by both regis.py router and tasks.py
 brain_service = BrainService()

@@ -29,6 +29,7 @@ from slowapi.errors import RateLimitExceeded
 import uvicorn
 
 from routers import tasks, audit, regis
+from routers import sovereignty
 
 # ── Logging ────────────────────────────────────────────────────────────────────
 
@@ -149,6 +150,7 @@ async def log_requests(request: Request, call_next):
 app.include_router(tasks.router)
 app.include_router(audit.router)
 app.include_router(regis.router)
+app.include_router(sovereignty.router)
 
 
 # ── Health / root ──────────────────────────────────────────────────────────────

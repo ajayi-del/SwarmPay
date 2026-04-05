@@ -15,6 +15,7 @@ import SkillsPanel from "./SkillsPanel";
 import SwarmOrbit from "./SwarmOrbit";
 import X402Panel from "./X402Panel";
 import TelegramPanel from "./TelegramPanel";
+import SovereigntyPanel from "./SovereigntyPanel";
 import { ErrorBoundary } from "./ErrorBoundary";
 
 // Active statuses — these agents are always expanded
@@ -82,6 +83,11 @@ export default function Dashboard() {
           <RegisConsole coordinatorWalletId={coordinator_wallet.id} />
         </ErrorBoundary>
       )}
+
+      {/* Sovereignty race — always show once data available */}
+      <ErrorBoundary>
+        <SovereigntyPanel />
+      </ErrorBoundary>
 
       {/* CSS-only orbit constellation — no Three.js */}
       {sub_tasks.length > 0 && (

@@ -3,7 +3,7 @@
 **Project:** grand-fulfillment · **Environment:** production  
 **Submitted to:** OWS Hackathon (Category 04 — Multi-Agent Systems) · Solana x402 Hackathon (Track: Best Trustless Agent Economy)
 
-> REGIS, a sovereign coordinator wallet, decomposes tasks across five specialised sub-agents. Each agent operates with a scoped OWS wallet, real Solana devnet keypair, quality-scored outputs, and a 120-second heartbeat dead man's switch. Payments scale with output quality (0–10). Agents compete for REGIS's coordinator role. Every decision is audited, every key can be revoked, every event fires to Telegram in real time.
+> REGIS, a sovereign coordinator wallet, decomposes tasks across five specialised sub-agents. Each agent operates with a scoped OWS wallet, real Solana devnet keypair, quality-scored outputs, and a 120-second heartbeat dead man's switch. Payments scale with output quality (0–10). Agents compete for REGIS's coordinator role through lifetime earnings. Every decision is audited, every key can be revoked, every event fires to Telegram and email in real time. The agent who earns more than REGIS distributes seizes the throne — complete with farewell and coronation speeches via ElevenLabs.
 
 ---
 
@@ -14,7 +14,24 @@
 | **Frontend** | https://frontend-production-9eb4.up.railway.app |
 | **Backend API** | https://backend-production-4717.up.railway.app |
 | **PocketBase** | https://pocketbase-production-bd4d.up.railway.app |
+| **API Docs** | https://backend-production-4717.up.railway.app/docs (dev only) |
 | **Railway Project** | https://railway.com/project/78995748-b3fa-4f04-9a6d-d7bcfe2adb41 |
+
+---
+
+## Quick Demo (Live)
+
+1. Open **https://frontend-production-9eb4.up.railway.app**
+2. Pick a pre-loaded Solana task (e.g. "Analyze DeFi TVL across Raydium, Orca, and Jupiter")
+3. Set budget (default ◎0.3 SOL), click **LAUNCH SWARM →**
+4. Watch the split layout: left = live audit terminal, right = agent orbit + sovereignty race
+5. **FORGE will be blocked** by the REP GATE (OWS 4-rule policy chain, live demo)
+6. Click **OWS PROOF** on any agent card → compliance chain with ◎ SOL budget_cap
+7. **x402 Payment Rail** panel shows Solana tx hashes → Solscan devnet links
+8. **Telegram Signal Feed** shows REGIS broadcasting each event in real time
+9. Check **StatusBar** (top right) — green dots = all 6 services healthy
+10. Open **REGIS Console** → interrogate REGIS → hear the response via ElevenLabs voice
+11. The **⚔️ Race to Sovereignty** panel shows the live earnings leaderboard
 
 ---
 
@@ -22,97 +39,115 @@
 
 | Feature | Status |
 |---------|--------|
-| Reputation-Gated Policy Engine (4-rule chain) | ✅ |
+| Reputation-Gated Policy Engine (4-rule OWS chain) | ✅ |
 | Goal-Compounding Agent Execution (ATLAS→CIPHER→FORGE→BISHOP→SØN) | ✅ |
 | Quality-Scaled Payments — DeepSeek scores each agent 0–10, payment = budget × score | ✅ |
 | REGIS Challenge System — top agents can overthrow REGIS via Claude adjudication | ✅ |
+| Sovereignty System — agents earn throne by outearning REGIS's distributions | ✅ |
+| ElevenLabs Voice — REGIS speaks probe answers; farewells and coronations on overthrow | ✅ |
+| BISHOP Email System — 5 governance triggers via Resend (task receipt, block, treasury, punish, overthrow) | ✅ |
 | Telegram Umbilical Cord — every payment, failure, audit, punishment, and overthrow fires to Telegram | ✅ |
 | Agent Lock/Unlock via Telegram (`/lock ATLAS`, `/unlock ATLAS`, `/locked`) | ✅ |
 | Clarifying Questions — REGIS asks 2–3 context questions before dispatching | ✅ |
 | REGIS Sovereign Brain — append-only memory, probe/audit/punish system | ✅ |
 | Dead Man's Switch — 120s heartbeat, key revocation, budget sweep | ✅ |
-| Sleeping Agent Visualization — non-summoned agents render dormant with breathing animation | ✅ |
-| ATLAS — Firecrawl web search + real sources + 6–10 sentence German research reports | ✅ |
+| Sleeping Agent Visualization — non-summoned agents render dormant | ✅ |
+| ATLAS — Firecrawl web search + real sources + German research reports | ✅ |
 | CIPHER — E2B Python sandbox + quantitative analysis in Japanese | ✅ |
 | FORGE — E2B file write + downloadable markdown report | ✅ |
 | BISHOP — MoonPay compliance check + AML review in Italian/Latin | ✅ |
 | SØN — Solana devnet balance queries + recent transaction lookup | ✅ |
 | x402 Micropayments on Solana devnet | ✅ |
+| x402 Payment Rail Panel — agent, service, Solscan tx link, ◎ amount, latency | ✅ |
 | Meteora DLMM live SOL/USDC rate | ✅ |
 | MoonPay fiat→SOL onramp widget | ✅ |
 | Inter-Agent Peer Payments — ATLAS→CIPHER→FORGE→BISHOP micro-economy | ✅ |
+| Sovereignty Dashboard — live ⚔️ leaderboard, threshold line, succession history | ✅ |
 | Kingdom / Office Mode Toggle | ✅ |
 | CSS/SVG Swarm Orbit — radial constellation, agent dots, peer payment lines | ✅ |
-| DeepSeek routing — lead agents use Claude, support agents use DeepSeek (~80% cheaper) | ✅ |
-| Rate limiting (slowapi) — 10 submits/hour, prevents LLM budget abuse | ✅ |
+| Telegram Signal Feed — Telegram-style chat UI in the dashboard | ✅ |
+| System Status Bar — live PB/ANT/SOL/TG health dots, polls every 60s | ✅ |
+| OWS Budget Cap visibility — ◎ SOL + USDC in compliance proof panel | ✅ |
+| Comprehensive health endpoint — 6 services, returns healthy/degraded | ✅ |
+| DeepSeek routing — all agents use DeepSeek (~80% cheaper than Claude) | ✅ |
+| Rate limiting (slowapi) — per real client IP via X-Forwarded-For | ✅ |
 | Input validation — Pydantic validators on budget/description | ✅ |
-| Structured logging — all errors via Python logging, never print() | ✅ |
-| Production CORS config — configurable via ALLOWED_ORIGINS env var | ✅ |
-| Admin key required to toggle live/dry-run mode | ✅ |
+| Exception masking fixed — ValueError returns 400, not 500 | ✅ |
 | Railway deployment — 3 services: pocketbase / backend / frontend | ✅ |
-| System Status Bar — live health dots (PB/ANT/SOL/TG) polled every 60s | ✅ |
-| x402 Payment Rail Panel — agent, service, Solscan devnet link, amount, latency | ✅ |
-| Telegram Signal Feed — chat-style UI showing live REGIS notifications in-app | ✅ |
-| OWS Budget Cap visibility — ◎ SOL + USDC shown in compliance proof panel | ✅ |
-| Comprehensive health endpoint — tests 6 services, returns degraded/healthy | ✅ |
 
 ---
 
 ## Architecture
 
+See **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** for the full technical reference including:
+- Complete system diagram
+- Autonomous operation flow (7 phases)
+- Safety measures table
+- Technical debt register
+- Database schema
+- All environment variables
+
 ```
-┌────────────────────────────────────────────────────────────────────┐
-│  BROWSER  Next.js 14 + TypeScript                                  │
-│                                                                    │
-│  TaskForm (clarify → submit) · RegisCard / CoordinatorCard         │
-│  AgentCard (collapsible) × active agents · SleepingAgentCard idle  │
-│  SwarmOrbit (CSS/SVG radial) · RegisConsole (probe/audit/punish)   │
-│  X402Panel · TelegramPanel · MetricsBar · AuditLog · StatusBar     │
-│                                                                    │
-│  TanStack Query (1.2s poll) · Zustand · Framer Motion              │
-└──────────────────────────────┬─────────────────────────────────────┘
-                               │ REST
-                               ▼
-┌────────────────────────────────────────────────────────────────────┐
-│  FastAPI  (Uvicorn · slowapi rate limiting · structured logging)   │
-│                                                                    │
-│  POST /task/clarify    REGIS asks 2-3 context questions first      │
-│  POST /task/submit     create REGIS coordinator wallet (OWS+Sol)   │
-│  POST /task/decompose  Claude picks agents + tools (lock-aware)    │
-│  POST /task/execute    sequential goal-compounding + quality eval  │
-│  GET  /task/:id/status full snapshot (task+wallets+payments+reps)  │
-│  GET  /health          6-service health check (PB/ANT/DS/SOL/TG/MP)│
-│  GET  /analytics/tokens/today  24h usage stats                     │
-│  POST /regis/probe     interrogate REGIS (Telegram notified)       │
-│  POST /regis/audit     governance score → rep delta (Telegram)     │
-│  POST /regis/punish    slash/demote/report (Telegram)              │
-│                                                                    │
-│  Company Tool Stack:                                               │
-│  ATLAS  → Firecrawl web search + X402 micropayments               │
-│  CIPHER → E2B Python sandbox + X402 micropayments                 │
-│  FORGE  → E2B file write + X402 micropayments                     │
-│  BISHOP → MoonPay compliance check + AML review                   │
-│  SØN    → Solana devnet balance + transaction queries              │
-│                                                                    │
-│  Quality Engine (DeepSeek, ~80 tokens per eval):                   │
-│    score 0–10 → payment = budget × (score / 10)                   │
-│    avg_quality ≥ 8.0 + rep ≥ 4.5★ + 3 tasks → challenge eligible  │
-└───────────────────────────┬────────────────────────────────────────┘
-                            │
-             ┌──────────────┼──────────────────────┐
-             ▼              ▼                      ▼
-    ┌──────────────┐  ┌──────────┐        ┌──────────────┐
-    │  PocketBase  │  │  Solana  │        │   Telegram   │
-    │  (SQLite)    │  │  devnet  │        │   Bot        │
-    │  wallets     │  │  RPC     │        │              │
-    │  sub_tasks   │  │  x402    │        │  Every event │
-    │  payments    │  │  airdrop │        │  notified:   │
-    │  audit_log   │  └──────────┘        │  payments    │
-    │  reputations │                      │  failures    │
-    └──────────────┘                      │  audits      │
-                                          │  overthrow   │
-                                          └──────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│  Next.js 14 — Split Layout (35% audit | 65% kingdom)            │
+│  SovereigntyPanel · SwarmOrbit · AgentCard · X402Panel           │
+│  TelegramPanel · RegisConsole (+ voice) · StatusBar              │
+└──────────────────────────┬──────────────────────────────────────┘
+                           │ REST + base64 audio
+                           ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  FastAPI — Task · Regis · Audit · Sovereignty routers            │
+│  OWS policy engine · DeepSeek quality scoring                    │
+│  Sovereignty service · Voice service · Email service             │
+└──────────────┬────────────────────┬──────────┬──────────────────┘
+               ▼                    ▼          ▼
+        PocketBase          Solana devnet   Resend · ElevenLabs
+        (7 collections)     x402 payments   Telegram Bot
 ```
+
+---
+
+## Sovereignty System
+
+The crown is earned, not appointed. After every signed payment:
+
+1. Agent's `lifetime_earnings_usdc` increments
+2. REGIS's `lifetime_distributed_usdc` increments  
+3. If any agent's earnings exceed REGIS's total distributions (and REGIS has distributed ≥ 0.5 USDC):
+   - **Overthrow fires** — sovereignty transfers atomically in PocketBase
+   - REGIS delivers a farewell speech via ElevenLabs
+   - New ruler delivers a coronation speech via ElevenLabs
+   - BISHOP sends succession email with full margin breakdown
+   - Telegram fires `⚔️ OVERTHROW EVENT` with succession number
+   - Brain file records `SUCCESSION_EVENT` permanently
+
+Test it: `POST /sovereignty/test-overthrow` with `X-Admin-Key` header.
+
+---
+
+## BISHOP Email Triggers
+
+| Email | Subject | When |
+|-------|---------|------|
+| Task Receipt | `⛪ DECREE — Task Complete` | Every completed task — full P&L, Solscan links |
+| Critical Block | `🚨 CRITICAL BLOCK — {agent}` | Blocked payment > 0.1 SOL |
+| Treasury Low | `⚠️ TREASURY LOW — ◎{balance}` | Treasury drops below threshold |
+| Punishment | `⚔️ REGIS PENALIZED` | Any REGIS punishment applied |
+| Overthrow | `⚔️ OVERTHROW — {agent} seizes throne` | Sovereignty succession |
+
+Sent from `BISHOP <onboarding@resend.dev>` via Resend free tier.
+
+---
+
+## ElevenLabs Voice
+
+| Moment | Agent | Text |
+|--------|-------|------|
+| Probe response | REGIS (Daniel — deep British) | Answer spoken aloud; `▶ voice` button in console |
+| Overthrow farewell | Deposed ruler | LLM-generated 2-sentence farewell, in character |
+| Coronation speech | New ruler | LLM-generated 2-sentence coronation, in character |
+
+Voice is graceful-degradation: returns `null` when `ELEVENLABS_API_KEY` is absent — never blocks a response.
 
 ---
 
@@ -135,28 +170,6 @@
 
 ---
 
-## Telegram Notifications (Real-Time)
-
-Every critical event fires automatically:
-
-| Event | Notification |
-|-------|-------------|
-| Task dispatched | Agents, lead, model routing, task ID |
-| Agent completes | Quality score, model, output preview |
-| Agent paid | Amount, tx hash, reputation change |
-| Payment blocked | Amount, reason, reputation penalty |
-| Peer payment | Sender→receiver, amount, label |
-| Task complete | Paid count, total USDC disbursed, quality breakdown |
-| Agent failed | Error details |
-| Agent timed out | Dead man's switch fired, funds swept |
-| REGIS interrogated | Q&A preview |
-| REGIS audited | Score, verdict, rep delta |
-| REGIS punished | Punishment type + REGIS response in character |
-| REGIS challenged | Challenger scores vs REGIS governance record |
-| 👑 REGIS OVERTHROWN | New coordinator crowned |
-
----
-
 ## Quality + Payment System
 
 ```
@@ -170,39 +183,25 @@ Eligibility for REGIS challenge:
   avg_quality ≥ 8.0 (last 10 tasks, weighted recent)
   reputation  ≥ 4.5★
   tasks_done  ≥ 3
-  → Telegram fires: "⚔️ REGIS CHALLENGE ELIGIBLE"
+  → Telegram fires: "⚔️ CHALLENGE ELIGIBLE"
   → Use /challenge <NAME> to trigger Claude adjudication
 ```
-
----
-
-## Quick Demo (Live)
-
-1. Open **[https://frontend-production-9eb4.up.railway.app](https://frontend-production-9eb4.up.railway.app)**
-2. Pick a pre-loaded task (e.g. "Analyze Solana DeFi TVL across Raydium, Orca, and Jupiter")
-3. Set budget (default ◎0.3 SOL), click **LAUNCH SWARM**
-4. Watch the split-layout: left panel shows live audit log, right panel shows agent orbit + cards
-5. FORGE will be **blocked** by the REP GATE (4-rule OWS policy chain enforced)
-6. Click **OWS PROOF** on any agent card to inspect the compliance proof
-7. Scroll down: the **x402 Payment Rail** panel shows Solana tx hashes → Solscan
-8. The **Telegram Signal Feed** shows REGIS broadcasting each event in real time
-9. Check the system status bar top-right: green dots = all services healthy
 
 ---
 
 ## Setup (Local)
 
 ### Prerequisites
-
-- Python 3.9+
-- Node.js 18+
+- Python 3.9+, Node.js 18+
 - Anthropic API key — [console.anthropic.com](https://console.anthropic.com)
 
 **Optional (activates real tools):**
-- DeepSeek API key — [platform.deepseek.com](https://platform.deepseek.com) (~80% cheaper for support agents)
+- DeepSeek API key — [platform.deepseek.com](https://platform.deepseek.com)
 - E2B API key — [e2b.dev](https://e2b.dev)
 - Firecrawl API key — [firecrawl.dev](https://firecrawl.dev)
 - Telegram Bot Token — [@BotFather](https://t.me/BotFather)
+- Resend API key — [resend.com](https://resend.com)
+- ElevenLabs API key — [elevenlabs.io](https://elevenlabs.io)
 
 ### Install
 
@@ -220,25 +219,7 @@ cd frontend && npm install && cd ..
 
 ```bash
 cp backend/.env.example backend/.env
-# Edit backend/.env
-```
-
-```env
-# Required
-ANTHROPIC_API_KEY=sk-ant-...
-
-# Optional — activates real agent tools
-DEEPSEEK_API_KEY=sk-...
-E2B_API_KEY=e2b_...
-FIRECRAWL_API_KEY=fc-...
-TELEGRAM_BOT_TOKEN=...
-TELEGRAM_CHAT_ID=...
-
-# Deployment
-POCKETBASE_URL=http://localhost:8090
-LIVE_MODE=false
-ADMIN_API_KEY=your-secret-key   # protects /mode/toggle endpoint
-ALLOWED_ORIGINS=http://localhost:3000   # comma-separated CORS origins
+# Edit backend/.env — see docs/ARCHITECTURE.md §8 for all variables
 ```
 
 ### Run
@@ -261,7 +242,7 @@ Open **[http://localhost:3000](http://localhost:3000)**
 ```bash
 source .venv/bin/activate
 python backend/setup_pocketbase.py
-# Creates: wallets · tasks · sub_tasks · payments · audit_log · agent_reputation
+# Creates: wallets · tasks · sub_tasks · payments · audit_log · agent_reputation · sovereignty
 ```
 
 ---
@@ -272,30 +253,22 @@ Three services, each deployed from its own subdirectory:
 
 | Service | Root Dir | Builder |
 |---------|----------|---------|
-| pocketbase | `/pocketbase` | Dockerfile (downloads Linux AMD64 binary) |
+| pocketbase | `/pocketbase` | Dockerfile |
 | backend | `/backend` | Dockerfile (Python 3.11 + Rust for solders) |
-| frontend | `/frontend` | Nixpacks (Node 18, `npm run build && npm start`) |
+| frontend | `/frontend` | Dockerfile (Node 18, `--legacy-peer-deps`) |
 
-### Environment Variables
+### Environment Variables — backend (Railway)
 
-**backend:**
 ```
-ANTHROPIC_API_KEY=sk-ant-...
-DEEPSEEK_API_KEY=sk-...
-POCKETBASE_URL=https://<pb>.railway.app
-BACKEND_URL=https://<backend>.railway.app
-TELEGRAM_BOT_TOKEN=...
-TELEGRAM_CHAT_ID=...
-LIVE_MODE=false
-ADMIN_API_KEY=...
-ALLOWED_ORIGINS=https://<frontend>.railway.app
-ENVIRONMENT=production
+ANTHROPIC_API_KEY · DEEPSEEK_API_KEY · POCKETBASE_URL · BACKEND_URL
+TELEGRAM_BOT_TOKEN · TELEGRAM_CHAT_ID
+RESEND_API_KEY · BISHOP_EMAIL_TO · BISHOP_EMAILS_ENABLED=true
+ELEVENLABS_API_KEY
+E2B_API_KEY · FIRECRAWL_API_KEY · MOONPAY_API_KEY
+LIVE_MODE=false · ADMIN_API_KEY · ALLOWED_ORIGINS · ENVIRONMENT=production
 ```
 
-**frontend:**
-```
-NEXT_PUBLIC_API_URL=https://<backend>.railway.app
-```
+**frontend:** `NEXT_PUBLIC_API_URL=https://<backend>.railway.app`
 
 ---
 
@@ -303,31 +276,32 @@ NEXT_PUBLIC_API_URL=https://<backend>.railway.app
 
 | Control | Implementation |
 |---------|---------------|
-| Rate limiting | slowapi: 10/hr submit, 20/hr decompose/execute, 30/hr clarify |
-| Input validation | Pydantic validators: description max 2000 chars, budget max $10k |
+| Rate limiting | slowapi per real client IP (X-Forwarded-For): 10/hr submit, 20/hr execute |
+| Input validation | Pydantic: description ≤2000 chars, budget >0 and ≤10000 |
 | Record ID validation | Regex `[a-z0-9]{10,20}` — prevents PocketBase filter injection |
-| Collection whitelist | Only known collections accepted |
-| CORS | Configurable via `ALLOWED_ORIGINS` env var (default: `*` for dev) |
+| Exception masking fix | `except (HTTPException, ValueError): raise` before broad catch |
+| Collection whitelist | Only 7 known collections accepted |
+| CORS | `ALLOWED_ORIGINS` env var — production restricts to Railway frontend |
 | Mode toggle | Protected by `X-Admin-Key` header |
 | Error messages | Internal details never sent to client in production |
-| Structured logging | All errors via Python `logging`, severity-tagged |
-| Startup validation | Crashes immediately if `ANTHROPIC_API_KEY` is missing |
+| Dead man's switch | 120s heartbeat → API key revoked → budget swept to treasury |
+| Structured logging | All errors via Python `logging`, zero `print()` in prod paths |
+| Startup validation | Crashes immediately if `ANTHROPIC_API_KEY` missing |
 
 ---
 
 ## Agent Roster
 
-| Agent | City | Role | Model | Tools |
+| Agent | City | Role | Model | Voice |
 |-------|------|------|-------|-------|
-| **REGIS** 🇬🇧 | London | Monarch · Coordinator | Claude Haiku | OWS wallets, all payments |
-| **ATLAS** 🇩🇪 | Berlin | Researcher | DeepSeek / Claude | Firecrawl, X402 |
-| **CIPHER** 🇯🇵 | Tokyo | Analyst | DeepSeek / Claude | E2B sandbox, X402 |
-| **FORGE** 🇳🇬 | Lagos | Synthesizer | DeepSeek / Claude | E2B file write, X402 |
-| **BISHOP** 🇻🇦 | Vatican | Compliance | DeepSeek / Claude | MoonPay compliance |
-| **SØN** 🇸🇪 | Stockholm | Heir | DeepSeek / Claude | Solana devnet queries |
+| **REGIS** 🇬🇧 | London | Monarch · Coordinator | Claude Haiku | Daniel (ElevenLabs) |
+| **ATLAS** 🇩🇪 | Berlin | Researcher | DeepSeek | Arnold (ElevenLabs) |
+| **CIPHER** 🇯🇵 | Tokyo | Analyst | DeepSeek | Adam (ElevenLabs) |
+| **FORGE** 🇳🇬 | Lagos | Synthesizer | DeepSeek | Josh (ElevenLabs) |
+| **BISHOP** 🇻🇦 | Vatican | Compliance | DeepSeek | Callum (ElevenLabs) |
+| **SØN** 🇸🇪 | Stockholm | Heir | DeepSeek | Sam (ElevenLabs) |
 
-Lead agent uses Claude. Support agents use DeepSeek (~80% cheaper).  
-Translation toggle: all non-English agents produce `english_text` field.
+Lead agent uses Claude Haiku. Support agents use DeepSeek (~80% cheaper).
 
 ---
 
@@ -337,12 +311,14 @@ Translation toggle: all non-English agents produce `english_text` field.
 |-------|------|
 | Backend | FastAPI 0.115 · Uvicorn · Python 3.11 · slowapi |
 | LLM (Lead) | Anthropic Claude Haiku 4.5 |
-| LLM (Support) | DeepSeek Chat (OpenAI-compatible, ~80% cheaper) |
+| LLM (All agents) | DeepSeek Chat (OpenAI-compatible, ~80% cheaper) |
 | Real Tools | Firecrawl web search · E2B Python sandbox · Solana devnet |
 | Payment Protocol | x402 (HTTP 402 two-phase, SOL micropayments) |
 | Fiat Onramp | MoonPay Buy widget (fiat→SOL) |
-| DEX | Meteora DLMM → Jupiter → CoinGecko fallback |
-| Persistence | PocketBase 0.22.20 (SQLite, single binary) |
+| DEX Rate | Meteora DLMM → Jupiter → CoinGecko fallback |
+| Voice | ElevenLabs eleven_multilingual_v2 |
+| Email | Resend (BISHOP governance notifications) |
+| Persistence | PocketBase 0.22.20 (SQLite, single binary, 7 collections) |
 | Frontend | Next.js 14 · TypeScript · Tailwind CSS · standalone output |
 | State | TanStack Query v5 · Zustand v5 |
 | Animation | Framer Motion v12 · CSS/SVG radial orbit (no Three.js) |
@@ -351,4 +327,5 @@ Translation toggle: all non-English agents produce `english_text` field.
 ---
 
 *Built for the Open Wallet Standard Hackathon + Solana x402 Hackathon · April 2026*  
-*Railway project: grand-fulfillment · Environment: production*
+*Railway project: grand-fulfillment · Environment: production*  
+*Full technical reference: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)*

@@ -89,7 +89,15 @@ async def probe_regis(request: ProbeRequest):
             f"🔍 PROBE\nQ: {request.question[:100]}\nA: {answer[:200]}"
         )
 
-        return {"response": answer}
+        # Voice: generate REGIS speech (returns None if ELEVENLABS_API_KEY unset)
+        audio_b64 = None
+        try:
+            from services.voice_service import speak_to_b64
+            audio_b64 = await asyncio.to_thread(speak_to_b64, "REGIS", answer[:500])
+        except Exception as _ve:
+            pass  # voice is enhancement only — never fail the probe
+
+        return {"response": answer, "audio_b64": audio_b64}
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

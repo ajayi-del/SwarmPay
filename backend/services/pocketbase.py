@@ -17,7 +17,7 @@ logger = logging.getLogger("swarmpay.pocketbase")
 _RECORD_ID_RE = re.compile(r'^[a-z0-9]{10,20}$', re.IGNORECASE)
 # Allowed collections
 _ALLOWED_COLLECTIONS = {
-    "tasks", "sub_tasks", "wallets", "payments", "audit_log", "agent_reputation"
+    "tasks", "sub_tasks", "wallets", "payments", "audit_log", "agent_reputation", "sovereignty"
 }
 
 

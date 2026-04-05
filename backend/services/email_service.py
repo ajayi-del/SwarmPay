@@ -218,6 +218,96 @@ def send_task_receipt(
 
 # ── Trigger 4 — REGIS Punishment Record ───────────────────────────────────────
 
+def send_overthrow_email(old_ruler: dict, new_ruler: dict) -> None:
+    """
+    Succession event email. Fired once per overthrow.
+    old_ruler and new_ruler are dicts with keys:
+      name, city, lifetime_distributed (old) / lifetime_earnings (new),
+      overthrow_count, times_ruled.
+    """
+    old_name = old_ruler.get("name", "?")
+    new_name = new_ruler.get("name", "?")
+    new_city = new_ruler.get("city", "")
+    new_earn = float(new_ruler.get("lifetime_earnings", 0))
+    old_dist = float(old_ruler.get("lifetime_distributed", 0))
+    margin   = new_earn - old_dist
+
+    # Convert USDC → SOL for display (fallback rate, governance display only)
+    _rate = 79.0
+    new_earn_sol = new_earn / _rate
+    old_dist_sol = old_dist / _rate
+    margin_sol   = margin   / _rate
+
+    succession_n = int(old_ruler.get("overthrow_count", 0)) + 1
+
+    _send(
+        subject=f"\u2694\ufe0f OVERTHROW \u2014 {new_name} seizes the throne",
+        html=f"""
+        <div class="seal" style="color:#9945FF; border-color:#9945FF">
+          \u2694\ufe0f SUCCESSION EVENT<br/>
+          <small>Kingdom of SwarmPay</small>
+        </div>
+
+        <p class="label">The Throne Has Changed Hands</p>
+        <p>
+          <span style="color:#9945FF">{new_name} ({new_city})</span>
+          has overthrown
+          <span style="color:#F59E0B">{old_name}</span>
+          through superior economic performance.
+        </p>
+
+        <div class="divider"></div>
+
+        <p class="label">The Numbers</p>
+        <table style="width:100%; border-collapse:collapse; font-family:monospace; font-size:12px;">
+          <tr>
+            <td style="padding:4px 0; color:#888;">{new_name} earned:</td>
+            <td style="color:#9945FF; text-align:right;">
+              \u25ce{new_earn_sol:.4f} SOL
+              <span style="color:#555; font-size:10px;">({new_earn:.4f} USDC)</span>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:4px 0; color:#888;">{old_name} distributed:</td>
+            <td style="color:#F59E0B; text-align:right;">
+              \u25ce{old_dist_sol:.4f} SOL
+              <span style="color:#555; font-size:10px;">({old_dist:.4f} USDC)</span>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:4px 0; color:#888;">Margin of victory:</td>
+            <td style="color:#22C55E; text-align:right;">
+              \u25ce{margin_sol:.4f} SOL
+              <span style="color:#555; font-size:10px;">({margin:.4f} USDC)</span>
+            </td>
+          </tr>
+        </table>
+
+        <div class="divider"></div>
+
+        <p class="label">Succession Record</p>
+        <p>
+          {old_name}: <span style="color:#666">The Deposed</span><br/>
+          Overthrown: {succession_n} time(s)<br/>
+          Times ruled: {int(old_ruler.get("times_ruled", 0))}
+        </p>
+        <p>
+          {new_name}: <span style="color:#9945FF">The New Sovereign</span><br/>
+          Times ruled: {int(new_ruler.get("times_ruled", 0)) + 1}
+        </p>
+
+        <div class="divider"></div>
+
+        <p class="footer">
+          The kingdom is governed by performance, not birthright. Merit is sovereign.<br/><br/>
+          \u2014 BISHOP<br/>
+          Chief Compliance Officer<br/>
+          Witnessing succession #{succession_n}
+        </p>
+        """,
+    )
+
+
 def send_punishment_record(
     punishment_type: str,
     audit_score: int,

@@ -36,6 +36,7 @@ from services.email_service import (
     CRITICAL_BLOCK_THRESHOLD_SOL,
     TREASURY_LOW_THRESHOLD_SOL,
 )
+from services.sovereignty_service import sovereignty_service, notify_overthrow
 
 # Fallback SOL/USDC rate for email threshold conversions.
 # Used ONLY to convert USDC amounts to SOL for alert thresholds — not for settlement.
@@ -294,6 +295,16 @@ async def _notify_telegram(message: str) -> None:
         await send(ALLOWED_CHAT_ID, message)
     except Exception as e:
         logger.warning("[tg notify] %s", e)
+
+
+async def _check_sovereignty_overthrow() -> None:
+    """Fire-and-forget sovereignty check after each signed payment."""
+    try:
+        overthrow = await asyncio.to_thread(sovereignty_service.check_and_execute_overthrow)
+        if overthrow:
+            await notify_overthrow(overthrow)
+    except Exception as exc:
+        logger.warning("[sovereignty] overthrow check: %s", exc)
 
 
 async def _notify_event(event_type: str, message: str) -> None:
@@ -668,6 +679,10 @@ async def _process_payment(coordinator_wallet: Dict, sub_task: Dict):
             await asyncio.to_thread(pb.update, "sub_tasks", sub_task["id"], {"status": "paid"})
             # Reputation reward for successful payment
             new_rep = await asyncio.to_thread(pb.update_reputation, agent_name, +0.1)
+            # Sovereignty: track earnings + distributed, then check for overthrow
+            await asyncio.to_thread(sovereignty_service.update_earnings, agent_name, attempted)
+            await asyncio.to_thread(sovereignty_service.update_distributed, "REGIS", attempted)
+            asyncio.create_task(_check_sovereignty_overthrow())
         else:
             await asyncio.to_thread(pb.update, "sub_tasks", sub_task["id"], {"status": "blocked"})
             # Reputation penalty for blocked payment
