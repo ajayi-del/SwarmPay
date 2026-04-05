@@ -12,6 +12,7 @@ import {
 import OWSProofPanel from "@/components/OWSProofPanel";
 import AgentAvatar from "@/components/AgentAvatar";
 import { useModeStore } from "@/lib/modeStore";
+import { useSolRate } from "@/lib/useSolRate";
 
 /* ── Extended output type ────────────────────────────────────────────── */
 
@@ -343,6 +344,7 @@ interface Props {
 export default function AgentCard({ subTask, payment, peerPayment, index, reputation }: Props) {
   const { mode } = useModeStore();
   const isOffice = mode === "office";
+  const { toSol } = useSolRate();
 
   const persona = AGENT_PERSONAS[subTask.agent_id];
   const officePers = OFFICE_PERSONAS[subTask.agent_id];
@@ -631,15 +633,15 @@ export default function AgentCard({ subTask, payment, peerPayment, index, reputa
         <span className="flex gap-2">
           <span>
             Alloc:{" "}
-            <span style={{ color: "var(--text-muted)" }}>
-              {Number(subTask.budget_allocated).toFixed(4)}
+            <span style={{ color: "#9945FF" }}>
+              {toSol(Number(subTask.budget_allocated), 4)}
             </span>
           </span>
           <span style={{ color: "var(--border-hover)" }}>·</span>
           <span>
             Limit:{" "}
             <span style={{ color: rc }}>
-              ${repLimit(liveRep).toFixed(2)}
+              {toSol(repLimit(liveRep), 3)}
             </span>
           </span>
         </span>
@@ -661,7 +663,7 @@ export default function AgentCard({ subTask, payment, peerPayment, index, reputa
         >
           <span style={{ color: "#a78bfa", fontSize: "0.65rem" }}>⇄ PEER IN</span>
           <span className="text-xs font-jb" style={{ color: "#a78bfa" }}>
-            {Number(peerPayment.amount).toFixed(3)} USDC
+            {toSol(Number(peerPayment.amount), 4)}
           </span>
           <span className="text-xs" style={{ color: "var(--text-dim)" }}>
             {peerPayment.policy_reason?.replace("PEER: ", "") ?? ""}
@@ -693,7 +695,9 @@ export default function AgentCard({ subTask, payment, peerPayment, index, reputa
                 ? isOffice ? "✓ APPROVED TRANSFER" : "✓ SIGNED"
                 : isOffice ? "✗ COMPLIANCE REJECTED" : "✗ BLOCKED"}
             </span>
-            <span style={{ color: "var(--text)" }}>{Number(payment.amount).toFixed(4)} USDC</span>
+            <span style={{ color: payment.status === "signed" ? "var(--signed)" : "var(--blocked)", fontWeight: 600 }}>
+              {payment.status === "signed" ? "SIGNED ✓" : "BLOCKED ✗"} {toSol(Number(payment.amount), 4)}
+            </span>
           </div>
           {payment.policy_reason && (
             <p className="text-xs" style={{ color: "var(--blocked)", opacity: 0.85 }}>

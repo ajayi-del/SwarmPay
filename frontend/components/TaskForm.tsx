@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { submitTask, decomposeTask, executeTask, clarifyTask } from "@/lib/api";
 import { useSwarmStore } from "@/lib/store";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
+import { useSolRate } from "@/lib/useSolRate";
 
 const EXAMPLE_TASKS = [
   "Analyze top 5 Solana DeFi protocols by TVL, run Python yield calculations, publish report",
@@ -20,7 +21,7 @@ const STEPS = [
 
 export default function TaskForm() {
   const [description, setDescription] = useState("");
-  const [budget, setBudget] = useState("15");
+  const [budget, setBudget] = useState("0.3");
   const [loading, setLoading] = useState(false);
   const [activeStep, setActiveStep] = useState(-1);
   const [error, setError] = useState<string | null>(null);
@@ -29,6 +30,7 @@ export default function TaskForm() {
   const [clarifyDone, setClarifyDone] = useState(false);
 
   const { setTaskId, setPhase } = useSwarmStore();
+  const { fromSol, rate } = useSolRate();
 
   // Final transcript — append to whatever is already in the field
   const onSpeechResult = useCallback((text: string) => {
@@ -68,8 +70,9 @@ export default function TaskForm() {
         setClarifyQuestions(result.questions);
         setClarifyAnswers(new Array(result.questions.length).fill(""));
         // Use suggested budget if user hasn't touched it
-        if (budget === "15" && result.suggested_budget > 0) {
-          setBudget(String(Math.round(result.suggested_budget)));
+        if (budget === "0.3" && result.suggested_budget > 0) {
+          // Convert USDC suggestion back to SOL for display
+          setBudget((result.suggested_budget / rate).toFixed(3));
         }
         setLoading(false);
         return; // Show the clarification panel
@@ -98,7 +101,10 @@ export default function TaskForm() {
     }
 
     try {
-      const { task_id } = await submitTask(fullDescription, parseFloat(budget) || 15);
+      // Budget entered in SOL — convert to USDC for API
+      const solAmt = parseFloat(budget) || 0.3;
+      const usdcBudget = fromSol(solAmt);
+      const { task_id } = await submitTask(fullDescription, usdcBudget);
       setTaskId(task_id);
       setPhase("submitted");
       setActiveStep(1);
@@ -326,13 +332,13 @@ export default function TaskForm() {
           {(clarifyQuestions.length === 0 || clarifyDone) && (
             <div className="flex gap-3 items-end pt-1">
               <div className="w-32">
-                <label className="text-label block mb-2">Budget (USDC)</label>
+                <label className="text-label block mb-2" style={{ color: "#9945FF" }}>Budget (◎ SOL)</label>
                 <input
                   type="number"
                   value={budget}
                   onChange={(e) => setBudget(e.target.value)}
-                  step="1"
-                  min="1"
+                  step="0.01"
+                  min="0.01"
                   className="w-full rounded-xl px-3 py-2.5 text-sm transition-all"
                   style={{
                     background: "var(--surface-2)",

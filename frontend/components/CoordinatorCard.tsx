@@ -6,6 +6,7 @@ import type { Wallet, Task } from "@/lib/api";
 import { getMeteoraRate, getMoonpayOnramp } from "@/lib/api";
 import { COORDINATOR_PERSONA, OFFICE_COORDINATOR } from "@/lib/personas";
 import { useModeStore } from "@/lib/modeStore";
+import { useSolRate } from "@/lib/useSolRate";
 
 function Stars({ n }: { n: number }) {
   return (
@@ -54,6 +55,7 @@ const TASK_STATUS_COLOR: Record<string, string> = {
 export default function CoordinatorCard({ wallet, task }: Props) {
   const { mode } = useModeStore();
   const isOffice = mode === "office";
+  const { toSol, rate: solRate } = useSolRate();
   const [meteoraRate, setMeteoraRate] = useState<number | null>(null);
   const [meteoraSource, setMeteoraSource] = useState<string>("");
   const [moonpayUrl, setMoonpayUrl] = useState<string | null>(null);
@@ -171,22 +173,18 @@ export default function CoordinatorCard({ wallet, task }: Props) {
         {/* Treasury / Budget */}
         <div className="ml-auto text-right space-y-0.5">
           <p className="text-xs" style={{ color: "var(--text-muted)" }}>{treasuryLabel}</p>
-          <p className="text-2xl font-bold font-jb" style={{ color: accentColor }}>
-            {Number(wallet.budget_cap).toFixed(2)}{" "}
-            <span className="text-sm font-normal" style={{ color: "var(--text-muted)" }}>USDC</span>
+          <p className="text-2xl font-bold font-jb" style={{ color: "#9945FF" }}>
+            {toSol(Number(wallet.budget_cap), 3)}
+          </p>
+          <p className="text-xs font-jb" style={{ color: "var(--text-dim)" }}>
+            {Number(wallet.budget_cap).toFixed(2)} USDC · Est. APR ~8.4%
           </p>
           <p className="text-xs font-jb truncate max-w-[200px]" style={{ color: "var(--text-dim)" }}>
             {wallet.eth_address.slice(0, 10)}…{wallet.eth_address.slice(-6)}
           </p>
-          {meteoraRate && (
-            <p className="text-xs font-jb mt-1" style={{ color: "#06b6d4" }}>
-              Budget: ${Number(wallet.budget_cap).toFixed(2)} USDC
-              <span className="block text-[10px] mt-0.5" style={{ color: "#555" }}>
-                SOL/USDC {meteoraRate} · {meteoraSource}
-              </span>
-              <span className="block text-[10px] mt-0.5" style={{ color: "#a78bfa" }}>
-                ≈ {(Number(wallet.budget_cap) / meteoraRate).toFixed(4)} SOL at current rate · Est. APR ~8.4%
-              </span>
+          {(meteoraRate ?? solRate) > 0 && (
+            <p className="text-[10px] font-jb mt-0.5" style={{ color: "#555" }}>
+              1 SOL = {(meteoraRate ?? solRate).toFixed(2)} USDC · {meteoraSource || "CoinGecko"}
             </p>
           )}
           {moonpayUrl && (

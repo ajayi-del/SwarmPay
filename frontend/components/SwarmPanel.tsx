@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { getSwarmStats } from "@/lib/api";
 import { useModeStore } from "@/lib/modeStore";
 import { AGENT_PERSONAS } from "@/lib/personas";
+import { useSolRate } from "@/lib/useSolRate";
 
 /* ── Health ring ──────────────────────────────────────────────────────── */
 
@@ -69,6 +70,7 @@ function Cell({ label, value, color }: { label: string; value: string; color?: s
 export default function SwarmPanel() {
   const { mode } = useModeStore();
   const isOffice = mode === "office";
+  const { toSol } = useSolRate();
 
   const { data: stats } = useQuery({
     queryKey: ["swarm-stats"],
@@ -118,11 +120,11 @@ export default function SwarmPanel() {
           <Cell label="Tasks Run"     value={String(stats.total_tasks)} />
           <Cell label={signedLabel}   value={String(stats.total_signed)}  color="var(--signed)" />
           <Cell label={blockedLabel}  value={String(stats.total_blocked)} color="var(--blocked)" />
-          <Cell label="USDC Processed" value={`${stats.eth_processed.toFixed(3)}`} color="var(--signed)" />
-          <Cell label="USDC Held"      value={`${stats.eth_held.toFixed(3)}`}      color="var(--blocked)" />
+          <Cell label="◎ Processed" value={toSol(stats.eth_processed, 4)} color="var(--signed)" />
+          <Cell label="◎ Held"      value={toSol(stats.eth_held, 4)}      color="var(--blocked)" />
           <Cell
             label={peerLabel}
-            value={`${stats.peer_count} · ${stats.eth_peer.toFixed(3)} USDC`}
+            value={`${stats.peer_count} · ${toSol(stats.eth_peer, 4)}`}
             color="#a78bfa"
           />
         </div>

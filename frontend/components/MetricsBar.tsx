@@ -3,6 +3,7 @@
 import { motion } from "framer-motion";
 import type { TaskState } from "@/lib/api";
 import { useModeStore } from "@/lib/modeStore";
+import { useSolRate } from "@/lib/useSolRate";
 
 interface Props {
   taskState: TaskState;
@@ -26,12 +27,14 @@ export default function MetricsBar({ taskState }: Props) {
   const { task, sub_tasks, payments } = taskState;
   const { mode } = useModeStore();
   const isOffice = mode === "office";
+  const { toSol } = useSolRate();
 
   const signed = payments.filter((p) => p.status === "signed");
   const blocked = payments.filter((p) => p.status === "blocked");
 
   const totalSpent = signed.reduce((s, p) => s + p.amount, 0);
   const totalBlocked = blocked.reduce((s, p) => s + p.amount, 0);
+  const totalBudget = Number(task.total_budget);
 
   const efficiency =
     totalSpent + totalBlocked > 0
@@ -60,9 +63,21 @@ export default function MetricsBar({ taskState }: Props) {
     >
       {/* Stats row */}
       <div className="flex flex-wrap gap-6 items-end mb-3">
-        <Stat label="Total Budget" value={`${Number(task.total_budget).toFixed(2)} USDC`} />
-        <Stat label={isOffice ? "Disbursed" : "Spent"} value={`${totalSpent.toFixed(4)} USDC`} color="var(--signed)" />
-        <Stat label={isOffice ? "Held" : "Blocked"} value={`${totalBlocked.toFixed(4)} USDC`} color="var(--blocked)" />
+        <Stat
+          label={isOffice ? "Operating Budget" : "Treasury"}
+          value={toSol(totalBudget, 3)}
+          color="#9945FF"
+        />
+        <Stat
+          label={isOffice ? "Disbursed" : "Spent"}
+          value={toSol(totalSpent, 4)}
+          color="var(--signed)"
+        />
+        <Stat
+          label={isOffice ? "Held" : "Blocked"}
+          value={toSol(totalBlocked, 4)}
+          color="var(--blocked)"
+        />
 
         <div className="h-8 w-px" style={{ background: "var(--border)" }} />
 

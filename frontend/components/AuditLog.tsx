@@ -1,83 +1,237 @@
 "use client";
 
+/**
+ * AuditLog — Live terminal feed with institutional styling.
+ *
+ * Each entry is a single line: [BADGE] message  timestamp
+ * Left border color-coded by event type.
+ * New entries animate in from x:-20, opacity:0 → x:0, opacity:1.
+ * Max 20 entries visible, auto-scrolls to latest.
+ */
+
+import { useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
 import { getAuditLogs, type AuditEntry } from "@/lib/api";
+import { useSolRate } from "@/lib/useSolRate";
 
-const EVENT_COLORS: Record<string, string> = {
-  task_submitted: "#6c63ff",
-  agent_spawned: "#3b82f6",
-  work_started: "#f59e0b",
-  work_complete: "#22c55e",
-  payment_signed: "#22c55e",
-  payment_blocked: "#ef4444",
-  task_complete: "#6c63ff",
-  reputation_updated: "#FFD700",
-  peer_payment:      "#a78bfa",
-  dead_mans_switch:  "#ef4444",
-  x402_payment:      "#06b6d4",
+// ── Event configuration ────────────────────────────────────────────────────────
+
+const EVENT_CONFIG: Record<string, { badge: string; color: string }> = {
+  task_complete:      { badge: "DONE  ", color: "#F59E0B" },
+  task_submitted:     { badge: "TASK  ", color: "#F59E0B" },
+  payment_signed:     { badge: "SIGN  ", color: "#22C55E" },
+  payment_blocked:    { badge: "BLOCK ", color: "#EF4444" },
+  peer_payment:       { badge: "PEER  ", color: "#3B82F6" },
+  x402_payment:       { badge: "x402  ", color: "#9945FF" },
+  work_started:       { badge: "START ", color: "#F59E0B" },
+  work_complete:      { badge: "WORK  ", color: "#22C55E" },
+  agent_spawned:      { badge: "SPAWN ", color: "#3B82F6" },
+  reputation_updated: { badge: "REP   ", color: "#FFD700" },
+  dead_mans_switch:   { badge: "DMS   ", color: "#EF4444" },
+  security:           { badge: "SEC   ", color: "#F97316" },
 };
 
-function LogRow({ entry }: { entry: AuditEntry }) {
-  const color = EVENT_COLORS[entry.event_type] ?? "#888";
-  const time = new Date(entry.created).toLocaleTimeString();
+const DEFAULT_CONFIG = { badge: "EVENT ", color: "#6B7280" };
+
+// ── Extract SOL amount from audit message ──────────────────────────────────────
+
+function extractAndFormatAmounts(message: string, toSol: (u: number, d?: number) => string): string {
+  // Replace USDC amounts with SOL display: "3.3333 USDC" → "◎0.0417"
+  return message.replace(
+    /(\d+(?:\.\d+)?)\s*USDC/gi,
+    (_, amt) => toSol(parseFloat(amt), 4)
+  );
+}
+
+// ── Single terminal line ───────────────────────────────────────────────────────
+
+function TerminalLine({ entry, toSol }: { entry: AuditEntry; toSol: (u: number, d?: number) => string }) {
+  const cfg = EVENT_CONFIG[entry.event_type] ?? DEFAULT_CONFIG;
+  const time = new Date(entry.created).toLocaleTimeString("en-GB", {
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+  });
+  const msg = extractAndFormatAmounts(entry.message, toSol);
 
   return (
     <motion.div
       layout
-      initial={{ opacity: 0, x: 10 }}
+      initial={{ opacity: 0, x: -20 }}
       animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0 }}
-      className="flex gap-3 items-start py-2 border-b"
-      style={{ borderColor: "var(--border)" }}
+      exit={{ opacity: 0, x: 20 }}
+      transition={{ duration: 0.2, ease: "easeOut" }}
+      style={{
+        display: "flex",
+        alignItems: "baseline",
+        gap: 0,
+        borderLeft: `2px solid ${cfg.color}`,
+        paddingLeft: 10,
+        paddingTop: 3,
+        paddingBottom: 3,
+        minHeight: 22,
+      }}
     >
+      {/* Badge */}
       <span
-        className="text-xs px-2 py-0.5 rounded-full font-medium shrink-0 mt-0.5"
-        style={{ background: `${color}22`, color }}
+        style={{
+          fontFamily: "monospace",
+          fontSize: "0.65rem",
+          color: cfg.color,
+          background: `${cfg.color}14`,
+          border: `1px solid ${cfg.color}30`,
+          borderRadius: 3,
+          padding: "0px 5px",
+          letterSpacing: "0.04em",
+          flexShrink: 0,
+          marginRight: 8,
+          lineHeight: "1.6",
+        }}
       >
-        {entry.event_type.replace(/_/g, " ")}
+        {cfg.badge.trimEnd()}
       </span>
-      <span className="text-sm flex-1" style={{ color: "var(--text)" }}>
-        {entry.message}
+
+      {/* Message */}
+      <span
+        style={{
+          fontFamily: "monospace",
+          fontSize: "0.7rem",
+          color: "var(--text-muted)",
+          flex: 1,
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          lineHeight: "1.6",
+        }}
+        title={msg}
+      >
+        {msg}
       </span>
-      <span className="text-xs shrink-0 font-mono" style={{ color: "var(--text-muted)" }}>
+
+      {/* Timestamp */}
+      <span
+        style={{
+          fontFamily: "monospace",
+          fontSize: "0.6rem",
+          color: "var(--text-dim)",
+          flexShrink: 0,
+          marginLeft: 12,
+          letterSpacing: "0.03em",
+          lineHeight: "1.6",
+        }}
+      >
         {time}
       </span>
     </motion.div>
   );
 }
 
+// ── Main component ─────────────────────────────────────────────────────────────
+
 export default function AuditLog() {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const { toSol } = useSolRate();
+
   const { data } = useQuery({
     queryKey: ["audit"],
     queryFn: getAuditLogs,
     refetchInterval: 1500,
   });
 
-  const logs = data?.logs ?? [];
+  // Auto-scroll to bottom on new entries
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [data]);
+
+  // Newest 20, sorted oldest→newest for terminal feed (scroll to see latest at bottom)
+  const raw = data?.logs ?? [];
+  const logs = [...raw].slice(0, 20).reverse();
 
   return (
     <div
-      className="rounded-2xl p-5 space-y-1 h-full max-h-[480px] overflow-y-auto"
       style={{
-        background: "var(--surface)",
+        background: "#050508",
         border: "1px solid var(--border)",
+        borderRadius: 16,
+        padding: "14px 16px",
+        height: "100%",
+        maxHeight: 480,
+        display: "flex",
+        flexDirection: "column",
       }}
     >
-      <h3 className="text-sm font-semibold mb-3" style={{ color: "var(--text-muted)" }}>
-        Audit Log
-      </h3>
-      {logs.length === 0 ? (
-        <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-          No events yet. Submit a task to start.
-        </p>
-      ) : (
-        <AnimatePresence>
-          {logs.map((entry) => (
-            <LogRow key={entry.id} entry={entry} />
-          ))}
-        </AnimatePresence>
-      )}
+      {/* Header */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: 10,
+          paddingBottom: 8,
+          borderBottom: "1px solid var(--border)",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {/* Terminal dot indicators */}
+          <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#ef4444", display: "inline-block" }} />
+          <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#f59e0b", display: "inline-block" }} />
+          <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#22c55e", display: "inline-block" }} />
+          <span
+            style={{
+              fontFamily: "monospace",
+              fontSize: "0.65rem",
+              color: "var(--text-dim)",
+              letterSpacing: "0.1em",
+              marginLeft: 6,
+            }}
+          >
+            AUDIT LOG — LIVE FEED
+          </span>
+        </div>
+        <span
+          style={{
+            fontFamily: "monospace",
+            fontSize: "0.6rem",
+            color: "var(--text-dim)",
+            letterSpacing: "0.05em",
+          }}
+        >
+          {raw.length} events
+        </span>
+      </div>
+
+      {/* Feed */}
+      <div
+        ref={scrollRef}
+        style={{
+          flex: 1,
+          overflowY: "auto",
+          display: "flex",
+          flexDirection: "column",
+          gap: 1,
+        }}
+      >
+        {logs.length === 0 ? (
+          <div
+            style={{
+              fontFamily: "monospace",
+              fontSize: "0.7rem",
+              color: "var(--text-dim)",
+              padding: "12px 0",
+              letterSpacing: "0.05em",
+            }}
+          >
+            ▊ awaiting events…
+          </div>
+        ) : (
+          <AnimatePresence initial={false}>
+            {logs.map((entry) => (
+              <TerminalLine key={entry.id} entry={entry} toSol={toSol} />
+            ))}
+          </AnimatePresence>
+        )}
+      </div>
     </div>
   );
 }

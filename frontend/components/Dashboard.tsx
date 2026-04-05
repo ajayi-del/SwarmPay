@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getTaskStatus, type TaskState } from "@/lib/api";
 import { useSwarmStore } from "@/lib/store";
+import { useModeStore } from "@/lib/modeStore";
 import AgentCard from "./AgentCard";
 import SleepingAgentCard from "./SleepingAgentCard";
 import CoordinatorCard from "./CoordinatorCard";
@@ -11,10 +12,13 @@ import MetricsBar from "./MetricsBar";
 import RegisConsole from "./RegisConsole";
 import SkillsPanel from "./SkillsPanel";
 import SwarmOrbit from "./SwarmOrbit";
+import KingdomScene from "./KingdomScene";
 import { ErrorBoundary } from "./ErrorBoundary";
 
 export default function Dashboard() {
   const { taskId, setPhase } = useSwarmStore();
+  const { mode } = useModeStore();
+  const isKingdom = mode === "kingdom";
 
   const { data: taskState } = useQuery({
     queryKey: ["task", taskId],
@@ -42,9 +46,22 @@ export default function Dashboard() {
   const ALL_AGENTS = ["ATLAS", "CIPHER", "FORGE", "BISHOP", "SØN"];
   const activeAgentIds = new Set(sub_tasks.map((st) => st.agent_id));
   const sleepingAgents = ALL_AGENTS.filter((a) => !activeAgentIds.has(a));
+  const taskActive = task.status !== "complete" && task.status !== "failed";
 
   return (
     <div className="w-full space-y-4">
+      {/* Kingdom Scene — only in kingdom mode, above all agent cards */}
+      {isKingdom && (
+        <ErrorBoundary>
+          <KingdomScene
+            subTasks={sub_tasks}
+            treasuryBalance={coordinator_wallet ? Number(coordinator_wallet.budget_cap) : 0}
+            taskActive={taskActive}
+            reputations={reputations}
+          />
+        </ErrorBoundary>
+      )}
+
       {/* REGIS — coordinator */}
       {coordinator_wallet && (
         <ErrorBoundary>
