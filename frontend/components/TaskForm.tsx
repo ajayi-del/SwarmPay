@@ -30,12 +30,25 @@ export default function TaskForm() {
 
   const { setTaskId, setPhase } = useSwarmStore();
 
+  // Final transcript — append to whatever is already in the field
   const onSpeechResult = useCallback((text: string) => {
-    setDescription(text);
+    setDescription((prev) => {
+      const trimmed = prev.trimEnd();
+      return trimmed ? `${trimmed} ${text}` : text;
+    });
+  }, []);
+
+  // Live interim text — show in field as user speaks
+  const onSpeechInterim = useCallback((text: string) => {
+    setDescription((prev) => {
+      // Replace any previously shown interim segment (ends with a space marker)
+      const base = prev.replace(/\s*\[…[^\]]*\]$/, "").trimEnd();
+      return base ? `${base} […${text}]` : `[…${text}]`;
+    });
   }, []);
 
   const { state: speechState, start: startSpeech, stop: stopSpeech, supported: speechSupported, error: speechError } =
-    useSpeechRecognition(onSpeechResult);
+    useSpeechRecognition(onSpeechResult, onSpeechInterim);
 
   async function handleClarifyCheck(e: React.FormEvent) {
     e.preventDefault();

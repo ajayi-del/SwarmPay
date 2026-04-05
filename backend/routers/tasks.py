@@ -102,7 +102,7 @@ class TaskClarifyResponse(BaseModel):
 
 @router.post("/clarify", response_model=TaskClarifyResponse)
 @limiter.limit("30/hour")
-async def clarify_task(http_req: Request, request: TaskClarifyRequest):
+async def clarify_task(request: Request, body: TaskClarifyRequest):
     """
     REGIS asks 2-3 context questions before task starts.
     Returns empty list if task description is already clear enough.
@@ -110,7 +110,7 @@ async def clarify_task(http_req: Request, request: TaskClarifyRequest):
     try:
         from services.model_service import call_deepseek
         prompt = (
-            f'Task description: "{request.description}"\n\n'
+            f'Task description: "{body.description}"\n\n'
             "You are REGIS, SwarmPay coordinator. Analyze this task.\n"
             "Available services: OWS (wallets/payments), Solana (blockchain), "
             "MoonPay (fiat onramp), X402 (micropayments), Firecrawl (web search), E2B (code execution).\n\n"
@@ -137,7 +137,7 @@ async def clarify_task(http_req: Request, request: TaskClarifyRequest):
 
 @router.post("/submit", response_model=TaskSubmitResponse)
 @limiter.limit("10/hour")
-async def submit_task(http_req: Request, request: TaskSubmitRequest):
+async def submit_task(request: Request, body: TaskSubmitRequest):
     """Submit a new task and create REGIS coordinator wallet."""
     try:
         ows_wallet = await asyncio.to_thread(ows.create_wallet, f"REGIS-{uuid.uuid4().hex[:6]}")
@@ -148,15 +148,15 @@ async def submit_task(http_req: Request, request: TaskSubmitRequest):
             "role": "coordinator",
             "eth_address": ows_wallet["eth_address"],
             "sol_address": sol_wallet["pubkey"],
-            "budget_cap": request.budget,
-            "balance": request.budget,
+            "budget_cap": body.budget,
+            "balance": body.budget,
             "api_key_id": f"regis_api_{uuid.uuid4().hex[:8]}",
         })
         solana_service.register(wallet_record["id"], sol_wallet["privkey_hex"])
 
         task_record = await asyncio.to_thread(pb.create, "tasks", {
-            "description": request.description,
-            "total_budget": request.budget,
+            "description": body.description,
+            "total_budget": body.budget,
             "status": "pending",
             "coordinator_wallet_id": wallet_record["id"],
         })
@@ -164,8 +164,8 @@ async def submit_task(http_req: Request, request: TaskSubmitRequest):
         await _audit(
             "task_submitted",
             task_record["id"],
-            f"REGIS accepted task: {request.description[:60]}",
-            {"budget": request.budget, "coordinator_wallet": wallet_record["id"]},
+            f"REGIS accepted task: {body.description[:60]}",
+            {"budget": body.budget, "coordinator_wallet": wallet_record["id"]},
         )
 
         return TaskSubmitResponse(task_id=task_record["id"], coordinator_wallet=wallet_record)
@@ -176,11 +176,11 @@ async def submit_task(http_req: Request, request: TaskSubmitRequest):
 
 @router.post("/decompose", response_model=TaskDecomposeResponse)
 @limiter.limit("20/hour")
-async def decompose_task(http_req: Request, request: TaskDecomposeRequest):
-    """Deterministically decompose task — Claude picks the right agents, not all 5."""
+async def decompose_task(request: Request, body: TaskDecomposeRequest):
+    """Deterministically decompose task — DeepSeek picks the right agents, not all 5."""
     try:
-        _validate_record_id(request.task_id)
-        task = await asyncio.to_thread(pb.get, "tasks", request.task_id)
+        _validate_record_id(body.task_id)
+        task = await asyncio.to_thread(pb.get, "tasks", body.task_id)
 
         # Step 1: Claude analyzes task → picks which agents to spawn + who leads
         # Filter out locked agents before analysis
@@ -207,7 +207,7 @@ async def decompose_task(http_req: Request, request: TaskDecomposeRequest):
         async def _create_bundle(i: int, st_data: Dict) -> tuple:
             """Parallel: create OWS + Solana wallet + PocketBase record + sub_task."""
             persona = st_data["persona"]
-            slug = request.task_id[-6:]
+            slug = body.task_id[-6:]
 
             ows_w, sol_w = await asyncio.gather(
                 asyncio.to_thread(ows.create_wallet, f"{persona['name'].lower()}-{slug}"),
@@ -227,7 +227,7 @@ async def decompose_task(http_req: Request, request: TaskDecomposeRequest):
             solana_service.register(wallet_rec["id"], sol_w["privkey_hex"])
 
             st_rec = await asyncio.to_thread(pb.create, "sub_tasks", {
-                "task_id": request.task_id,
+                "task_id": body.task_id,
                 "agent_id": persona["name"],          # "ATLAS", "CIPHER", …
                 "wallet_id": wallet_rec["id"],
                 "description": st_data["description"],
@@ -250,7 +250,7 @@ async def decompose_task(http_req: Request, request: TaskDecomposeRequest):
         agent_wallets = [r[0] for r in results]
         sub_tasks = [r[1] for r in results]
 
-        await asyncio.to_thread(pb.update, "tasks", request.task_id, {"status": "decomposed"})
+        await asyncio.to_thread(pb.update, "tasks", body.task_id, {"status": "decomposed"})
 
         return TaskDecomposeResponse(sub_tasks=sub_tasks, agent_wallets=agent_wallets)
 
@@ -260,10 +260,10 @@ async def decompose_task(http_req: Request, request: TaskDecomposeRequest):
 
 @router.post("/execute", response_model=TaskExecuteResponse)
 @limiter.limit("20/hour")
-async def execute_task(http_req: Request, request: TaskExecuteRequest, background_tasks: BackgroundTasks):
+async def execute_task(request: Request, body: TaskExecuteRequest, background_tasks: BackgroundTasks):
     """Kick off parallel execution in the background."""
     try:
-        background_tasks.add_task(execute_task_background, request.task_id)
+        background_tasks.add_task(execute_task_background, body.task_id)
         return TaskExecuteResponse(status="running")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to start execution: {str(e)}")

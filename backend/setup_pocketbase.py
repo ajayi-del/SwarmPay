@@ -42,7 +42,8 @@ collections = [
             {"name": "description", "type": "text"},
             {"name": "budget_allocated", "type": "number"},
             {"name": "status", "type": "text"},
-            {"name": "output", "type": "text"}
+            {"name": "output", "type": "text"},
+            {"name": "is_lead", "type": "bool"}
         ]
     },
     {
@@ -66,6 +67,16 @@ collections = [
             {"name": "entity_id", "type": "text"},
             {"name": "message", "type": "text"},
             {"name": "metadata", "type": "json"}
+        ]
+    },
+    {
+        "name": "agent_reputation",
+        "type": "base",
+        "schema": [
+            {"name": "agent_name", "type": "text"},
+            {"name": "reputation", "type": "number"},
+            {"name": "tasks_completed", "type": "number"},
+            {"name": "locked", "type": "bool"}
         ]
     }
 ]
