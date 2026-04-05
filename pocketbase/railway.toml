@@ -3,8 +3,9 @@ builder = "dockerfile"
 dockerfilePath = "Dockerfile"
 
 [deploy]
+startCommand = "sh -c './pocketbase serve --http=0.0.0.0:${PORT:-8090} --dir=/pb/pb_data'"
 healthcheckPath = "/"
-healthcheckTimeout = 120
+healthcheckTimeout = 180
 restartPolicyType = "on_failure"
 
 # Attach a Railway volume to /pb/pb_data for persistent storage.
