@@ -5,7 +5,7 @@ Analytics Router — Token economy endpoints.
 
 from fastapi import APIRouter, Query
 from services.model_service import get_session_summary
-from database.db import PocketBaseService
+from services.pocketbase import PocketBaseService
 import asyncio
 
 pb = PocketBaseService()
