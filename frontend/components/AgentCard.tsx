@@ -14,6 +14,90 @@ import AgentAvatar from "@/components/AgentAvatar";
 import { useModeStore } from "@/lib/modeStore";
 import { useSolRate } from "@/lib/useSolRate";
 
+/* ── God Mode Terminal ────────────────────────────────────────────────── */
+
+function GodModeTerminal({ agentId, rc }: { agentId: string; rc: string }) {
+  const [logIndex, setLogIndex] = useState(0);
+
+  const LOGS: Record<string, string[]> = {
+    ATLAS: [
+      "Initializing DuckDuckGo sandbox...",
+      "Bypassing search rate limits...",
+      "Extracting Web SERP context...",
+      "Compiling source index...",
+    ],
+    CIPHER: [
+      "Loading HuggingFace FinBERT...",
+      "Executing quantitative NLP backtest...",
+      "Provisioning E2B secure python container...",
+      "Calculating Bullish/Bearish signal...",
+    ],
+    FORGE: [
+      "Aggregating pipeline context...",
+      "Executing recursive synthesis...",
+      "Formatting Markdown report...",
+      "Injecting Deterministic Receipt...",
+    ],
+    BISHOP: [
+      "Scanning RPC endpoints...",
+      "Querying Allium Oracle for anomalies...",
+      "Verifying MoonPay fiat paths...",
+      "Approving compliance matrix...",
+    ],
+    "SØN": [
+      "Waking up...",
+      "Simulating Uniblock cross-chain route...",
+      "Estimating Solana -> Base gas fees...",
+      "Broadcasting XMTP payload to VIP...",
+    ]
+  };
+
+  const logs = LOGS[agentId] || [
+    "Establishing secure connection...",
+    "Routing query through proxy...",
+    "Awaiting agent response...",
+  ];
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setLogIndex((i) => (i + 1) % logs.length);
+    }, 2500); // cycle every 2.5s
+    return () => clearInterval(id);
+  }, [logs.length]);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, height: 0 }}
+      animate={{ opacity: 1, height: "auto" }}
+      exit={{ opacity: 0, height: 0 }}
+      className="mt-2 text-[10px] font-jb p-2 rounded max-w-full overflow-hidden whitespace-nowrap"
+      style={{
+        background: "#0d0d14",
+        border: `1px solid ${rc}40`,
+        color: "var(--text-dim)",
+      }}
+    >
+      <span style={{ color: rc, fontWeight: 800 }}>{`> `}</span>
+      <motion.span
+        key={logIndex}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.3 }}
+      >
+        {logs[logIndex]}
+      </motion.span>
+      <motion.span
+        animate={{ opacity: [0, 1, 0] }}
+        transition={{ repeat: Infinity, duration: 0.8 }}
+        style={{ color: rc, marginLeft: 2 }}
+      >
+        █
+      </motion.span>
+    </motion.div>
+  );
+}
+
 /* ── Extended output type ────────────────────────────────────────────── */
 
 interface X402Payment {
@@ -679,16 +763,19 @@ export default function AgentCard({ subTask, payment, peerPayment, index, reputa
         )}
       </div>
 
-      {/* ── Countdown timer ── */}
+      {/* ── Countdown timer & God Mode Terminal ── */}
       {isLive && countdown !== null && (
-        <div className="flex items-center gap-1.5 text-xs font-jb"
-          style={{ color: countdown <= 30 ? "#ef4444" : "var(--text-dim)" }}>
-          <span>⏱</span>
-          <span>{fmtCountdown(countdown)} remaining</span>
-          {countdown <= 30 && (
-            <span className="animate-status-pulse" style={{ color: "#ef4444" }}>· DMS ARMED</span>
-          )}
-        </div>
+        <>
+          <div className="flex items-center gap-1.5 text-xs font-jb"
+            style={{ color: countdown <= 30 ? "#ef4444" : "var(--text-dim)" }}>
+            <span>⏱</span>
+            <span>{fmtCountdown(countdown)} remaining</span>
+            {countdown <= 30 && (
+              <span className="animate-status-pulse" style={{ color: "#ef4444" }}>· DMS ARMED</span>
+            )}
+          </div>
+          <GodModeTerminal agentId={persona.name} rc={rc} />
+        </>
       )}
 
       {/* ── Output area ── */}

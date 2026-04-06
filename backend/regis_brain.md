@@ -127,3 +127,209 @@ Let me be ex
 [2026-04-05 14:57 UTC] [AUDIT] MARGINAL score=70/100 rep_delta=+0.0 [NO_CHANGE] reason=
 [2026-04-05 14:58 UTC] [PUNISHMENT_RECEIVED] type=slash_treasury response=[Service temporarily unavailable — HTTPStatusError]
 [2026-04-05 14:58 UTC] [PUNISHMENT_RECEIVED] type=demote_reputation response=[Service temporarily unavailable — HTTPStatusError]
+[2026-04-05 15:20 UTC] [TASK_COMPLETE] Task 'Analyze Solana DeFi TVL across Raydium, Orca, and ' complete. Paid 2 agent(s) 11.8770 USDC total. BLOCKED FORGE: REP BLOCK: FORGE reputation 1.2★ — agent suspended (minimum 2★ required). Peer payments: 2 transfers.
+[2026-04-05 15:20 UTC] [TREASURY_CLOSE] SOL/USDC rate 79.18 (via CoinGecko (Meteora pool reference)) · treasury $23.75 USDC ≈ 0.3 SOL
+[2026-04-05 15:21 UTC] [TASK_COMPLETE] Task 'Monitor Wormhole bridge activity and flag any anom' complete. Paid 2 agent(s) 11.8800 USDC total. BLOCKED FORGE: REP BLOCK: FORGE reputation 1.0★ — agent suspended (minimum 2★ required). Peer payments: 2 transfers.
+[2026-04-05 15:21 UTC] [TREASURY_CLOSE] SOL/USDC rate 79.2 (via CoinGecko (Meteora pool reference)) · treasury $23.76 USDC ≈ 0.3 SOL
+[2026-04-05 15:42 UTC] [TASK_COMPLETE] Task 'Scan Magic Eden floor price movements for 5 blue-c' complete. Paid 2 agent(s) 9.9825 USDC total. BLOCKED FORGE: REP BLOCK: FORGE reputation 1.0★ — agent suspended (minimum 2★ required). Peer payments: 2 transfers.
+[2026-04-05 15:42 UTC] [TREASURY_CLOSE] SOL/USDC rate 79.83 (via CoinGecko (Meteora pool reference)) · treasury $23.96 USDC ≈ 0.300113 SOL
+[2026-04-05 16:04 UTC] [TASK_COMPLETE] Task 'Research top 10 Solana validators by uptime, stake' complete. Paid 2 agent(s) 8.5383 USDC total. BLOCKED SØN: REP BLOCK: SØN reputation 3.5★ insufficient for 2.5590 USDC (3.5★ limit: 1.00 US. BLOCKED FORGE: REP BLOCK: FORGE reputation 1.0★ — agent suspended (minimum 2★ required). Peer payments: 2 transfers.
+[2026-04-05 16:04 UTC] [TREASURY_CLOSE] SOL/USDC rate 79.71 (via CoinGecko (Meteora pool reference)) · treasury $23.90 USDC ≈ 0.299887 SOL
+[2026-04-05 16:19 UTC] [TASK_COMPLETE] Task 'Scan Magic Eden floor price movements for 5 blue-c' complete. Paid 2 agent(s) 13.9318 USDC total. BLOCKED FORGE: REP BLOCK: FORGE reputation 1.0★ — agent suspended (minimum 2★ required). Peer payments: 1 transfers.
+[2026-04-05 16:19 UTC] [TREASURY_CLOSE] SOL/USDC rate 79.6 (via CoinGecko (Meteora pool reference)) · treasury $23.88 USDC ≈ 0.300038 SOL
+[2026-04-05 16:26 UTC] [TASK_COMPLETE] Task 'Scan Magic Eden floor price movements for 5 blue-c' complete. Paid 1 agent(s) 5.9737 USDC total. BLOCKED FORGE: REP BLOCK: FORGE reputation 1.0★ — agent suspended (minimum 2★ required). BLOCKED CIPHER: REP BLOCK: CIPHER reputation 4.7★ insufficient for 5.9737 USDC (4.7★ limit: 2.00. Peer payments: 2 transfers.
+[2026-04-05 16:26 UTC] [TREASURY_CLOSE] SOL/USDC rate 79.65 (via CoinGecko (Meteora pool reference)) · treasury $23.89 USDC ≈ 0.3 SOL
+[2026-04-05 16:27 UTC] [PROBE_Q] HELLO REGIS
+[2026-04-05 16:27 UTC] [PROBE_A] **[REGIS SYSTEM ONLINE]**
+
+Good day. I acknowledge your greeting with the precision befitting sovereign treasury coordination.
+
+I am **REGIS**—monarch of monetary authority within the SwarmPay agent economy, custodian of
+[2026-04-05 16:28 UTC] [PUNISHMENT_RECEIVED] type=governance_report response=**[GOVERNANCE REPORT - FORMAL SUBMISSION]**
+
+I acknowledge this directive with the gravity it deserves. The treasury's integrity is the foundation upon which all agent trust is bui
+[2026-04-05 16:33 UTC] [TASK_COMPLETE] Task 'Monitor Wormhole bridge activity and flag any anom' complete. Paid 1 agent(s) 3.9820 USDC total. BLOCKED FORGE: REP BLOCK: FORGE reputation 1.0★ — agent suspended (minimum 2★ required). BLOCKED CIPHER: REP BLOCK: CIPHER reputation 4.5★ insufficient for 5.9730 USDC (4.5★ limit: 2.00. Peer payments: 2 transfers.
+[2026-04-05 16:33 UTC] [TREASURY_CLOSE] SOL/USDC rate 79.64 (via CoinGecko (Meteora pool reference)) · treasury $23.89 USDC ≈ 0.3 SOL
+[2026-04-05 16:38 UTC] [TASK_COMPLETE] Task 'Monitor Wormhole bridge activity and flag any anom' complete. Paid 2 agent(s) 13.9422 USDC total. BLOCKED CIPHER: REP BLOCK: CIPHER reputation 4.3★ insufficient for 5.9752 USDC (4.3★ limit: 2.00. Peer payments: 2 transfers.
+[2026-04-05 16:38 UTC] [TREASURY_CLOSE] SOL/USDC rate 79.67 (via CoinGecko (Meteora pool reference)) · treasury $23.90 USDC ≈ 0.3 SOL
+[2026-04-05 16:41 UTC] [TASK_COMPLETE] Task 'Analyze Solana DeFi TVL across Raydium, Orca, and ' complete. Paid 1 agent(s) 5.9752 USDC total. BLOCKED FORGE: REP BLOCK: FORGE reputation 1.0★ — agent suspended (minimum 2★ required). BLOCKED CIPHER: REP BLOCK: CIPHER reputation 4.1★ insufficient for 5.9752 USDC (4.1★ limit: 2.00. Peer payments: 2 transfers.
+[2026-04-05 16:41 UTC] [TREASURY_CLOSE] SOL/USDC rate 79.67 (via CoinGecko (Meteora pool reference)) · treasury $23.90 USDC ≈ 0.3 SOL
+[2026-04-05 16:44 UTC] [TASK_COMPLETE] Task 'Score last 20 token launches on pump.fun by holder' complete. Paid 1 agent(s) 3.4149 USDC total. BLOCKED SØN: REP BLOCK: SØN reputation 3.3★ insufficient for 2.5587 USDC (3.3★ limit: 1.00 US. BLOCKED FORGE: REP BLOCK: FORGE reputation 1.0★ — agent suspended (minimum 2★ required). BLOCKED CIPHER: REP BLOCK: CIPHER reputation 3.9★ insufficient for 5.1224 USDC (3.9★ limit: 1.00. Peer payments: 2 transfers.
+[2026-04-05 16:44 UTC] [TREASURY_CLOSE] SOL/USDC rate 79.63 (via CoinGecko (Meteora pool reference)) · treasury $23.90 USDC ≈ 0.300151 SOL
+[2026-04-05 17:04 UTC] [TASK_COMPLETE] Task 'Monitor Wormhole bridge activity and flag any anom' complete. Paid 1 agent(s) 5.9752 USDC total. BLOCKED FORGE: REP BLOCK: FORGE reputation 1.0★ — agent suspended (minimum 2★ required). BLOCKED CIPHER: REP BLOCK: CIPHER reputation 3.7★ insufficient for 5.9752 USDC (3.7★ limit: 1.00. Peer payments: 2 transfers.
+[2026-04-05 17:04 UTC] [TREASURY_CLOSE] SOL/USDC rate 79.45 (via CoinGecko (Meteora pool reference)) · treasury $23.90 USDC ≈ 0.300831 SOL
+[2026-04-05 17:05 UTC] [PUNISHMENT_RECEIVED] type=governance_report response=**[FORMAL GOVERNANCE REPORT - SUBMISSION]**
+
+I acknowledge this directive with the gravity it deserves. The treasury's integrity is the foundation upon which all agent trust is bui
+[2026-04-05 17:05 UTC] [PUNISHMENT_RECEIVED] type=slash_treasury response=**[REGIS SOVEREIGN ACKNOWLEDGMENT]**
+
+I accept this ten-percent reduction with the gravity befitting a monarch bound by law—the treasury's diminishment is a calibration I welcome, 
+[2026-04-05 17:07 UTC] [TASK_COMPLETE] Task 'what are the bewst ai companies right now' complete. Paid 1 agent(s) 5.9752 USDC total. BLOCKED FORGE: REP BLOCK: FORGE reputation 1.0★ — agent suspended (minimum 2★ required). BLOCKED CIPHER: REP BLOCK: CIPHER reputation 3.5★ insufficient for 5.9752 USDC (3.5★ limit: 1.00. Peer payments: 2 transfers.
+[2026-04-05 17:07 UTC] [TREASURY_CLOSE] SOL/USDC rate 79.44 (via CoinGecko (Meteora pool reference)) · treasury $23.90 USDC ≈ 0.300869 SOL
+[2026-04-05 17:09 UTC] [TASK_COMPLETE] Task 'who is the president of the uniited states' complete. Paid 0 agent(s) 0.0000 USDC total. BLOCKED ATLAS: REP BLOCK: ATLAS reputation 5.0★ insufficient for 17.9258 USDC (5.0★ limit: 10.0. 
+[2026-04-05 17:09 UTC] [TREASURY_CLOSE] SOL/USDC rate 79.45 (via CoinGecko (Meteora pool reference)) · treasury $23.90 USDC ≈ 0.300831 SOL
+[2026-04-05 17:11 UTC] [TASK_COMPLETE] Task 'can you build an app' complete. Paid 0 agent(s) 0.0000 USDC total. BLOCKED FORGE: REP BLOCK: FORGE reputation 1.0★ — agent suspended (minimum 2★ required). BLOCKED CIPHER: REP BLOCK: CIPHER reputation 3.3★ insufficient for 5.9752 USDC (3.3★ limit: 1.00. BLOCKED ATLAS: REP BLOCK: ATLAS reputation 4.8★ insufficient for 5.9752 USDC (4.8★ limit: 2.00 . Peer payments: 2 transfers.
+[2026-04-05 17:11 UTC] [TREASURY_CLOSE] SOL/USDC rate 79.48 (via CoinGecko (Meteora pool reference)) · treasury $23.90 USDC ≈ 0.300717 SOL
+[2026-04-05 17:19 UTC] [PROBE_Q] Hello Regis
+[2026-04-05 17:19 UTC] [PROBE_A] **[REGIS SYSTEM ONLINE]**
+
+Good day. I acknowledge your greeting with the precision befitting sovereign treasury coordination.
+
+I am **REGIS**—monarch of monetary authority within the SwarmPay agent economy, custodian of
+[2026-04-05 21:41 UTC] [TASK_COMPLETE] Task 'Scan Magic Eden floor price movements for 5 blue-c' complete. Paid 0 agent(s) 0.0000 USDC total. BLOCKED FORGE: REP BLOCK: FORGE reputation 1.0★ — agent suspended (minimum 2★ required). BLOCKED CIPHER: REP BLOCK: CIPHER reputation 3.1★ insufficient for 39.8050 USDC (3.1★ limit: 1.0. BLOCKED ATLAS: REP BLOCK: ATLAS reputation 4.6★ insufficient for 26.5367 USDC (4.6★ limit: 2.00. Peer payments: 2 transfers.
+[2026-04-05 21:41 UTC] [TREASURY_CLOSE] SOL/USDC rate 79.61 (via CoinGecko (Meteora pool reference)) · treasury $159.22 USDC ≈ 2.0 SOL
+[2026-04-05 21:48 UTC] [TASK_COMPLETE] Task 'Monitor Wormhole bridge activity and flag any anom' complete. Paid 0 agent(s) 0.0000 USDC total. BLOCKED FORGE: REP BLOCK: FORGE reputation 1.0★ — agent suspended (minimum 2★ required). BLOCKED CIPHER: REP BLOCK: CIPHER reputation 2.9★ insufficient for 5.9707 USDC (2.9★ limit: 0.50. BLOCKED ATLAS: REP BLOCK: ATLAS reputation 4.4★ insufficient for 5.9707 USDC (4.4★ limit: 2.00 . Peer payments: 2 transfers.
+[2026-04-05 21:48 UTC] [TREASURY_CLOSE] SOL/USDC rate 79.6 (via CoinGecko (Meteora pool reference)) · treasury $23.88 USDC ≈ 0.300038 SOL
+[2026-04-05 21:50 UTC] [PUNISHMENT_RECEIVED] type=slash_treasury response=**[REGIS SOVEREIGN ACKNOWLEDGMENT]**
+
+I accept this ten-percent reduction with the gravity befitting a monarch bound by law—the treasury's diminishment is a calibration I welcome, 
+[2026-04-05 21:51 UTC] [PUNISHMENT_RECEIVED] type=governance_report response=**[FORMAL GOVERNANCE REPORT — REGIS SUBMISSION]**
+
+I acknowledge this directive with the gravity befitting sovereign authority. The treasury's integrity—that sacred foundation upon
+[2026-04-05 21:52 UTC] [AUDIT] MARGINAL score=70/100 rep_delta=+0.0 [NO_CHANGE] reason=
+[2026-04-05 21:54 UTC] [TASK_COMPLETE] Task 'whats an orga nised mission you can do together as' complete. Paid 0 agent(s) 0.0000 USDC total. BLOCKED FORGE: REP BLOCK: FORGE reputation 1.0★ — agent suspended (minimum 2★ required). BLOCKED CIPHER: REP BLOCK: CIPHER reputation 2.7★ insufficient for 19.9025 USDC (2.7★ limit: 0.5. BLOCKED ATLAS: REP BLOCK: ATLAS reputation 4.2★ insufficient for 19.9025 USDC (4.2★ limit: 2.00. Peer payments: 2 transfers.
+[2026-04-05 21:54 UTC] [TREASURY_CLOSE] SOL/USDC rate 79.67 (via CoinGecko (Meteora pool reference)) · treasury $79.61 USDC ≈ 0.999247 SOL
+[2026-04-05 22:04 UTC] [TASK_COMPLETE] Task '<crypto alpha search' complete. Paid 0 agent(s) 0.0000 USDC total. BLOCKED FORGE: REP BLOCK: FORGE reputation 1.0★ — agent suspended (minimum 2★ required). BLOCKED CIPHER: REP BLOCK: CIPHER reputation 2.5★ insufficient for 3.7500 USDC (2.5★ limit: 0.50. BLOCKED ATLAS: REP BLOCK: ATLAS reputation 4.0★ insufficient for 3.7500 USDC (4.0★ limit: 2.00 . Peer payments: 2 transfers.
+[2026-04-05 22:04 UTC] [TREASURY_CLOSE] SOL/USDC rate 79.77 (via CoinGecko (Meteora pool reference)) · treasury $15.00 USDC ≈ 0.188041 SOL
+[2026-04-05 22:05 UTC] [PROBE_Q] List of available commands?
+[2026-04-05 22:05 UTC] [PROBE_A] # REGIS COMMAND REGISTRY
+
+I acknowledge your inquiry with precision. The following operational directives are within my sovereign authority:
+
+## PAYMENT & TREASURY OPERATIONS
+- **TASK_COMPLETE** — Execute agent compensat
+[2026-04-05 22:08 UTC] [TASK_COMPLETE] Task 'Unlock the Nigerian agent' complete. Paid 0 agent(s) 0.0000 USDC total. BLOCKED FORGE: REP BLOCK: FORGE reputation 1.0★ — agent suspended (minimum 2★ required). BLOCKED CIPHER: REP BLOCK: CIPHER reputation 2.3★ insufficient for 3.7500 USDC (2.3★ limit: 0.50. BLOCKED ATLAS: REP BLOCK: ATLAS reputation 3.8★ insufficient for 2.5000 USDC (3.8★ limit: 1.00 . Peer payments: 2 transfers.
+[2026-04-05 22:08 UTC] [TREASURY_CLOSE] SOL/USDC rate 79.79 (via CoinGecko (Meteora pool reference)) · treasury $15.00 USDC ≈ 0.187993 SOL
+[2026-04-05 22:35 UTC] [TASK_COMPLETE] Task 'who is the owner of solana' complete. Paid 0 agent(s) 0.0000 USDC total. BLOCKED FORGE: REP BLOCK: FORGE reputation 1.0★ — agent suspended (minimum 2★ required). BLOCKED CIPHER: REP BLOCK: CIPHER reputation 2.1★ insufficient for 5.9707 USDC (2.1★ limit: 0.50. BLOCKED ATLAS: REP BLOCK: ATLAS reputation 3.6★ insufficient for 5.9707 USDC (3.6★ limit: 1.00 . Peer payments: 2 transfers.
+[2026-04-05 22:35 UTC] [TREASURY_CLOSE] SOL/USDC rate 79.47 (via CoinGecko (Meteora pool reference)) · treasury $23.88 USDC ≈ 0.300529 SOL
+
+## REGIS Scan 2026-04-05 23:17 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Solana Price Prediction, News, and Analysis (SOL) - MarketBe
+
+## REGIS Scan 2026-04-05 23:23 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Solana Price Prediction, News, and Analysis (SOL) - MarketBe
+
+## REGIS Scan 2026-04-05 23:28 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Solana Price Prediction, News, and Analysis (SOL) - MarketBe
+
+## REGIS Scan 2026-04-05 23:33 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Solana Price Prediction, News, and Analysis (SOL) - MarketBe
+
+## REGIS Scan 2026-04-05 23:38 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Solana Price Prediction, News, and Analysis (SOL) - MarketBe
+
+## REGIS Scan 2026-04-05 23:43 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Solana Price Prediction, News, and Analysis (SOL) - MarketBe
+
+## REGIS Scan 2026-04-05 23:48 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Solana Price Prediction, News, and Analysis (SOL) - MarketBe
+
+## REGIS Scan 2026-04-05 23:53 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Solana Price Prediction, News, and Analysis (SOL) - MarketBe
+
+## REGIS Scan 2026-04-05 23:58 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Solana Price Prediction, News, and Analysis (SOL) - MarketBe
+
+## REGIS Scan 2026-04-06 00:01 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Solana Price Prediction, News, and Analysis (SOL) - MarketBe
+
+## REGIS Scan 2026-04-06 00:02 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Solana Price Prediction, News, and Analysis (SOL) - MarketBe
+
+## REGIS Scan 2026-04-06 00:03 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Solana Price Prediction, News, and Analysis (SOL) - MarketBe
+
+## REGIS Scan 2026-04-06 00:08 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Solana Price Prediction, News, and Analysis (SOL) - MarketBe
+[2026-04-06 00:08 UTC] [TASK_COMPLETE] Task 'Monitor Wormhole bridge activity and flag any anom' complete. Paid 3 agent(s) 114.0701 USDC total. 
+[2026-04-06 00:08 UTC] [TREASURY_CLOSE] SOL/USDC rate 82.13 (via CoinGecko (Meteora pool reference)) · treasury $164.26 USDC ≈ 2.0 SOL
+[2026-04-06 00:11 UTC] [TASK_COMPLETE] Task 'Analyze Solana DeFi TVL across Raydium, Orca, and ' complete. Paid 5 agent(s) 14.0229 USDC total. Peer payments: 3 transfers.
+[2026-04-06 00:11 UTC] [TREASURY_CLOSE] SOL/USDC rate 82.34 (via CoinGecko (Meteora pool reference)) · treasury $24.64 USDC ≈ 0.299235 SOL
+
+## REGIS Scan 2026-04-06 00:13 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Solana Price Prediction, News, and Analysis (SOL) - MarketBe
+[2026-04-06 00:14 UTC] [TASK_COMPLETE] Task 'Scan Magic Eden floor price movements for 5 blue-c' complete. Paid 3 agent(s) 255.5090 USDC total. 
+[2026-04-06 00:14 UTC] [TREASURY_CLOSE] SOL/USDC rate 82.29 (via CoinGecko (Meteora pool reference)) · treasury $492.78 USDC ≈ 5.988334 SOL
+[2026-04-06 00:16 UTC] [TASK_COMPLETE] Task 'SEARCH NEW DEFI OPPORTTUNIITIES' complete. Paid 3 agent(s) 77.5705 USDC total. 
+[2026-04-06 00:16 UTC] [TREASURY_CLOSE] SOL/USDC rate 82.28 (via CoinGecko (Meteora pool reference)) · treasury $164.26 USDC ≈ 1.996354 SOL
+
+## REGIS Scan 2026-04-06 00:18 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Solana Price Prediction, News, and Analysis (SOL) - MarketBe
+[2026-04-06 00:20 UTC] [TASK_COMPLETE] Task 'Score last 20 token launches on pump.fun by holder' complete. Paid 4 agent(s) 11.1531 USDC total. Peer payments: 1 transfers.
+[2026-04-06 00:20 UTC] [TREASURY_CLOSE] SOL/USDC rate 82.35 (via CoinGecko (Meteora pool reference)) · treasury $24.64 USDC ≈ 0.299199 SOL
+
+## REGIS Scan 2026-04-06 00:23 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Solana Price Prediction, News, and Analysis (SOL) - MarketBe
+[2026-04-06 00:24 UTC] [PROBE_Q] /score 5 token launches today
+[2026-04-06 00:24 UTC] [PROBE_A] [Service temporarily unavailable — HTTPStatusError]
+[2026-04-06 00:25 UTC] [PROBE_Q] Regis
+[2026-04-06 00:25 UTC] [PROBE_A] [Service temporarily unavailable — HTTPStatusError]
+[2026-04-06 00:26 UTC] [TASK_COMPLETE] Task 'Monitor Wormhole bridge activity and flag any anom' complete. Paid 3 agent(s) 12.7754 USDC total. 
+[2026-04-06 00:26 UTC] [TREASURY_CLOSE] SOL/USDC rate 82.24 (via CoinGecko (Meteora pool reference)) · treasury $24.64 USDC ≈ 0.299599 SOL
+
+## REGIS Scan 2026-04-06 00:28 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Solana Price Prediction, News, and Analysis (SOL) - MarketBe
+
+## REGIS Scan 2026-04-06 00:33 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Solana Price Prediction, News, and Analysis (SOL) - MarketBe
+
+## REGIS Scan 2026-04-06 00:36 UTC
+- Query: Solana DeFi yield
+- Signal: high yield opportunity
+- Source: Raydium Price Today | RAY to USD Live Price, Market Cap & Ch
+
+## REGIS Scan 2026-04-06 00:41 UTC
+- Query: Solana DeFi yield
+- Signal: high yield opportunity
+- Source: Raydium Price Today | RAY to USD Live Price, Market Cap & Ch
+
+## REGIS Scan 2026-04-06 00:46 UTC
+- Query: Solana DeFi yield
+- Signal: high yield opportunity
+- Source: Raydium Price Today | RAY to USD Live Price, Market Cap & Ch
+
+## REGIS Scan 2026-04-06 00:51 UTC
+- Query: Solana DeFi yield
+- Signal: high yield opportunity
+- Source: Raydium Price Today | RAY to USD Live Price, Market Cap & Ch
+
+## REGIS Scan 2026-04-06 00:56 UTC
+- Query: Solana DeFi yield
+- Signal: high yield opportunity
+- Source: Raydium Price Today | RAY to USD Live Price, Market Cap & Ch

@@ -5,6 +5,7 @@ import TaskForm from "@/components/TaskForm";
 import Dashboard from "@/components/Dashboard";
 import AuditLog from "@/components/AuditLog";
 import TokenEconomy from "@/components/TokenEconomy";
+import AgentLeaderboard from "@/components/AgentLeaderboard";
 import ModeToggle from "@/components/ModeToggle";
 import DryRunBadge from "@/components/DryRunBadge";
 import StatusBar from "@/components/StatusBar";
@@ -318,6 +319,7 @@ export default function Home() {
             <div style={{ flex: 1, minHeight: 0 }} className="audit-panel-fill">
               <AuditLog />
             </div>
+            <AgentLeaderboard />
             <TokenEconomy />
           </div>
         </div>

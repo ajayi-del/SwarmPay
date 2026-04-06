@@ -124,44 +124,28 @@ def _claude() -> Anthropic:
     return _claude_client
 
 
+from services.retry_decorator import with_retry
+
+@with_retry(max_retries=_MAX_RETRIES, base_delay=_RETRY_DELAY)
 def call_claude(prompt: str, max_tokens: int = 300, system: str = "") -> str:
     """
-    Call Claude Haiku with retry logic.
-    Raises RuntimeError if all retries fail.
+    Call Claude Haiku with robust exponential backoff.
     """
     messages = [{"role": "user", "content": prompt}]
     kwargs: dict = {"model": CLAUDE_MODEL, "max_tokens": max_tokens, "messages": messages}
     if system:
         kwargs["system"] = system
 
-    last_exc: Exception | None = None
-    for attempt in range(_MAX_RETRIES + 1):
-        try:
-            resp = _claude().messages.create(**kwargs)
-            return resp.content[0].text.strip()
-        except RateLimitError as exc:
-            logger.warning("[claude] rate limited (attempt %d/%d): %s", attempt + 1, _MAX_RETRIES + 1, exc)
-            last_exc = exc
-            time.sleep(_RETRY_DELAY * (attempt + 1))
-        except (APIConnectionError, APIError) as exc:
-            logger.warning("[claude] API error (attempt %d/%d): %s", attempt + 1, _MAX_RETRIES + 1, exc)
-            last_exc = exc
-            time.sleep(_RETRY_DELAY)
-        except Exception as exc:
-            logger.error("[claude] unexpected error: %s", exc)
-            last_exc = exc
-            break
-
-    logger.error("[claude] all retries exhausted: %s", last_exc)
-    raise RuntimeError(f"Claude API unavailable: {last_exc}") from last_exc
+    resp = _claude().messages.create(**kwargs)
+    return resp.content[0].text.strip()
 
 
 def call_deepseek(prompt: str, max_tokens: int = 300, system: str = "") -> str:
     """
-    Call DeepSeek Chat via httpx (OpenAI-compatible) with retry + Claude fallback.
+    Call DeepSeek Chat via httpx (OpenAI-compatible) with robust exponential backoff.
     Falls back to Claude if:
       - DEEPSEEK_API_KEY is missing
-      - DeepSeek is unreachable after retries
+      - DeepSeek is unreachable after all retries
     """
     if not DEEPSEEK_KEY:
         return call_claude(prompt, max_tokens, system)
@@ -171,56 +155,41 @@ def call_deepseek(prompt: str, max_tokens: int = 300, system: str = "") -> str:
         messages.append({"role": "system", "content": system})
     messages.append({"role": "user", "content": prompt})
 
-    last_exc: Exception | None = None
-    for attempt in range(_MAX_RETRIES + 1):
-        try:
-            with httpx.Client(timeout=30.0) as client:
-                r = client.post(
-                    f"{DEEPSEEK_BASE}/chat/completions",
-                    headers={
-                        "Authorization": f"Bearer {DEEPSEEK_KEY}",
-                        "Content-Type": "application/json",
-                    },
-                    json={
-                        "model": DEEPSEEK_MODEL,
-                        "messages": messages,
-                        "max_tokens": max_tokens,
-                        "temperature": 0.7,
-                    },
-                )
-                r.raise_for_status()
-                data = r.json()
-                content = data["choices"][0]["message"]["content"].strip()
-                # Capture usage for token tracking (best-effort)
-                usage = data.get("usage", {})
-                _deepseek_last_tokens[0] = int(usage.get("total_tokens", 0) or
-                                                usage.get("prompt_tokens", 0) + usage.get("completion_tokens", 0))
-                return content
-        except httpx.TimeoutException as exc:
-            logger.warning("[deepseek] timeout (attempt %d/%d)", attempt + 1, _MAX_RETRIES + 1)
-            last_exc = exc
-            time.sleep(_RETRY_DELAY)
-        except httpx.HTTPStatusError as exc:
-            if exc.response.status_code == 429:
-                logger.warning("[deepseek] rate limited, retrying...")
-                last_exc = exc
-                time.sleep(_RETRY_DELAY * 2)
-            else:
-                logger.error("[deepseek] HTTP %d: %s", exc.response.status_code, exc)
-                last_exc = exc
-                break
-        except Exception as exc:
-            logger.error("[deepseek] error (attempt %d/%d): %s", attempt + 1, _MAX_RETRIES + 1, exc)
-            last_exc = exc
-            time.sleep(_RETRY_DELAY)
+    @with_retry(max_retries=_MAX_RETRIES, base_delay=_RETRY_DELAY)
+    def _attempt_call():
+        with httpx.Client(timeout=30.0) as client:
+            r = client.post(
+                f"{DEEPSEEK_BASE}/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {DEEPSEEK_KEY}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": DEEPSEEK_MODEL,
+                    "messages": messages,
+                    "max_tokens": max_tokens,
+                    "temperature": 0.7,
+                },
+            )
+            r.raise_for_status()
+            data = r.json()
+            content = data["choices"][0]["message"]["content"].strip()
+            # Capture usage for token tracking
+            usage = data.get("usage", {})
+            _deepseek_last_tokens[0] = int(usage.get("total_tokens", 0) or
+                                            usage.get("prompt_tokens", 0) + usage.get("completion_tokens", 0))
+            return content
 
-    # All DeepSeek retries exhausted — fall back to Claude
-    logger.warning("[deepseek] all retries failed (%s), falling back to Claude", last_exc)
     try:
-        return call_claude(prompt, max_tokens, system)
+        return _attempt_call()
     except Exception as exc:
-        logger.error("[fallback claude] also failed: %s", exc)
-        return f"[Service temporarily unavailable — {type(last_exc).__name__}]"
+        # All DeepSeek retries exhausted — fall back to Claude
+        logger.warning("[deepseek] all retries failed (%s), falling back to Claude", exc)
+        try:
+            return call_claude(prompt, max_tokens, system)
+        except Exception as fallback_exc:
+            logger.error("[fallback claude] also failed: %s", fallback_exc)
+            return f"[Service temporarily unavailable — {type(fallback_exc).__name__}]"
 
 
 def route(is_lead: bool, prompt: str, max_tokens: int = 300, system: str = "") -> str:

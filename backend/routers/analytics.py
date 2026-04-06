@@ -5,6 +5,10 @@ Analytics Router — Token economy endpoints.
 
 from fastapi import APIRouter, Query
 from services.model_service import get_session_summary
+from database.db import PocketBaseService
+import asyncio
+
+pb = PocketBaseService()
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 
@@ -35,3 +39,12 @@ async def get_token_usage(task_id: str = Query(default="")):
         entry["cost_sol"] = round(entry["cost_usd"] / rate, 9) if rate else 0.0
 
     return summary
+
+@router.get("/reputation")
+async def get_reputation():
+    """Return current agent reputations for the economy leaderboard."""
+    try:
+        reps = await asyncio.to_thread(pb.get_all_reputations)
+        return reps
+    except Exception as exc:
+        return {"error": str(exc)}

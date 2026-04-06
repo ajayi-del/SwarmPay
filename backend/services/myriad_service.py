@@ -226,6 +226,45 @@ class MyriadService:
         except Exception:
             return False
 
+    # ── Internal Consensus Markets ─────────────────────────────────────────
+
+    def create_internal_market(self, task_id: str) -> str:
+        """Create a mock internal prediction market for quality consensus."""
+        market_id = f"market_{task_id}"
+        if not hasattr(self, "_active_markets"):
+            self._active_markets = {}
+        self._active_markets[market_id] = {"bets": []}
+        logger.info("[myriad] Created internal quality market: %s", market_id)
+        return market_id
+
+    def place_bet(self, market_id: str, agent_id: str, bet_amount: float, outcome: bool):
+        """Simulate an agent staking its treasury on the final DeepSeek quality score."""
+        if not hasattr(self, "_active_markets") or market_id not in self._active_markets:
+            return
+        self._active_markets[market_id]["bets"].append({
+            "agent_id": agent_id,
+            "bet_amount": bet_amount,
+            "outcome": outcome
+        })
+        logger.debug("[myriad market] %s staked %.4f SOL on expectation: %s", agent_id, bet_amount, outcome)
+
+    def resolve_market(self, market_id: str, quality_score: float) -> dict:
+        """Resolve the Myriad market based on the ground-truth DeepSeek score (>=8.0 is success)."""
+        target_outcome = (quality_score >= 8.0)
+        logger.info("[myriad market] Resolving %s with official score: %.1f. Winning outcome: %s", market_id, quality_score, target_outcome)
+        
+        if not hasattr(self, "_active_markets") or market_id not in self._active_markets:
+            return {"winners": []}
+        
+        market = self._active_markets.pop(market_id)
+        winners = []
+        for bet in market["bets"]:
+            if bet["outcome"] == target_outcome:
+                winners.append(bet["agent_id"])
+                logger.info("[myriad market payout] %s guessed correctly and earned yield!", bet["agent_id"])
+                
+        return {"winners": winners, "market_id": market_id, "resolved": True}
+
     # ── Internal ───────────────────────────────────────────────────────────
 
     def _headers(self) -> dict:

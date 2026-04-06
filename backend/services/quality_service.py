@@ -15,10 +15,12 @@ Token budget: ~80 tokens per evaluation call (DeepSeek).
 
 import json
 import os
+import random
 from typing import Dict, List
 from collections import defaultdict
 
 from services.model_service import call_deepseek, call_claude
+from services.myriad_service import myriad_service
 
 # ── Cumulative quality tracking for REGIS challenge ───────────────────────────
 # In-memory: {agent_name: [score, score, ...]}
@@ -31,6 +33,7 @@ CHALLENGE_MIN_TASKS       = 3     # minimum tasks before eligible
 
 
 def evaluate_work(
+    task_id: str,
     task_goal: str,
     agent_name: str,
     agent_output: str,
@@ -38,11 +41,17 @@ def evaluate_work(
 ) -> Dict:
     """
     Score agent output quality relative to task goal. Returns 0-10.
-    Scoring priority:
-      1. HuggingFace zero-shot classification (BART-large-MNLI)
-      2. DeepSeek LLM evaluation (fallback)
+    Integrates Myriad Internal Prediction Market for pre-consensus betting.
     Returns {"score": float, "reason": str, "payment_multiplier": float, "scorer": str}
     """
+    # ── 0. Create Myriad Market & Simulate Pre-consensus Betting ─────────────
+    market_id = myriad_service.create_internal_market(task_id)
+    # Fellow agents bet on whether this agent_name will exceed the 8.0 mark.
+    bystanders = [a for a in ["ATLAS", "CIPHER", "FORGE", "SØN"] if a != agent_name]
+    for bystander in bystanders[:2]:  # Pick a couple of agents to place bets
+        guess_success = random.choice([True, False])
+        myriad_service.place_bet(market_id, bystander, bet_amount=0.005, outcome=guess_success)
+
     # ── 1. Try HuggingFace zero-shot scoring ─────────────────────────────────
     try:
         from services.hf_service import score_output as hf_score_output
@@ -87,11 +96,15 @@ def evaluate_work(
     multiplier = round(score / 10.0, 3)
     _quality_history[agent_name].append(score)
 
+    # ── 3. Resolve the Myriad Prediction Market ──────────────────────────────
+    market_resolution = myriad_service.resolve_market(market_id, score)
+
     return {
         "score": score,
         "reason": reason,
         "payment_multiplier": multiplier,
         "scorer": "deepseek/deepseek-chat",
+        "myriad_market": market_resolution, # Pass back market resolution stats
     }
 
 

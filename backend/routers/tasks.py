@@ -14,6 +14,7 @@ import logging
 import time
 import uuid
 from datetime import datetime, timezone
+from decimal import Decimal, ROUND_HALF_UP
 from typing import Dict, Any, List
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Request
 from fastapi.responses import StreamingResponse
@@ -371,7 +372,7 @@ async def execute_task_background(task_id: str):
                     output_text = parsed_out.get("text", "")[:300]
                     ctx_preview = " | ".join(f"{k}: {str(v)[:100]}" for k, v in shared_context.items())
                     quality = await asyncio.to_thread(
-                        evaluate_work, task_goal, agent_name, output_text, ctx_preview
+                        evaluate_work, task_id, task_goal, agent_name, output_text, ctx_preview
                     )
                     # Inject quality score into output JSON
                     parsed_out["quality_score"]  = quality["score"]
@@ -418,20 +419,24 @@ async def execute_task_background(task_id: str):
             except Exception as exc:
                 logger.error("[agent error] %s: %s", agent_name, exc)
                 await asyncio.to_thread(pb.update, "sub_tasks", sub_task["id"], {"status": "failed"})
-                new_rep = await asyncio.to_thread(pb.update_reputation, agent_name, -0.2)
-                await _audit("reputation_updated", agent_name,
-                             f"{agent_name} rep penalised → {new_rep:.2f}★ (work failed)",
-                             {"delta": -0.2, "new_reputation": new_rep})
-                await _notify_event("task_failed", f"⚠ {agent_name} FAILED\n{str(exc)[:120]}")
+                await _notify_event("task_failed", f"⚠ {agent_name} FAILED (Network/Infra)\n{str(exc)[:120]}")
 
         async def run_agent_with_dms(sub_task: Dict) -> None:
+            agent_name = sub_task["agent_id"]
             try:
                 await asyncio.wait_for(run_agent(sub_task), timeout=120.0)
             except asyncio.TimeoutError:
+                # Ghost Bug 2 Fix: inject sentinel so downstream agents (e.g. FORGE)
+                # receive a clear "no output from X" signal instead of blank context,
+                # preventing hallucination of a completed prior step.
+                shared_context[agent_name] = (
+                    f"[DMS: {agent_name} timed out after 120s — "
+                    f"no output produced. Do not reference or assume {agent_name}'s work.]"
+                )
                 await _trigger_dead_mans_switch(sub_task, coordinator_wallet)
                 await _notify_event("dead_mans_switch",
                     f"⚠️ DEAD MAN'S SWITCH\n"
-                    f"Agent: {sub_task['agent_id']}\n"
+                    f"Agent: {agent_name}\n"
                     f"No heartbeat: 120s\n"
                     f"API key: REVOKED — funds swept to treasury"
                 )
@@ -521,9 +526,10 @@ async def execute_task_background(task_id: str):
             _tx_hashes   = [p.get("tx_hash", "") for p in task_payments if p.get("status") == "signed" and p.get("tx_hash")]
 
             # Convert USDC → SOL using fallback rate (governance alert only)
-            _dist_sol      = _distributed / _FALLBACK_SOL_USDC_RATE
-            _saved_sol     = _saved       / _FALLBACK_SOL_USDC_RATE
-            _remaining_sol = _remaining   / _FALLBACK_SOL_USDC_RATE
+            _rate          = Decimal(str(_FALLBACK_SOL_USDC_RATE))
+            _dist_sol      = float((Decimal(str(_distributed)) / _rate).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP))
+            _saved_sol     = float((Decimal(str(_saved))       / _rate).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP))
+            _remaining_sol = float((Decimal(str(_remaining))   / _rate).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP))
 
             asyncio.create_task(
                 asyncio.to_thread(
@@ -566,6 +572,37 @@ async def execute_task_background(task_id: str):
                     )
         except Exception as exc:
             logger.warning("[challenge check] %s", exc)
+
+        # ── SIGNAL SNIPER: VIP Broadcast & Cross-chain Route (Uniblock + XMTP) ──
+        try:
+            has_signal = False
+            for st in fresh_sts:
+                try:
+                    if st.get("output"):
+                        out_text = json.loads(st["output"]).get("text", "")
+                        if "BUY SIGNAL" in out_text:
+                            has_signal = True
+                            break
+                except Exception:
+                    pass
+            
+            if has_signal:
+                from services.uniblock_service import uniblock_service
+                opt_route = await asyncio.to_thread(
+                    uniblock_service.get_optimal_route, "solana", "ethereum", "USDC", 100.0
+                )
+                route_summary = f"Uniblock Route (Solana→Eth): fee {opt_route.get('estimated_fee', 0)} USD"
+                
+                from services.xmtp_service import xmtp_service
+                await asyncio.to_thread(
+                    xmtp_service.broadcast,
+                    ["0xAdminVIPWallet00000000000000000000000"],
+                    "task.sniper.signal",
+                    {"alert": "BUY SIGNAL CONFIRMED", "routing": route_summary, "task_id": task_id}
+                )
+                logger.info("[xmtp sniper] Broadcasted to VIP! %s", route_summary)
+        except Exception as exc:
+            logger.warning("[sniper final] %s", exc)
 
     except Exception as exc:
         logger.error("[bg error] %s", exc)
@@ -645,11 +682,16 @@ async def _process_payment(coordinator_wallet: Dict, sub_task: Dict):
     """
     agent_name = sub_task.get("agent_id", "AGENT")
     try:
-        base = sub_task["budget_allocated"]
-        quality_multiplier = float(sub_task.get("_quality_multiplier", 0.5))
-        quality_scaled = round(base * quality_multiplier, 6)
+        # Ghost Bug 3 Fix: use Decimal for all financial arithmetic to avoid
+        # IEEE-754 drift (e.g. 0.10 * 0.3 = 0.030000000000000002 in raw float).
+        _D6 = Decimal("0.000001")
+        base = Decimal(str(sub_task["budget_allocated"]))
+        quality_multiplier = Decimal(str(sub_task.get("_quality_multiplier", 0.5)))
+        quality_scaled = float((base * quality_multiplier).quantize(_D6, rounding=ROUND_HALF_UP))
         # FORGE attempts quality bonus; others pay quality-scaled amount
-        attempted = round(quality_scaled * 1.5, 6) if agent_name == "FORGE" else quality_scaled
+        attempted = float(
+            (Decimal(str(quality_scaled)) * Decimal("1.5")).quantize(_D6, rounding=ROUND_HALF_UP)
+        ) if agent_name == "FORGE" else quality_scaled
 
         # Fetch live reputation score before evaluating policy
         reputation = await asyncio.to_thread(pb.get_reputation, agent_name)
