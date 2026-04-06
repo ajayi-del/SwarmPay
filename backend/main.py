@@ -31,6 +31,7 @@ import uvicorn
 from routers import tasks, audit, regis
 from routers import sovereignty
 from routers import analytics
+from routers import swarm
 
 # ── Logging ────────────────────────────────────────────────────────────────────
 
@@ -171,6 +172,7 @@ app.include_router(audit.router)
 app.include_router(regis.router)
 app.include_router(sovereignty.router)
 app.include_router(analytics.router)
+app.include_router(swarm.router)  # Sovereign agent world: XMTP + Allium + Uniblock + Myriad
 
 
 # ── Health / root ──────────────────────────────────────────────────────────────
