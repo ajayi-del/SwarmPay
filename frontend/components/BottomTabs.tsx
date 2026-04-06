@@ -12,13 +12,14 @@ import SovereigntyPanel from "./SovereigntyPanel";
 import OrbitDiagram from "./OrbitDiagram";
 import TelegramPanel from "./TelegramPanel";
 import SwarmPanel from "./SwarmPanel";
+import BetsPanel from "./BetsPanel";
 
 interface Props {
   payments: Payment[];
   subTasks: SubTask[];
 }
 
-type Tab = "x402" | "sovereignty" | "orbit" | "signal" | "swarm";
+type Tab = "x402" | "sovereignty" | "orbit" | "signal" | "swarm" | "bets";
 
 const TABS: { id: Tab; label: string; dot?: string }[] = [
   { id: "x402",        label: "x402 RAIL",   dot: "#9945FF" },
@@ -26,6 +27,7 @@ const TABS: { id: Tab; label: string; dot?: string }[] = [
   { id: "orbit",       label: "ORBIT",       dot: "#3b82f6" },
   { id: "signal",      label: "SIGNAL",      dot: "#22c55e" },
   { id: "swarm",       label: "SWARM",       dot: "#a78bfa" },
+  { id: "bets",        label: "⚔ BETS",     dot: "#F97316" },
 ];
 
 export default function BottomTabs({ payments, subTasks }: Props) {
@@ -119,6 +121,7 @@ export default function BottomTabs({ payments, subTasks }: Props) {
         )}
         {active === "signal" && <TelegramPanel />}
         {active === "swarm" && <SwarmPanel />}
+        {active === "bets" && <BetsPanel />}
       </div>
     </div>
   );

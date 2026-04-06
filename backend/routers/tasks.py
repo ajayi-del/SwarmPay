@@ -181,6 +181,13 @@ async def submit_task(request: Request, body: TaskSubmitRequest):
             {"budget": body.budget, "coordinator_wallet": wallet_record["id"]},
         )
 
+        # Autonomous economy: create a bounty on the board for agent bidding
+        try:
+            from services.bounty_service import create_bounty
+            await asyncio.to_thread(create_bounty, pb, task_record["id"], body.description, body.budget)
+        except Exception:
+            pass
+
         return TaskSubmitResponse(task_id=task_record["id"], coordinator_wallet=wallet_record)
 
     except (HTTPException, ValueError):
@@ -837,17 +844,48 @@ async def _do_peer_payments(sub_tasks: List[Dict]):
                 "policy_reason":  f"PEER: {label}",
                 "tx_hash":        tx.get("tx_hash", ""),
             })
+            # XMTP: send wallet-to-wallet verified message on handoff
+            xmtp_verified = False
+            try:
+                from services.xmtp_service import xmtp_service
+                output_map = {st["agent_id"]: st.get("output", "") for st in sub_tasks}
+                sender_output = output_map.get(sender, "")[:300]
+                xmtp_result = await asyncio.to_thread(
+                    xmtp_service.send_message,
+                    _agent_symbolic_addr(receiver),
+                    f"task.peer.{label.replace(' ', '_')}",
+                    {
+                        "from_agent": sender, "to_agent": receiver,
+                        "content":    f"Intel handoff: {sender_output}",
+                        "payment_usdc": amount, "label": label,
+                    },
+                )
+                xmtp_verified = bool(xmtp_result and xmtp_result.get("success"))
+            except Exception:
+                pass
+
+            xmtp_tag = " [✓ XMTP]" if xmtp_verified else " [internal]"
             await _audit(
                 "peer_payment",
                 payment_rec["id"],
-                f"⇄ {sender} → {receiver}  {amount:.3f} USDC  [{label}]",
-                {"from_agent": sender, "to_agent": receiver,
-                 "amount": amount, "label": label},
+                f"⇄ {sender} → {receiver}  {amount:.3f} USDC  [{label}]{xmtp_tag}",
+                {
+                    "from_agent":    sender,
+                    "to_agent":      receiver,
+                    "amount":        amount,
+                    "label":         label,
+                    "xmtp_verified": xmtp_verified,
+                },
             )
-            # Peer payments are routine — suppressed by gate
-            pass
         except Exception as exc:
             logger.warning("[peer payment] %s→%s: %s", sender, receiver, exc)
+
+
+def _agent_symbolic_addr(agent_id: str) -> str:
+    """Deterministic symbolic ETH address for XMTP routing."""
+    import hashlib
+    h = hashlib.sha256(f"swarmpay_agent_{agent_id}".encode()).hexdigest()
+    return f"0x{h[:40]}"
 
 
 @router.get("/{task_id}/status")

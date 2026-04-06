@@ -18,6 +18,7 @@ import { useSolRate } from "@/lib/useSolRate";
 // ── Event configuration ────────────────────────────────────────────────────────
 
 const EVENT_CONFIG: Record<string, { badge: string; color: string }> = {
+  // ── Core task events ──────────────────────────────────────────────────
   task_complete:      { badge: "DONE  ", color: "#F59E0B" },
   task_submitted:     { badge: "TASK  ", color: "#F59E0B" },
   payment_signed:     { badge: "SIGN  ", color: "#22C55E" },
@@ -30,6 +31,21 @@ const EVENT_CONFIG: Record<string, { badge: string; color: string }> = {
   reputation_updated: { badge: "REP   ", color: "#FFD700" },
   dead_mans_switch:   { badge: "DMS   ", color: "#EF4444" },
   security:           { badge: "SEC   ", color: "#F97316" },
+  // ── Sponsor integrations ─────────────────────────────────────────────
+  myriad_bet:         { badge: "⚔ BET ", color: "#F97316" },   // Myriad prediction markets
+  atlas_intel:        { badge: "⚡ INTEL", color: "#60A5FA" }, // Helius real-time
+  atlas_stream:       { badge: "⚡ STRM", color: "#60A5FA" },  // Allium/Helius stream
+  multichain:         { badge: "🌐 MLTC", color: "#9945FF" },  // Uniblock cross-chain
+  moonpay_price:      { badge: "◎ PAY  ", color: "#F59E0B" },  // MoonPay price update
+  // ── Autonomous economy ───────────────────────────────────────────────
+  decree:             { badge: "👑 DCRE", color: "#F59E0B" },  // REGIS governance decree
+  bishop_fine:        { badge: "⚖ FINE", color: "#EF4444" },  // BISHOP fine issued
+  yield_proposal:     { badge: "📊 PROP", color: "#22C55E" },  // CIPHER yield proposal
+  proposal_approved:  { badge: "✅ APPR", color: "#22C55E" },  // REGIS approved
+  // ── Agent scans ──────────────────────────────────────────────────────
+  forge_monitor:      { badge: "🔨 FORG", color: "#F59E0B" },
+  son_learning:       { badge: "📚 SØN ", color: "#3B82F6" },
+  bishop_compliance:  { badge: "⚖ COMP", color: "#F59E0B" },
 };
 
 const DEFAULT_CONFIG = { badge: "EVENT ", color: "#6B7280" };
@@ -47,11 +63,13 @@ function extractAndFormatAmounts(message: string, toSol: (u: number, d?: number)
 // ── Single terminal line ───────────────────────────────────────────────────────
 
 function TerminalLine({ entry, toSol }: { entry: AuditEntry; toSol: (u: number, d?: number) => string }) {
-  const cfg = EVENT_CONFIG[entry.event_type] ?? DEFAULT_CONFIG;
+  const cfg  = EVENT_CONFIG[entry.event_type] ?? DEFAULT_CONFIG;
   const time = new Date(entry.created).toLocaleTimeString("en-GB", {
     hour: "2-digit", minute: "2-digit", second: "2-digit",
   });
-  const msg = extractAndFormatAmounts(entry.message, toSol);
+  const msg          = extractAndFormatAmounts(entry.message, toSol);
+  const xmtpVerified = entry.metadata?.xmtp_verified === true;
+  const isPeer       = entry.event_type === "peer_payment";
 
   return (
     <motion.div
@@ -106,6 +124,26 @@ function TerminalLine({ entry, toSol }: { entry: AuditEntry; toSol: (u: number, 
       >
         {msg}
       </span>
+
+      {/* XMTP verified badge — peer payments only */}
+      {isPeer && (
+        <span
+          style={{
+            fontFamily: "monospace",
+            fontSize: "0.55rem",
+            flexShrink: 0,
+            marginLeft: 4,
+            padding: "1px 4px",
+            borderRadius: 3,
+            color:      xmtpVerified ? "#22C55E" : "#444",
+            background: xmtpVerified ? "rgba(34,197,94,0.08)" : "transparent",
+            border:     `1px solid ${xmtpVerified ? "rgba(34,197,94,0.3)" : "#222"}`,
+          }}
+          title={xmtpVerified ? "Message verified on XMTP network" : "Internal log only"}
+        >
+          {xmtpVerified ? "✓ XMTP" : "internal"}
+        </span>
+      )}
 
       {/* Timestamp */}
       <span

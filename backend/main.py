@@ -32,6 +32,7 @@ from routers import tasks, audit, regis
 from routers import sovereignty
 from routers import analytics
 from routers import swarm
+from routers import integrations
 
 # ── Logging ────────────────────────────────────────────────────────────────────
 
@@ -92,16 +93,25 @@ async def lifespan(app: FastAPI):
     except Exception as exc:
         logger.warning("Telegram bot failed to start: %s", exc)
 
-    # Background intelligence scans — REGIS (5m), CIPHER (15m), ATLAS (30m)
+    # Background intelligence scans — all 6 agents, staggered
     scan_tasks = []
     try:
-        from services.background_scans import run_regis_loop, run_cipher_loop, run_atlas_loop
+        from services.background_scans import (
+            run_regis_loop, run_cipher_loop, run_atlas_loop,
+            run_forge_loop, run_son_loop, run_bishop_loop,
+        )
         scan_tasks = [
-            asyncio.create_task(run_regis_loop()),
-            asyncio.create_task(run_cipher_loop()),
-            asyncio.create_task(run_atlas_loop()),
+            asyncio.create_task(run_regis_loop()),   # every  5 min
+            asyncio.create_task(run_cipher_loop()),  # every 15 min + Myriad markets
+            asyncio.create_task(run_atlas_loop()),   # every 30 min + Helius
+            asyncio.create_task(run_forge_loop()),   # every 20 min
+            asyncio.create_task(run_son_loop()),     # every 45 min
+            asyncio.create_task(run_bishop_loop()),  # every 60 min
         ]
-        logger.info("Background scans started: REGIS(5m) CIPHER(15m) ATLAS(30m)")
+        logger.info(
+            "Background scans started: REGIS(5m) CIPHER(15m+Myriad) "
+            "ATLAS(30m+Helius) FORGE(20m) SØN(45m) BISHOP(60m)"
+        )
     except Exception as exc:
         logger.warning("Background scans failed to start: %s", exc)
 
@@ -172,7 +182,8 @@ app.include_router(audit.router)
 app.include_router(regis.router)
 app.include_router(sovereignty.router)
 app.include_router(analytics.router)
-app.include_router(swarm.router)  # Sovereign agent world: XMTP + Allium + Uniblock + Myriad
+app.include_router(swarm.router)         # Sovereign agent world: XMTP + Helius + Uniblock + Myriad
+app.include_router(integrations.router)  # Sponsor integrations: status, helius, myriad markets, bounties
 
 
 # ── Health / root ──────────────────────────────────────────────────────────────
