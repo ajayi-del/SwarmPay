@@ -72,13 +72,17 @@ export default function SwarmPanel() {
   const isOffice = mode === "office";
   const { toSol } = useSolRate();
 
-  const { data: stats } = useQuery({
+  const { data: rawStats } = useQuery({
     queryKey: ["swarm-stats"],
     queryFn: getSwarmStats,
     refetchInterval: 5000,
   });
 
-  if (!stats || stats.total_tasks === 0) return null;
+  const stats = rawStats ?? {
+    health_score: 0, total_tasks: 0, total_signed: 0, total_blocked: 0,
+    eth_processed: 0, eth_held: 0, peer_count: 0, eth_peer: 0,
+    avg_reputation: 0, agent_rankings: [],
+  };
 
   const title = isOffice ? "Economy Dashboard" : "Swarm Intelligence";
   const signedLabel  = isOffice ? "Approved"  : "Signed";

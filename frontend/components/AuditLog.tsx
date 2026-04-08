@@ -70,6 +70,13 @@ function TerminalLine({ entry, toSol }: { entry: AuditEntry; toSol: (u: number, 
   const msg          = extractAndFormatAmounts(entry.message, toSol);
   const xmtpVerified = entry.metadata?.xmtp_verified === true;
   const isPeer       = entry.event_type === "peer_payment";
+  
+  // Enhanced styling for peer transfers
+  const peerStyle = isPeer ? {
+    background: "rgba(59, 130, 246, 0.08)",
+    borderLeft: `2px solid #3B82F6`,
+    fontWeight: "600" as const,
+  } : {};
 
   return (
     <motion.div
@@ -82,11 +89,13 @@ function TerminalLine({ entry, toSol }: { entry: AuditEntry; toSol: (u: number, 
         display: "flex",
         alignItems: "baseline",
         gap: 0,
-        borderLeft: `2px solid ${cfg.color}`,
+        borderLeft: isPeer ? peerStyle.borderLeft : `2px solid ${cfg.color}`,
+        background: isPeer ? peerStyle.background : "transparent",
         paddingLeft: 10,
         paddingTop: 3,
         paddingBottom: 3,
         minHeight: 22,
+        fontWeight: isPeer ? peerStyle.fontWeight : "normal",
       }}
     >
       {/* Badge */}
@@ -130,18 +139,20 @@ function TerminalLine({ entry, toSol }: { entry: AuditEntry; toSol: (u: number, 
         <span
           style={{
             fontFamily: "monospace",
-            fontSize: "0.55rem",
+            fontSize: "0.6rem",
+            fontWeight: "700",
             flexShrink: 0,
-            marginLeft: 4,
-            padding: "1px 4px",
-            borderRadius: 3,
-            color:      xmtpVerified ? "#22C55E" : "#444",
-            background: xmtpVerified ? "rgba(34,197,94,0.08)" : "transparent",
-            border:     `1px solid ${xmtpVerified ? "rgba(34,197,94,0.3)" : "#222"}`,
+            marginLeft: 6,
+            padding: "2px 6px",
+            borderRadius: 4,
+            color:      xmtpVerified ? "#FFFFFF" : "#444",
+            background: xmtpVerified ? "#22C55E" : "rgba(68,68,68,0.2)",
+            border:     xmtpVerified ? "1px solid rgba(34,197,94,0.5)" : "1px solid #222",
+            boxShadow:   xmtpVerified ? "0 0 8px rgba(34,197,94,0.3)" : "none",
           }}
           title={xmtpVerified ? "Message verified on XMTP network" : "Internal log only"}
         >
-          {xmtpVerified ? "✓ XMTP" : "internal"}
+          {xmtpVerified ? "✓ XMTP VERIFIED" : "INTERNAL"}
         </span>
       )}
 
@@ -185,6 +196,10 @@ export default function AuditLog() {
   // Newest 20, sorted oldest→newest for terminal feed (scroll to see latest at bottom)
   const raw = data?.logs ?? [];
   const logs = [...raw].slice(0, 20).reverse();
+  
+  // Calculate peer transfer totals
+  const peerTransfers = raw.filter(entry => entry.event_type === "peer_payment");
+  const peerTransferTotal = peerTransfers.length;
 
   return (
     <div
@@ -237,6 +252,22 @@ export default function AuditLog() {
         >
           {raw.length} events
         </span>
+        {peerTransferTotal > 0 && (
+          <span
+            style={{
+              fontFamily: "monospace",
+              fontSize: "0.55rem",
+              color: "#3B82F6",
+              marginLeft: 8,
+              padding: "2px 6px",
+              borderRadius: 3,
+              background: "rgba(59, 130, 246, 0.1)",
+              border: "1px solid rgba(59, 130, 246, 0.3)",
+            }}
+          >
+            {peerTransferTotal} peer transfer{peerTransferTotal !== 1 ? "s" : ""}
+          </span>
+        )}
       </div>
 
       {/* Feed */}

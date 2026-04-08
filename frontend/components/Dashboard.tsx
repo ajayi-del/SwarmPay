@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getTaskStatus, type TaskState } from "@/lib/api";
 import { useSwarmStore } from "@/lib/store";
 import { useModeStore } from "@/lib/modeStore";
+import { motion } from "framer-motion";
 import AgentCard from "./AgentCard";
 import SleepingAgentCard from "./SleepingAgentCard";
 import CoordinatorCard from "./CoordinatorCard";
@@ -16,10 +17,84 @@ import X402Panel from "./X402Panel";
 import TelegramPanel from "./TelegramPanel";
 import SovereigntyPanel from "./SovereigntyPanel";
 import SwarmPanel from "./SwarmPanel";
+import GovernanceLayer from "./GovernanceLayer";
 import { ErrorBoundary } from "./ErrorBoundary";
 
 // Active statuses — these agents are always expanded
 const ACTIVE_STATUSES = new Set(["spawned", "working"]);
+const ALL_AGENTS = ["ATLAS", "CIPHER", "FORGE", "BISHOP", "SØN"];
+
+/* ── Deploy skeleton — shown while waiting for taskState ────────────── */
+
+function DeploySkeleton() {
+  return (
+    <div className="w-full space-y-4">
+      {/* Governance Layer — always visible */}
+      <GovernanceLayer taskState={null} />
+
+      {/* Pulsing deploy indicator */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 16,
+          padding: "40px 20px",
+          background: "#0a0a14",
+          border: "1px solid #1a1a2e",
+          borderRadius: 16,
+        }}
+      >
+        <motion.div
+          animate={{ rotate: 360 }}
+          transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+          style={{
+            width: 40,
+            height: 40,
+            border: "3px solid #1a1a2e",
+            borderTop: "3px solid #9945FF",
+            borderRadius: "50%",
+          }}
+        />
+        <span
+          style={{
+            fontFamily: "monospace",
+            fontSize: 11,
+            color: "#9945FF",
+            letterSpacing: "0.2em",
+            fontWeight: 700,
+          }}
+        >
+          SWARM DEPLOYING…
+        </span>
+        <span
+          style={{
+            fontFamily: "monospace",
+            fontSize: 8,
+            color: "#444",
+            letterSpacing: "0.08em",
+          }}
+        >
+          Spawning agents · Allocating wallets · Establishing OWS custody
+        </span>
+      </motion.div>
+
+      {/* Ghost agent cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        {ALL_AGENTS.map((agentId) => (
+          <ErrorBoundary key={`ghost-${agentId}`}>
+            <SleepingAgentCard agentId={agentId} />
+          </ErrorBoundary>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ── Main Dashboard ──────────────────────────────────────────────────── */
 
 export default function Dashboard() {
   const { taskId, setPhase } = useSwarmStore();
@@ -52,11 +127,13 @@ export default function Dashboard() {
     setExpandedIds(new Set());
   }, [taskId]);
 
-  if (!taskId || !taskState) return null;
+  // ── Loading state: show skeleton + governance layer ──
+  if (!taskId || !taskState) {
+    return <DeploySkeleton />;
+  }
 
   const { task, coordinator_wallet, sub_tasks, payments, reputations = {}, x402_calls = [] } = taskState;
 
-  const ALL_AGENTS = ["ATLAS", "CIPHER", "FORGE", "BISHOP", "SØN"];
   const activeAgentIds = new Set(sub_tasks.map((st) => st.agent_id));
   const sleepingAgents = ALL_AGENTS.filter((a) => !activeAgentIds.has(a));
 
@@ -85,6 +162,11 @@ export default function Dashboard() {
 
   return (
     <div className="w-full space-y-4">
+      {/* ── 0. GOVERNANCE LAYER — always visible ── */}
+      <ErrorBoundary>
+        <GovernanceLayer taskState={taskState} />
+      </ErrorBoundary>
+
       {/* ── 1. THRONE ROOM — Skills | REGIS | Orbit ── */}
       {coordinator_wallet && (
         <ErrorBoundary>
@@ -204,12 +286,9 @@ export default function Dashboard() {
       )}
 
       {/* ── 6. Swarm Intelligence / Governance score (lifetime stats) ── */}
-      {sub_tasks.length > 0 && (
-        <ErrorBoundary>
-          <SwarmPanel />
-        </ErrorBoundary>
-      )}
-
+      <ErrorBoundary>
+        <SwarmPanel />
+      </ErrorBoundary>
     </div>
   );
 }

@@ -28,7 +28,7 @@ const CHECKS: { key: keyof HealthResponse; label: string }[] = [
 ];
 
 function dotColor(val: string | undefined): string {
-  if (!val) return "#333";
+  if (!val) return "#F59E0B"; // Amber when offline/unreachable
   if (val === "ok") return "#22c55e";
   if (val === "no_key" || val === "no_token") return "#F59E0B";
   return "#ef4444";
@@ -79,7 +79,8 @@ export default function StatusBar() {
       {CHECKS.map(({ key, label }) => {
         const val = data?.[key];
         const color = dotColor(val);
-        const tip = val ?? "unknown";
+        const tip = val ?? (isError ? "offline" : "unknown");
+        const isOffline = !val && isError;
         return (
           <span
             key={key}
@@ -96,7 +97,9 @@ export default function StatusBar() {
                 flexShrink: 0,
               }}
             />
-            <span style={{ color: val === "ok" ? "#555" : val ? color : "#333" }}>{label}</span>
+            <span style={{ color: val === "ok" ? "#555" : (isOffline ? color : (val ? color : "#333")) }}>
+              {isOffline ? `${label}/OFF` : label}
+            </span>
           </span>
         );
       })}
