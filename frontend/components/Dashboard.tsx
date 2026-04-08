@@ -24,63 +24,130 @@ import { ErrorBoundary } from "./ErrorBoundary";
 const ACTIVE_STATUSES = new Set(["spawned", "working"]);
 const ALL_AGENTS = ["ATLAS", "CIPHER", "FORGE", "BISHOP", "SØN"];
 
-/* ── Deploy skeleton — shown while waiting for taskState ────────────── */
+/* ── Spawn animation — shown immediately after "Launch Swarm" while backend responds ── */
+function SpawnLoader() {
+  const labels = [
+    "Initialising OWS wallet custody…",
+    "Spawning agent constellation…",
+    "Allocating SOL budgets…",
+    "Establishing x402 payment rail…",
+    "REGIS preparing throne room…",
+  ];
+  const [idx, setIdx] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setIdx((i) => (i + 1) % labels.length), 900);
+    return () => clearInterval(t);
+  }, []);
 
-function DeploySkeleton() {
   return (
     <div className="w-full space-y-4">
-      {/* Governance Layer — always visible */}
-      <GovernanceLayer taskState={null} />
+      {/* Governance layer — visible immediately */}
+      <ErrorBoundary>
+        <GovernanceLayer taskState={null} />
+      </ErrorBoundary>
 
-      {/* Pulsing deploy indicator */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
+      {/* Throne room skeleton */}
+      <div
         style={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: 16,
-          padding: "40px 20px",
-          background: "#0a0a14",
-          border: "1px solid #1a1a2e",
-          borderRadius: 16,
+          display: "grid",
+          gridTemplateColumns: "160px 1fr 260px",
+          gap: 12,
+          alignItems: "stretch",
+          minHeight: 200,
         }}
       >
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+        {/* Left skeleton */}
+        <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12 }} />
+
+        {/* Center — REGIS awakening */}
+        <div
           style={{
-            width: 40,
-            height: 40,
-            border: "3px solid #1a1a2e",
-            borderTop: "3px solid #9945FF",
-            borderRadius: "50%",
-          }}
-        />
-        <span
-          style={{
-            fontFamily: "monospace",
-            fontSize: 11,
-            color: "#9945FF",
-            letterSpacing: "0.2em",
-            fontWeight: 700,
+            background: "var(--surface)",
+            border: "1px solid #2a1f00",
+            borderRadius: 12,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 16,
+            padding: 24,
           }}
         >
-          SWARM DEPLOYING…
-        </span>
-        <span
+          {/* REGIS crown pulsing */}
+          <motion.div
+            animate={{ scale: [1, 1.06, 1], opacity: [0.7, 1, 0.7] }}
+            transition={{ duration: 1.6, repeat: Infinity }}
+            style={{ fontSize: 36 }}
+          >
+            👑
+          </motion.div>
+          <div style={{ fontFamily: "monospace", fontSize: 14, color: "#F59E0B", fontWeight: 700, letterSpacing: "0.1em" }}>
+            REGIS
+          </div>
+          <div style={{ fontFamily: "monospace", fontSize: 9, color: "#555", letterSpacing: "0.15em" }}>
+            SOVEREIGN BRAIN
+          </div>
+          {/* Animated status line */}
+          <motion.div
+            key={idx}
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            style={{ fontFamily: "monospace", fontSize: 9, color: "#444", letterSpacing: "0.06em", textAlign: "center" }}
+          >
+            {labels[idx]}
+          </motion.div>
+          {/* Spinner */}
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ duration: 1.4, repeat: Infinity, ease: "linear" }}
+            style={{
+              width: 20, height: 20,
+              border: "2px solid #1a1a00",
+              borderTop: "2px solid #F59E0B",
+              borderRadius: "50%",
+            }}
+          />
+        </div>
+
+        {/* Right — orbit skeleton: 5 ghost dots */}
+        <div
           style={{
-            fontFamily: "monospace",
-            fontSize: 8,
-            color: "#444",
-            letterSpacing: "0.08em",
+            background: "var(--surface)",
+            border: "1px solid var(--border)",
+            borderRadius: 12,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
           }}
         >
-          Spawning agents · Allocating wallets · Establishing OWS custody
-        </span>
-      </motion.div>
+          <svg width="200" height="180" viewBox="0 0 200 180">
+            <circle cx={100} cy={90} r={70} fill="none" stroke="#ffffff06" strokeWidth="1" strokeDasharray="4 6" />
+            <circle cx={100} cy={90} r={22} fill="#110e00" stroke="#F59E0B" strokeWidth="2" />
+            <text x={100} y={94} textAnchor="middle" fontSize={8} fill="#F59E0B" fontFamily="monospace" fontWeight="bold">REGIS</text>
+            {ALL_AGENTS.map((name, i) => {
+              const a = (i / ALL_AGENTS.length) * Math.PI * 2 - Math.PI / 2;
+              const x = 100 + Math.cos(a) * 70;
+              const y = 90 + Math.sin(a) * 70;
+              return (
+                <g key={name}>
+                  <motion.circle
+                    cx={x} cy={y} r={10}
+                    fill="#1a1a2e"
+                    stroke="#333"
+                    strokeWidth="1.5"
+                    animate={{ opacity: [0.3, 0.7, 0.3] }}
+                    transition={{ duration: 1.5 + i * 0.3, repeat: Infinity }}
+                  />
+                  <text x={x} y={y + 3} textAnchor="middle" fontSize={6} fill="#555" fontFamily="monospace">
+                    {name.slice(0, 2)}
+                  </text>
+                </g>
+              );
+            })}
+          </svg>
+        </div>
+      </div>
 
       {/* Ghost agent cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -90,6 +157,11 @@ function DeploySkeleton() {
           </ErrorBoundary>
         ))}
       </div>
+
+      {/* Sovereignty panel still renders (uses its own data fetch) */}
+      <ErrorBoundary>
+        <SovereigntyPanel />
+      </ErrorBoundary>
     </div>
   );
 }
@@ -127,9 +199,10 @@ export default function Dashboard() {
     setExpandedIds(new Set());
   }, [taskId]);
 
-  // ── Loading state: show skeleton + governance layer ──
+  // ── KEY FIX: show spawn animation while waiting for backend response ──
+  // Previously returned null here, which caused blank right panel.
   if (!taskId || !taskState) {
-    return <DeploySkeleton />;
+    return taskId ? <SpawnLoader /> : null;
   }
 
   const { task, coordinator_wallet, sub_tasks, payments, reputations = {}, x402_calls = [] } = taskState;
@@ -162,7 +235,7 @@ export default function Dashboard() {
 
   return (
     <div className="w-full space-y-4">
-      {/* ── 0. GOVERNANCE LAYER — always visible ── */}
+      {/* ── 0. GOVERNANCE LAYER — always visible when task is running ── */}
       <ErrorBoundary>
         <GovernanceLayer taskState={taskState} />
       </ErrorBoundary>
@@ -286,9 +359,11 @@ export default function Dashboard() {
       )}
 
       {/* ── 6. Swarm Intelligence / Governance score (lifetime stats) ── */}
-      <ErrorBoundary>
-        <SwarmPanel />
-      </ErrorBoundary>
+      {sub_tasks.length > 0 && (
+        <ErrorBoundary>
+          <SwarmPanel />
+        </ErrorBoundary>
+      )}
     </div>
   );
 }
