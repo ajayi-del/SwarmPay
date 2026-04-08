@@ -33,6 +33,7 @@ from routers import sovereignty
 from routers import analytics
 from routers import swarm
 from routers import integrations
+from routers import services
 
 # ── Logging ────────────────────────────────────────────────────────────────────
 
@@ -84,6 +85,24 @@ async def lifespan(app: FastAPI):
     _validate_env()
     logger.info("SwarmPay starting — environment validated")
 
+    # Initialize Service Manager (Claude Code Service Layer pattern)
+    from services.service_manager import service_manager
+    from services.payment_verification_service import payment_verification_service
+    from services.x402_proxy_service import x402_proxy_service
+    from services.balance_service import balance_service
+    
+    try:
+        # Register core services following Claude Code pattern
+        await service_manager.register_service(payment_verification_service)
+        await service_manager.register_service(x402_proxy_service)
+        await service_manager.register_service(balance_service)
+        
+        # Start all services in parallel (Claude Code Parallel Prefetch)
+        await service_manager.start_all_services()
+        logger.info("Service Manager initialized with all services running")
+    except Exception as exc:
+        logger.error("Service Manager initialization failed: %s", exc)
+
     # Telegram bot — fire and forget, non-blocking
     tg_task = None
     try:
@@ -115,7 +134,17 @@ async def lifespan(app: FastAPI):
     except Exception as exc:
         logger.warning("Background scans failed to start: %s", exc)
 
+    # Store service manager in app state for access
+    app.state.service_manager = service_manager
+
     yield
+
+    # Stop Service Manager
+    try:
+        await service_manager.stop_all_services()
+        logger.info("Service Manager stopped")
+    except Exception as exc:
+        logger.error("Service Manager shutdown failed: %s", exc)
 
     if tg_task and not tg_task.done():
         tg_task.cancel()
@@ -184,6 +213,7 @@ app.include_router(sovereignty.router)
 app.include_router(analytics.router)
 app.include_router(swarm.router)         # Sovereign agent world: XMTP + Helius + Uniblock + Myriad
 app.include_router(integrations.router)  # Sponsor integrations: status, helius, myriad markets, bounties
+app.include_router(services.router)      # Claude Code Service Layer: payment verification, x402 proxy, balance
 
 
 # ── Health / root ──────────────────────────────────────────────────────────────
