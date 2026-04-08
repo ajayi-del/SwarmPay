@@ -32,6 +32,7 @@ class SovereigntyService:
     def __init__(self):
         self._lock = threading.Lock()
         self._overthrow_in_progress = False
+        self._pending_overthrow: Optional[Dict] = None
         self.__pb = None
 
     # ── PocketBase lazy init (avoids import-time side effects) ────────────────
@@ -110,7 +111,7 @@ class SovereigntyService:
 
     def check_and_execute_overthrow(self) -> Optional[Dict]:
         """
-        Returns overthrow data dict if sovereignty changed hands, else None.
+        Returns overthrow data dict if sovereignty changed hands, or pending request, else None.
         Thread-safe — concurrent calls are serialised and deduplicated.
         """
         with self._lock:
@@ -151,8 +152,52 @@ class SovereigntyService:
         # Winner = highest lifetime earnings
         winner = max(challengers, key=lambda r: float(r.get("lifetime_earnings_usdc", 0)))
 
-        # Execute the transfer
-        return self._execute_overthrow(ruler_rec, winner)
+        # Place into pending veto state
+        self._pending_overthrow = {
+            "old_ruler": ruler_rec,
+            "new_ruler_candidate": winner,
+        }
+        return {"pending": True, "old_ruler": ruler_rec, "new_ruler": winner}
+
+    def resolve_overthrow(self, agent_id: str, approved: bool) -> str:
+        """
+        Called by Telegram commands to approve or veto an overthrow.
+        Returns a human-readable result message.
+        """
+        with self._lock:
+            pending = self._pending_overthrow
+            if not pending:
+                return "No pending overthrow in progress."
+            
+            candidate = pending["new_ruler_candidate"]
+            candidate_id = candidate.get("agent_id", "").upper()
+            
+            if candidate_id != agent_id.upper():
+                return f"Pending overthrow is for {candidate_id}, not {agent_id}."
+
+            self._pending_overthrow = None
+
+            if approved:
+                self._execute_overthrow(pending["old_ruler"], candidate)
+                return f"Succession APPROVED. {candidate_id} is now the sovereign."
+            else:
+                # VETO: Slash earnings to drop them below threshold
+                current = float(candidate.get("lifetime_earnings_usdc", 0))
+                slashed = current * 0.90 # Slash by 10%
+                
+                try:
+                    if candidate.get("id"):
+                        self._pb.update("sovereignty", candidate["id"], {
+                            "lifetime_earnings_usdc": slashed
+                        })
+                    self._pb.create("audit_log", {
+                        "event_type": "punish_applied",
+                        "entity_id":  candidate_id,
+                        "message": f"⚖️ VETO: {candidate_id} overthrown attempt vetoed. Earnings slashed 10%.",
+                    })
+                except Exception as exc:
+                    logger.error("[sovereignty] Veto punish failed: %s", exc)
+                return f"Succession VETOED. {candidate_id}'s earnings slashed by 10% for treason."
 
     def _execute_overthrow(self, old_ruler: Dict, new_ruler_candidate: Dict) -> Dict:
         now = datetime.now(timezone.utc).isoformat()

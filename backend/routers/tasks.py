@@ -310,12 +310,23 @@ async def _notify_telegram(message: str) -> None:
 async def _check_sovereignty_overthrow() -> None:
     """Fire-and-forget sovereignty check after each signed payment."""
     try:
+        from services.sovereignty_service import sovereignty_service, notify_overthrow
         overthrow = await asyncio.to_thread(sovereignty_service.check_and_execute_overthrow)
         if overthrow:
-            await notify_overthrow(overthrow)
+            if overthrow.get("pending"):
+                cand_id = overthrow["new_ruler"].get("agent_id", "")
+                await _notify_event("pending_overthrow",
+                    f"🚨 TREASON DETECTED 🚨\n"
+                    f"──────────────────────\n"
+                    f"{cand_id} has mathematically surpassed REGIS and is attempting an overthrow!\n\n"
+                    f"Human Sovereign, you must decide:\n"
+                    f"Type /approve {cand_id} to accept succession\n"
+                    f"Type /veto {cand_id} to punish them and slash earnings."
+                )
+            else:
+                await notify_overthrow(overthrow)
     except Exception as exc:
         logger.warning("[sovereignty] overthrow check: %s", exc)
-
 
 async def _notify_event(event_type: str, message: str) -> None:
     """Send Telegram notification through NotificationGate (signal events only)."""
@@ -556,8 +567,9 @@ async def execute_task_background(task_id: str):
                 )
             )
 
-            # Treasury low alert (triggered once at settlement, not per payment)
+            # MoonPay Agent + Treasury low alert
             if _remaining_sol < TREASURY_LOW_THRESHOLD_SOL:
+                # 1. Email notification
                 asyncio.create_task(
                     asyncio.to_thread(
                         send_treasury_low,
@@ -565,6 +577,24 @@ async def execute_task_background(task_id: str):
                         TREASURY_LOW_THRESHOLD_SOL,
                     )
                 )
+                # 2. Telegram MoonPay auto-trigger
+                try:
+                    from services.moonpay_service import get_onramp_info
+                    sol_addr = coordinator_wallet.get("sol_address", "—")
+                    mp_info = get_onramp_info(sol_addr, default_amount=25)
+                    mp_url = mp_info.get("url")
+
+                    msg = (
+                        f"🚨 TREASURY LOW\n"
+                        f"────────────────\n"
+                        f"BISHOP: \"My Liege, the treasury has dropped below {_remaining_sol:.3f} SOL!\"\n\n"
+                        f"Please restock immediately. I have pre-filled a fiat onramp for you:\n\n"
+                        f"{mp_url}\n\n"
+                        f"(Or tap /fund for custom amounts)"
+                    )
+                    await _notify_event("treasury_low", msg)
+                except Exception as ex:
+                    logger.warning("[moonpay trigger] %s", ex)
         except Exception as exc:
             logger.warning("[bishop email receipt] %s", exc)
 

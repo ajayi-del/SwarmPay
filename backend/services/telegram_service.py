@@ -75,6 +75,8 @@ class _NotificationGate:
         "moonpay_received",
         "punish_applied",
         "task_failed",
+        "treasury_low",
+        "pending_overthrow",
     }
     COOLDOWN_SECONDS = 30
 
@@ -199,6 +201,9 @@ async def cmd_help(chat_id: int):
         "/brain                       — recent memory\n"
         "/model                       — model routing\n"
         "/dryrun  /live               — mode toggle\n"
+        "──── Governance ───────\n"
+        "/approve <AGENT>             — approve succession\n"
+        "/veto <AGENT>                — veto overthrow\n"
         "\nOr send any text to speak with REGIS."
     )
 
@@ -784,6 +789,32 @@ async def cmd_locked(chat_id: int):
         await send(chat_id, f"Lock status failed: {exc}")
 
 
+async def cmd_approve(chat_id: int, args: str):
+    agent_id = args.strip().upper()
+    if not agent_id:
+        await send(chat_id, "Usage: /approve <AGENT>")
+        return
+    try:
+        from services.sovereignty_service import sovereignty_service
+        result = await asyncio.to_thread(sovereignty_service.resolve_overthrow, agent_id, True)
+        await send(chat_id, f"👑 {result}")
+    except Exception as exc:
+        await send(chat_id, f"Approve failed: {exc}")
+
+
+async def cmd_veto(chat_id: int, args: str):
+    agent_id = args.strip().upper()
+    if not agent_id:
+        await send(chat_id, "Usage: /veto <AGENT>")
+        return
+    try:
+        from services.sovereignty_service import sovereignty_service
+        result = await asyncio.to_thread(sovereignty_service.resolve_overthrow, agent_id, False)
+        await send(chat_id, f"⚔️ {result}")
+    except Exception as exc:
+        await send(chat_id, f"Veto failed: {exc}")
+
+
 async def cmd_challenge(chat_id: int, args: str):
     challenger = args.strip().upper()
     if not challenger:
@@ -896,6 +927,8 @@ async def handle_update(update: dict) -> None:
     elif cmd in ("/unlock",):           await cmd_unlock(chat_id, args)
     elif cmd in ("/locked",):           await cmd_locked(chat_id)
     elif cmd in ("/challenge",):        await cmd_challenge(chat_id, args)
+    elif cmd in ("/veto",):             await cmd_veto(chat_id, args)
+    elif cmd in ("/approve",):          await cmd_approve(chat_id, args)
     else:                               await handle_plain_message(chat_id, text)
 
 
