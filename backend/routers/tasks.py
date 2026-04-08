@@ -38,7 +38,6 @@ from services.email_service import (
     TREASURY_LOW_THRESHOLD_SOL,
 )
 from services.sovereignty_service import sovereignty_service, notify_overthrow
-from services.uniblock_service import get_gas_price
 from services.moonpay_service import get_live_sol_usdc_rate
 from services.payment_verification_service import payment_verification_service, PaymentData
 import time

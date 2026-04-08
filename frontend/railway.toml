@@ -1,12 +1,12 @@
 [build]
 builder = "dockerfile"
 dockerfilePath = "Dockerfile"
-watchPatterns = ["frontend/**"]
 
 [deploy]
 healthcheckPath = "/"
-healthcheckTimeout = 120
+healthcheckTimeout = 180
 restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
 
 # Required environment variables (set in Railway dashboard):
 # NEXT_PUBLIC_API_URL — public URL of the deployed backend service

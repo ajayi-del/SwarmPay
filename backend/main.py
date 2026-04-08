@@ -62,14 +62,15 @@ limiter = Limiter(key_func=_real_client_ip, default_limits=["60/minute"])
 # ── Startup validation ─────────────────────────────────────────────────────────
 
 def _validate_env() -> None:
-    """Crash fast if any required env var is missing."""
-    required = {
+    """Warn about missing env vars — but never crash. Let the app start for healthcheck."""
+    critical = {
         "ANTHROPIC_API_KEY": "Claude API — get from console.anthropic.com",
     }
-    missing = [f"{k} ({hint})" for k, hint in required.items() if not os.environ.get(k)]
+    missing = [f"{k} ({hint})" for k, hint in critical.items() if not os.environ.get(k)]
     if missing:
-        raise RuntimeError(
-            f"FATAL: missing required environment variables:\n  " + "\n  ".join(missing)
+        logger.error(
+            "Missing critical environment variables (some features will not work):\n  %s",
+            "\n  ".join(missing),
         )
     # Warn about optional but important vars
     optional_warn = ["DEEPSEEK_API_KEY", "POCKETBASE_URL", "TELEGRAM_BOT_TOKEN"]

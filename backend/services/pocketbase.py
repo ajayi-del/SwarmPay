@@ -250,3 +250,8 @@ class AuditLog(BaseModel):
     message: str
     metadata: Optional[Dict[str, Any]] = None
     created_at: str
+
+
+# ── Module-level singleton ─────────────────────────────────────────────────────
+# Allows `from services.pocketbase import pb` across the codebase
+pb = PocketBaseService()
