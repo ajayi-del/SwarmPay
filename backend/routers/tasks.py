@@ -22,7 +22,7 @@ from pydantic import BaseModel, field_validator
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
-from services.pocketbase import PocketBaseService, _validate_record_id
+from services.pocketbase import PocketBaseService, _validate_record_id, _safe_filter
 from services.ows_service import OWSService
 from services.agent_service import AgentService, AGENT_PERSONAS, EXECUTION_ORDER
 from services.policy_service import PolicyService, get_rep_multiplier, is_probation
@@ -38,11 +38,12 @@ from services.email_service import (
     TREASURY_LOW_THRESHOLD_SOL,
 )
 from services.sovereignty_service import sovereignty_service, notify_overthrow
+from services.uniblock_service import get_gas_price
+from services.moonpay_service import get_live_sol_usdc_rate
+from services.payment_verification_service import payment_verification_service, PaymentData
+import time
 
-# Fallback SOL/USDC rate for email threshold conversions.
-# Used ONLY to convert USDC amounts to SOL for alert thresholds — not for settlement.
-_FALLBACK_SOL_USDC_RATE = 79.0
-
+# Safety limits for agent payouts
 logger = logging.getLogger("swarmpay.tasks")
 limiter = Limiter(key_func=get_remote_address)
 
@@ -336,7 +337,7 @@ async def execute_task_background(task_id: str):
     """
     try:
         task = await asyncio.to_thread(pb.get, "tasks", task_id)
-        sub_tasks = await asyncio.to_thread(pb.list, "sub_tasks", filter_params=f"task_id='{task_id}'")
+        sub_tasks = await asyncio.to_thread(pb.list, "sub_tasks", filter_params=_safe_filter("task_id", task_id))
         coordinator_wallet = await asyncio.to_thread(pb.get, "wallets", task["coordinator_wallet_id"])
         task_goal = task.get("description", "")
 
@@ -454,7 +455,7 @@ async def execute_task_background(task_id: str):
 
         # ── Peer payments (inter-agent micro-economy) ─────────────────────
         fresh_sub_tasks = await asyncio.to_thread(
-            pb.list, "sub_tasks", filter_params=f"task_id='{task_id}'"
+            pb.list, "sub_tasks", filter_params=_safe_filter("task_id", task_id)
         )
         await _do_peer_payments(fresh_sub_tasks)
 
@@ -467,26 +468,33 @@ async def execute_task_background(task_id: str):
                 if any(st["wallet_id"] in (p.get("from_wallet_id", ""), p.get("to_wallet_id", ""))
                        for st in fresh_sub_tasks)
             ]
-            await asyncio.to_thread(
-                brain_service.update_after_task, task, fresh_sub_tasks, all_task_payments
+            await brain_service.async_update_after_task(
+                task, fresh_sub_tasks, all_task_payments
             )
         except Exception as exc:
             logger.warning("[brain sync] %s", exc)
 
-        # ── Meteora: log SOL/USDC rate at treasury close ─────────────────
+        # ── Update coordinator balance from RPC (B7) & Treasury Close ────
         try:
-            from services.meteora_service import get_sol_usdc_rate
-            rate_data = await asyncio.to_thread(get_sol_usdc_rate)
-            if rate_data:
+            live_rate = await get_live_sol_usdc_rate()
+            if live_rate:
                 usdc_total = float(task.get("total_budget", 0))
-                sol_equiv  = round(usdc_total / rate_data["rate"], 6)
-                brain_service.append(
+                sol_equiv  = round(usdc_total / live_rate, 6)
+                await brain_service.async_append(
                     "TREASURY_CLOSE",
-                    f"SOL/USDC rate {rate_data['rate']} (via {rate_data['source']}) · "
+                    f"SOL/USDC rate {live_rate} (via MoonPay) · "
                     f"treasury ${usdc_total:.2f} USDC ≈ {sol_equiv} SOL",
                 )
+                
+                # Fetch true SOL balance and update PB to reflect remaining USD
+                from services.balance_service import balance_service
+                bal_info = await balance_service.get_balance(coordinator_wallet["sol_address"], force_refresh=True)
+                if bal_info and bal_info.balance_sol is not None:
+                    real_usd = float(bal_info.balance_sol) * live_rate
+                    await asyncio.to_thread(pb.update, "wallets", coordinator_wallet["id"], {"balance": real_usd})
+                    logger.info("Updated coordinator balance from RPC: $%.2f", real_usd)
         except Exception as exc:
-            logger.info("[meteora] %s", exc)
+            logger.info("[treasury close] %s", exc)
 
         await asyncio.to_thread(pb.update, "tasks", task_id, {"status": "complete"})
         await _audit("task_complete", task_id, "REGIS closed the treasury. All agents settled.")
@@ -532,8 +540,9 @@ async def execute_task_background(task_id: str):
             _remaining   = max(0.0, _budget_cap - _distributed)
             _tx_hashes   = [p.get("tx_hash", "") for p in task_payments if p.get("status") == "signed" and p.get("tx_hash")]
 
-            # Convert USDC → SOL using fallback rate (governance alert only)
-            _rate          = Decimal(str(_FALLBACK_SOL_USDC_RATE))
+            # Convert USDC → SOL using live rate (governance alert only)
+            live_rate      = await get_live_sol_usdc_rate()
+            _rate          = Decimal(str(live_rate))
             _dist_sol      = float((Decimal(str(_distributed)) / _rate).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP))
             _saved_sol     = float((Decimal(str(_saved))       / _rate).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP))
             _remaining_sol = float((Decimal(str(_remaining))   / _rate).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP))
@@ -617,6 +626,44 @@ async def execute_task_background(task_id: str):
         await _notify_event("task_failed", f"❌ TASK FAILED\n{task_id[:12]}\n{str(exc)[:120]}")
 
 
+async def _solana_transfer(from_wallet_id: str, to_wallet_id: str, amount_usdc: float) -> str:
+    """
+    Execute a real Solana devnet transfer so the tx appears on Solscan.
+
+    Converts USDC→SOL (÷79), sends via solana_service using the registered
+    Ed25519 keypair for from_wallet_id. Looks up the sol_address of
+    to_wallet_id from PocketBase.
+
+    Returns real base58 signature if successful, empty string otherwise.
+    Never raises — payment flow must not be blocked by Solana errors.
+    """
+    try:
+        # Look up recipient sol_address
+        to_wallet = await asyncio.to_thread(pb.get, "wallets", to_wallet_id)
+        to_sol = to_wallet.get("sol_address", "")
+        if not to_sol or len(to_sol) < 20:
+            return ""
+
+        # Convert USDC to lamports using live rate (1 SOL = 1e9 lamports)
+        live_rate  = await get_live_sol_usdc_rate()
+        sol_amount = amount_usdc / live_rate
+        lamports   = max(5_000, int(sol_amount * 1_000_000_000))  # min 5k lamports
+
+        sig = await asyncio.to_thread(
+            solana_service.transfer,
+            from_wallet_id,   # registered Ed25519 keypair
+            to_sol,           # recipient pubkey (base58)
+            lamports,
+        )
+        if solana_service.is_real_sig(sig):
+            logger.info("[solana] ◎%.6f → %s sig=%s…", sol_amount, to_sol[:8], sig[:16])
+            return sig
+        return ""
+    except Exception as exc:
+        logger.debug("[solana transfer] %s", exc)
+        return ""
+
+
 async def _trigger_dead_mans_switch(sub_task: Dict, coordinator_wallet: Dict):
     """
     Dead Man's Switch — fires when an agent exceeds the 120 s heartbeat window.
@@ -634,20 +681,27 @@ async def _trigger_dead_mans_switch(sub_task: Dict, coordinator_wallet: Dict):
             "api_key_id": f"REVOKED-{swept_at}",
         })
 
-        # 2 — Sweep budget back to coordinator
+        # 2 — Sweep budget back to coordinator (real Solana transfer)
         swept_amount = float(sub_task.get("budget_allocated", 0))
         sweep_tx = await asyncio.to_thread(
             ows.sign_payment,
             sub_task["wallet_id"], coordinator_wallet["id"], swept_amount,
         )
+        sweep_sig = await _solana_transfer(
+            sub_task["wallet_id"],
+            coordinator_wallet["id"],
+            swept_amount,
+        )
+        sweep_hash = sweep_sig or sweep_tx.get("tx_hash", f"0x{uuid.uuid4().hex}")
         await asyncio.to_thread(pb.create, "payments", {
             "from_wallet_id": sub_task["wallet_id"],
             "to_wallet_id":   coordinator_wallet["id"],
             "amount":         swept_amount,
-            "chain_id":       "eip155:1",
+            "chain_id":       "solana:devnet",
             "status":         "signed",
             "policy_reason":  f"SWEEP: Dead man's switch — {agent_name}",
-            "tx_hash":        sweep_tx.get("tx_hash", f"0x{uuid.uuid4().hex}"),
+            "tx_hash":        sweep_hash,
+            "solscan_url":    f"https://explorer.solana.com/tx/{sweep_hash}?cluster=devnet" if solana_service.is_real_sig(sweep_hash) else "",
         })
 
         # 3 — Mark sub_task with full sweep metadata in output
@@ -703,13 +757,29 @@ async def _process_payment(coordinator_wallet: Dict, sub_task: Dict):
         # Fetch live reputation score before evaluating policy
         reputation = await asyncio.to_thread(pb.get_reputation, agent_name)
 
-        policy_result = policy_service.evaluate_payment(
+        lit_resp = await asyncio.to_thread(
+            ows.evaluate_and_sign_lit_action,
             from_wallet=coordinator_wallet,
             to_wallet={"id": sub_task["wallet_id"], "role": "sub-agent"},
             amount=attempted,
             sub_task=sub_task,
-            reputation=reputation,
+            reputation=reputation
         )
+        
+        from pydantic import BaseModel
+        class PolicyResult(BaseModel):
+            allow: bool
+            reason: str = ""
+            is_probation: bool = False
+            effective_cap: float = 0.0
+
+        policy_result = PolicyResult(
+            allow=lit_resp.get("allow", False),
+            reason=lit_resp.get("reason") or "",
+            is_probation=lit_resp.get("is_probation", False),
+            effective_cap=lit_resp.get("effective_cap", 0.0)
+        )
+        lit_tx = lit_resp.get("tx_hash", "")
 
         # ── FIX 1: Probation retry — cap to effective_cap and re-evaluate ──
         # Instead of hard-blocking, pay the capped amount (probation payment).
@@ -724,29 +794,70 @@ async def _process_payment(coordinator_wallet: Dict, sub_task: Dict):
                 {"agent": agent_name, "cap": cap, "full_amount": attempted, "reputation": reputation},
             )
             attempted = cap
-            policy_result = policy_service.evaluate_payment(
+            new_lit_resp = await asyncio.to_thread(
+                ows.evaluate_and_sign_lit_action,
                 from_wallet=coordinator_wallet,
                 to_wallet={"id": sub_task["wallet_id"], "role": "sub-agent"},
                 amount=attempted,
                 sub_task=sub_task,
-                reputation=reputation,
+                reputation=reputation
             )
+            policy_result = PolicyResult(
+                allow=new_lit_resp.get("allow", False),
+                reason=new_lit_resp.get("reason") or "",
+                is_probation=new_lit_resp.get("is_probation", False),
+                effective_cap=new_lit_resp.get("effective_cap", 0.0)
+            )
+            lit_tx = new_lit_resp.get("tx_hash", "")
 
         payload: Dict[str, Any] = {
             "from_wallet_id": coordinator_wallet["id"],
             "to_wallet_id": sub_task["wallet_id"],
             "amount": attempted,
-            "chain_id": "eip155:1",
+            "chain_id": "solana:devnet",
             "status": "signed" if policy_result.allow else "blocked",
             "policy_reason": policy_result.reason or "",
         }
 
         if policy_result.allow:
-            tx = await asyncio.to_thread(
-                ows.sign_payment,
-                coordinator_wallet["id"], sub_task["wallet_id"], attempted
+            # We already invoked Lit Action so we use the PKP signature returned by Lit
+            tx = {"tx_hash": lit_tx}
+            # Attempt real on-chain Solana transfer — makes tx visible on Solscan
+            real_sig = await _solana_transfer(
+                coordinator_wallet["id"],
+                sub_task["wallet_id"],
+                attempted,
             )
-            payload["tx_hash"] = tx.get("tx_hash", "")
+            # Prefer real Solana signature over OWS mock hash
+            tx_hash = real_sig or tx.get("tx_hash", "")
+            payload["tx_hash"] = tx_hash
+            payload["solscan_url"] = (
+                f"https://explorer.solana.com/tx/{tx_hash}?cluster=devnet"
+                if solana_service.is_real_sig(tx_hash) else ""
+            )
+            if solana_service.is_real_sig(tx_hash):
+                # Queue payment for on-chain verification (B5)
+                # target wallet must be resolved
+                to_wallet_sol = ""
+                try:
+                    to_wallet_obj = await asyncio.to_thread(pb.get, "wallets", sub_task["wallet_id"])
+                    to_wallet_sol = to_wallet_obj.get("sol_address", "")
+                except Exception:
+                    pass
+                
+                live_rate_verify = await get_live_sol_usdc_rate()
+                expected_sol = attempted / live_rate_verify
+
+                p_data = PaymentData(
+                    tx_hash=tx_hash,
+                    task_id=sub_task["task_id"],
+                    agent_id=agent_name,
+                    expected_amount_sol=Decimal(str(expected_sol)),
+                    recipient=to_wallet_sol,
+                    timestamp=time.time()
+                )
+                await payment_verification_service.queue_verification(p_data)
+
             await asyncio.to_thread(pb.update, "sub_tasks", sub_task["id"], {"status": "paid"})
             # Probation recovery bonus: slightly higher rep reward when on probation
             rep_delta = +0.3 if is_probation(reputation) else +0.1
@@ -789,7 +900,8 @@ async def _process_payment(coordinator_wallet: Dict, sub_task: Dict):
                 f"Rep: {reputation:.2f}★ → {new_rep:.2f}★ (-0.2)\n"
                 f"Reason: {policy_result.reason}"
             )
-            amount_sol = attempted / _FALLBACK_SOL_USDC_RATE
+            live_rate  = await get_live_sol_usdc_rate()
+            amount_sol = attempted / live_rate
             if amount_sol > CRITICAL_BLOCK_THRESHOLD_SOL:
                 task_desc = sub_task.get("description", "")
                 asyncio.create_task(
@@ -835,14 +947,17 @@ async def _do_peer_payments(sub_tasks: List[Dict]):
             tx = await asyncio.to_thread(
                 ows.sign_payment, sender_wallet, receiver_wallet, amount
             )
+            peer_sig = await _solana_transfer(sender_wallet, receiver_wallet, amount)
+            peer_hash = peer_sig or tx.get("tx_hash", "")
             payment_rec = await asyncio.to_thread(pb.create, "payments", {
                 "from_wallet_id": sender_wallet,
                 "to_wallet_id":   receiver_wallet,
                 "amount":         amount,
-                "chain_id":       "eip155:1",
+                "chain_id":       "solana:devnet",
                 "status":         "signed",
                 "policy_reason":  f"PEER: {label}",
-                "tx_hash":        tx.get("tx_hash", ""),
+                "tx_hash":        peer_hash,
+                "solscan_url":    f"https://explorer.solana.com/tx/{peer_hash}?cluster=devnet" if solana_service.is_real_sig(peer_hash) else "",
             })
             # XMTP: send wallet-to-wallet verified message on handoff
             xmtp_verified = False

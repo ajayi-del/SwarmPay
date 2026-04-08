@@ -24,3 +24,4 @@ frontend/.env.local
 # OS
 .DS_Store
 *.swp
+backend/contracts/node_modules/

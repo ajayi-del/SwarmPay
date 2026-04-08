@@ -5,6 +5,8 @@ OWS Service - Handles all Open Wallet Standard operations
 import subprocess
 import json
 import uuid
+import base64
+import os
 from typing import Dict, Any, Optional
 from datetime import datetime
 
@@ -169,3 +171,59 @@ class OWSService:
             print(f"Error getting OWS wallet balance: {e}")
             # Return mock balance for demo purposes
             return 1.0  # 1 ETH default for demo
+
+    def evaluate_and_sign_lit_action(self, from_wallet: Dict[str, Any], to_wallet: Dict[str, Any], amount: float, sub_task: Dict[str, Any], reputation: float, data_to_sign: str = "mock_hash") -> Dict[str, Any]:
+        """
+        Executes the Lit Protocol Action (ows_policy.js) via the lit_orchestrator Node wrapper.
+        Returns the policy evaluation and conditionally the signature if allowed.
+        """
+        try:
+            payload = {
+                "amount": amount,
+                "sub_task": sub_task,
+                "reputation": reputation,
+                "from_wallet": from_wallet,
+                "to_wallet": to_wallet,
+                "dataToSign": data_to_sign
+            }
+            payload_b64 = base64.b64encode(json.dumps(payload).encode('utf-8')).decode('utf-8')
+            
+            # Find orchestrator path
+            base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            orchestrator_path = os.path.join(base_dir, "contracts", "lit_orchestrator.js")
+            
+            result = subprocess.run(
+                ["node", orchestrator_path, payload_b64],
+                capture_output=True,
+                text=True
+            )
+            
+            if result.returncode != 0:
+                print(f"Lit Orchestrator stderr: {result.stderr}")
+                return {"allow": False, "reason": "Lit Execution Error", "is_probation": False}
+                
+            try:
+                # The node script outputs JSON on the last line
+                output_lines = result.stdout.strip().split('\n')
+                response = json.loads(output_lines[-1])
+                
+                if not response.get("success"):
+                    return {"allow": False, "reason": response.get("error", "Unknown Lit Error"), "is_probation": False}
+                
+                policy = response.get("policy_result", {})
+                signature = response.get("signature")
+                
+                return {
+                    "allow": policy.get("allow", False),
+                    "reason": policy.get("reason"),
+                    "is_probation": policy.get("is_probation", False),
+                    "effective_cap": policy.get("effective_cap"),
+                    "tx_hash": signature
+                }
+            except json.JSONDecodeError:
+                print(f"Failed to parse Lit orchestrator output: {result.stdout}")
+                return {"allow": False, "reason": "Invalid Lit Action Output", "is_probation": False}
+                
+        except Exception as e:
+            print(f"Error calling Lit Action: {e}")
+            return {"allow": False, "reason": str(e), "is_probation": False}

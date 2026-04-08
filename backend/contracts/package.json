@@ -1,0 +1,14 @@
+{
+  "name": "swarmpay-contracts",
+  "version": "1.0.0",
+  "description": "Lit Protocol Integration for SwarmPay",
+  "main": "lit_orchestrator.js",
+  "dependencies": {
+    "@lit-protocol/lit-node-client": "^6.2.2",
+    "@lit-protocol/auth-helpers": "^6.2.2",
+    "@lit-protocol/constants": "^6.2.2",
+    "ethers": "^6.11.1",
+    "dotenv": "^16.4.5"
+  },
+  "type": "module"
+}
