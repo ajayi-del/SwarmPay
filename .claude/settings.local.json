@@ -123,7 +123,11 @@
       "Bash(echo \"dev server PID: $!\" sleep 6 curl -s http://localhost:3000/)",
       "Bash(pkill -f \"next dev\")",
       "Bash(grep -v \"^$\")",
-      "Bash(grep -n \"leaderboard\\\\|sovereignty\" /Users/dayodapper/CascadeProjects/SwarmPay/backend/routers/*.py)"
+      "Bash(grep -n \"leaderboard\\\\|sovereignty\" /Users/dayodapper/CascadeProjects/SwarmPay/backend/routers/*.py)",
+      "Bash(kill -9 5541)",
+      "Bash(echo \"Dev server PID: $!\")",
+      "Bash(pip3 show:*)",
+      "Bash(cat /Users/dayodapper/CascadeProjects/SwarmPay/docs/*.md)"
     ]
   }
 }

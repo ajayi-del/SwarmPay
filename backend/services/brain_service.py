@@ -41,6 +41,11 @@ class BrainService:
                 self._initialize()
                 return "# REGIS SOVEREIGN BRAIN\n## Event Log\n"
 
+    async def async_append(self, section: str, content: str):
+        """Async wrapper — always dispatches to thread pool to avoid blocking event loop."""
+        import asyncio
+        await asyncio.to_thread(self.append, section, content)
+
     def append(self, section: str, content: str):
         """Append a single timestamped line to the Event Log. Never raises."""
         now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
@@ -104,6 +109,10 @@ class BrainService:
                 f"margin {new_ruler_earnings_usdc - old_ruler_distributed_usdc:.4f} USDC"
             ),
         )
+
+    async def async_update_after_task(self, task: Dict, sub_tasks: List[Dict], payments: List[Dict]):
+        import asyncio
+        await asyncio.to_thread(self.update_after_task, task, sub_tasks, payments)
 
 
 # Singleton — imported by both regis.py router and tasks.py

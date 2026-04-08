@@ -333,3 +333,612 @@ I acknowledge your inquiry with precision. The following operational directives 
 - Query: Solana DeFi yield
 - Signal: high yield opportunity
 - Source: Raydium Price Today | RAY to USD Live Price, Market Cap & Ch
+[2026-04-06 02:48 UTC] [TASK_COMPLETE] Task 'Score last 20 token launches on pump.fun by holder' complete. Paid 5 agent(s) 12.3620 USDC total. Peer payments: 3 transfers.
+[2026-04-06 02:48 UTC] [TREASURY_CLOSE] SOL/USDC rate 82.51 (via CoinGecko (Meteora pool reference)) · treasury $23.96 USDC ≈ 0.290401 SOL
+[2026-04-06 02:50 UTC] [TASK_COMPLETE] Task 'Scan Magic Eden floor price movements for 5 blue-c' complete. Paid 3 agent(s) 46.5934 USDC total. 
+[2026-04-06 02:50 UTC] [TREASURY_CLOSE] SOL/USDC rate 82.52 (via CoinGecko (Meteora pool reference)) · treasury $82.50 USDC ≈ 0.999758 SOL
+[2026-04-06 02:53 UTC] [TASK_COMPLETE] Task 'Research top 10 Solana validators by uptime, stake' complete. Paid 4 agent(s) 14.4827 USDC total. Peer payments: 1 transfers.
+[2026-04-06 02:53 UTC] [TREASURY_CLOSE] SOL/USDC rate 82.52 (via CoinGecko (Meteora pool reference)) · treasury $24.75 USDC ≈ 0.299927 SOL
+
+## REGIS Scan 2026-04-06 03:03 UTC
+- Query: Solana DeFi yield
+- Signal: high yield opportunity
+- Source: Raydium Price Today | RAY Price Chart & Market Cap | Phemex
+[2026-04-06 03:08 UTC] [TASK_COMPLETE] Task 'Analyze Solana DeFi TVL across Raydium, Orca, and ' complete. Paid 4 agent(s) 375.8786 USDC total. Peer payments: 1 transfers.
+[2026-04-06 03:08 UTC] [TREASURY_CLOSE] SOL/USDC rate 82.42 (via CoinGecko (Meteora pool reference)) · treasury $741.78 USDC ≈ 9.0 SOL
+[2026-04-06 03:10 UTC] [TASK_COMPLETE] Task 'CHECK FOR GOOD SPREADS ON MYRIAD NETWORK' complete. Paid 3 agent(s) 13.9645 USDC total. 
+[2026-04-06 03:10 UTC] [TREASURY_CLOSE] SOL/USDC rate 82.4 (via CoinGecko (Meteora pool reference)) · treasury $24.73 USDC ≈ 0.300073 SOL
+
+## REGIS Scan 2026-04-06 03:13 UTC
+- Query: Solana DeFi yield
+- Signal: high yield opportunity
+- Source: Raydium Price Today | RAY Price Chart & Market Cap | Phemex
+[2026-04-06 03:13 UTC] [TASK_COMPLETE] Task 'Analyze BTC DeFi TVL across Raydium, Orca, and Jup' complete. Paid 4 agent(s) 126.9687 USDC total. Peer payments: 1 transfers.
+[2026-04-06 03:13 UTC] [TREASURY_CLOSE] SOL/USDC rate 82.36 (via CoinGecko (Meteora pool reference)) · treasury $247.26 USDC ≈ 3.002186 SOL
+
+## REGIS Scan 2026-04-06 03:28 UTC
+- Query: Solana DeFi yield
+- Signal: high yield opportunity
+- Source: Raydium Price Today | RAY Price Chart & Market Cap | Phemex
+
+## REGIS Scan 2026-04-06 03:33 UTC
+- Query: Solana DeFi yield
+- Signal: high yield opportunity
+- Source: Raydium Price Today | RAY Price Chart & Market Cap | Phemex
+[2026-04-06 03:41 UTC] [TASK_COMPLETE] Task 'Scan Magic Eden floor price movements for 5 blue-c' complete. Paid 3 agent(s) 232.7410 USDC total. 
+[2026-04-06 03:41 UTC] [TREASURY_CLOSE] SOL/USDC rate 82.07 (via CoinGecko (Meteora pool reference)) · treasury $412.10 USDC ≈ 5.021323 SOL
+[2026-04-06 03:42 UTC] [TASK_COMPLETE] Task 'Score last 20 token launches on pump.fun by holder' complete. Paid 4 agent(s) 14.3679 USDC total. Peer payments: 1 transfers.
+[2026-04-06 03:42 UTC] [TREASURY_CLOSE] SOL/USDC rate 82.07 (via CoinGecko (Meteora pool reference)) · treasury $24.73 USDC ≈ 0.301279 SOL
+[2026-04-06 03:46 UTC] [TASK_COMPLETE] Task 'Score last 20 token launches on pump.fun by holder' complete. Paid 4 agent(s) 15.2025 USDC total. Peer payments: 1 transfers.
+[2026-04-06 03:46 UTC] [TREASURY_CLOSE] SOL/USDC rate 82.02 (via CoinGecko (Meteora pool reference)) · treasury $24.73 USDC ≈ 0.301463 SOL
+[2026-04-06 03:49 UTC] [AUDIT] MARGINAL score=70/100 rep_delta=+0.0 [NO_CHANGE] reason=
+[2026-04-06 03:49 UTC] [PUNISHMENT_RECEIVED] type=governance_report response=[Service temporarily unavailable — BadRequestError]
+
+## REGIS Scan 2026-04-06 05:18 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 05:23 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 05:28 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 05:33 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 05:38 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 05:43 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 05:48 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 05:53 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 05:58 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 06:03 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 06:08 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 06:13 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 06:18 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 06:23 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 06:29 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 06:34 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 06:39 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 06:44 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 06:50 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 06:55 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 07:00 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 07:05 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 07:10 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 07:15 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 07:20 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 07:25 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 07:30 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 07:35 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 07:40 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 07:45 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 07:50 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 07:55 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 08:00 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 08:05 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 08:10 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 08:15 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 08:20 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 08:25 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 08:30 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin ETF Tracker - Blockworks
+
+## REGIS Scan 2026-04-06 08:35 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin ETF Tracker - Blockworks
+
+## REGIS Scan 2026-04-06 08:40 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin ETF Tracker - Blockworks
+
+## REGIS Scan 2026-04-06 08:45 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin ETF Tracker - Blockworks
+
+## REGIS Scan 2026-04-06 08:50 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 08:55 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 09:00 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 09:05 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 09:10 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 09:15 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 09:20 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 09:25 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 09:30 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 09:36 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 09:41 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 09:46 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 09:51 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 09:56 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 10:01 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 10:07 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 10:12 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 10:17 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 10:22 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 10:27 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 10:32 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 10:37 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 10:42 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 10:47 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 10:52 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 10:57 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 11:02 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 11:07 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 11:12 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 11:17 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 11:22 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 11:27 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 11:32 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 11:37 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 11:42 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 11:47 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 11:52 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-06 11:57 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+[2026-04-06 12:24 UTC] [TASK_COMPLETE] Task 'Scan Magic Eden floor price movements for 5 blue-c' complete. Paid 5 agent(s) 424.6115 USDC total. Peer payments: 3 transfers.
+[2026-04-06 12:24 UTC] [TREASURY_CLOSE] SOL/USDC rate 82.28 (via CoinGecko (Meteora pool reference)) · treasury $575.96 USDC ≈ 7.0 SOL
+[2026-04-06 12:30 UTC] [TASK_COMPLETE] Task 'Research top 10 Solana validators by uptime, stake' complete. Paid 4 agent(s) 402.4299 USDC total. Peer payments: 1 transfers.
+[2026-04-06 12:30 UTC] [TREASURY_CLOSE] SOL/USDC rate 82.34 (via CoinGecko (Meteora pool reference)) · treasury $493.86 USDC ≈ 5.997814 SOL
+[2026-04-06 12:49 UTC] [TASK_COMPLETE] Task 'WHAT ARE THE HOTTEST CHAINS RIGHT NOW' complete. Paid 5 agent(s) 204.8967 USDC total. Peer payments: 3 transfers.
+[2026-04-06 12:49 UTC] [TREASURY_CLOSE] SOL/USDC rate 82.47 (via CoinGecko (Meteora pool reference)) · treasury $329.24 USDC ≈ 3.99224 SOL
+[2026-04-06 12:52 UTC] [TASK_COMPLETE] Task 'Score last 20 token launches on pump.fun by holder' complete. Paid 0 agent(s) 0.0000 USDC total. Peer payments: 1 transfers.
+[2026-04-06 12:52 UTC] [TREASURY_CLOSE] SOL/USDC rate 82.43 (via CoinGecko (Meteora pool reference)) · treasury $24.69 USDC ≈ 0.299563 SOL
+[2026-04-06 13:07 UTC] [PROBE_Q] Regis new bounty task scan best DeFi opportunities
+[2026-04-06 13:07 UTC] [PROBE_A] [Service temporarily unavailable — BadRequestError]
+
+## REGIS Scan 2026-04-06 14:00 UTC
+- Query: Solana DeFi yield
+- Signal: high yield opportunity
+- Source: Raydium Price Today | RAY Price Chart & Market Cap | Phemex
+
+## REGIS Scan 2026-04-06 14:10 UTC
+- Query: Solana DeFi yield
+- Signal: high yield opportunity
+- Source: Raydium Price Today | RAY Price Chart & Market Cap | Phemex
+
+## REGIS Scan 2026-04-06 14:40 UTC
+- Query: Solana DeFi yield
+- Signal: high yield opportunity
+- Source: Raydium Price Today | RAY to USD Live Price, Market Cap & Ch
+
+## REGIS Scan 2026-04-06 14:51 UTC
+- Query: Solana DeFi yield
+- Signal: high yield opportunity
+- Source: Raydium Price Today | RAY to USD Live Price, Market Cap & Ch
+
+## REGIS Scan 2026-04-06 23:32 UTC
+- Query: Solana DeFi yield
+- Signal: high yield opportunity
+- Source: Raydium Price Today | RAY to USD Live Price, Market Cap & Ch
+[2026-04-07 01:07 UTC] [TASK_COMPLETE] Task 'Analyze Solana DeFi TVL across Raydium, Orca, and ' complete. Paid 4 agent(s) 266.9302 USDC total. Peer payments: 1 transfers.
+[2026-04-07 01:07 UTC] [TREASURY_CLOSE] SOL/USDC rate 79.89 (via CoinGecko (Meteora pool reference)) · treasury $411.55 USDC ≈ 5.151458 SOL
+[2026-04-07 01:09 UTC] [PUNISHMENT_RECEIVED] type=demote_reputation response=[Service temporarily unavailable — BadRequestError]
+[2026-04-07 01:12 UTC] [TASK_COMPLETE] Task 'Monitor Wormhole bridge activity and flag any anom' complete. Paid 3 agent(s) 17.8321 USDC total. 
+[2026-04-07 01:12 UTC] [TREASURY_CLOSE] SOL/USDC rate 79.82 (via CoinGecko (Meteora pool reference)) · treasury $24.69 USDC ≈ 0.309359 SOL
+[2026-04-07 01:16 UTC] [TASK_COMPLETE] Task 'Score last 20 token launches on pump.fun by holder' complete. Paid 4 agent(s) 20.1885 USDC total. 
+[2026-04-07 01:16 UTC] [TREASURY_CLOSE] SOL/USDC rate 79.79 (via CoinGecko (Meteora pool reference)) · treasury $24.69 USDC ≈ 0.309475 SOL
+[2026-04-07 01:18 UTC] [TASK_COMPLETE] Task 'Scan Magic Eden floor price movements for 5 blue-c' complete. Paid 3 agent(s) 13.9458 USDC total. 
+[2026-04-07 01:18 UTC] [TREASURY_CLOSE] SOL/USDC rate 79.78 (via CoinGecko (Meteora pool reference)) · treasury $24.69 USDC ≈ 0.309514 SOL
+[2026-04-07 01:44 UTC] [TASK_COMPLETE] Task 'Analyze Solana DeFi TVL across Raydium, Orca, and ' complete. Paid 4 agent(s) 170.7169 USDC total. Peer payments: 1 transfers.
+[2026-04-07 01:44 UTC] [TREASURY_CLOSE] SOL/USDC rate 79.95 (via CoinGecko (Meteora pool reference)) · treasury $319.84 USDC ≈ 4.0005 SOL
+[2026-04-07 02:22 UTC] [TASK_COMPLETE] Task 'what are the current best solana companies' complete. Paid 3 agent(s) 179.9578 USDC total. 
+[2026-04-07 02:22 UTC] [TREASURY_CLOSE] SOL/USDC rate 79.67 (via CoinGecko (Meteora pool reference)) · treasury $318.64 USDC ≈ 3.999498 SOL
+[2026-04-07 02:27 UTC] [TASK_COMPLETE] Task 'Analyze Solana DeFi TVL across Raydium, Orca, and ' complete. Paid 4 agent(s) 12.7557 USDC total. Peer payments: 1 transfers.
+[2026-04-07 02:27 UTC] [TREASURY_CLOSE] SOL/USDC rate 79.71 (via CoinGecko (Meteora pool reference)) · treasury $23.90 USDC ≈ 0.299812 SOL
+
+## REGIS Scan 2026-04-07 02:30 UTC
+- Query: Solana DeFi yield
+- Signal: high yield opportunity
+- Source: Raydium Price Today | RAY Price Chart & Market Cap | Phemex
+
+## REGIS Scan 2026-04-07 02:35 UTC
+- Query: Solana DeFi yield
+- Signal: high yield opportunity
+- Source: Raydium Price Today | RAY to USD Live Price, Market Cap & Ch
+
+## REGIS Scan 2026-04-07 03:08 UTC
+- Query: Solana DeFi yield
+- Signal: high yield opportunity
+- Source: Raydium Price Today | RAY to ZAR Live Price, Market Cap & Ch
+
+## REGIS Scan 2026-04-07 03:18 UTC
+- Query: Solana DeFi yield
+- Signal: risky investment
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-07 03:29 UTC
+- Query: Solana DeFi yield
+- Signal: risky investment
+- Source: Bitcoin (BTC) Price Prediction 2026, 2027 - 2030 - Crypto Ne
+
+## REGIS Scan 2026-04-07 03:49 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Emp Money
+
+## REGIS Scan 2026-04-07 03:59 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Emp Money
+
+## REGIS Scan 2026-04-07 04:09 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Emp Money
+[2026-04-07 04:13 UTC] [PUNISHMENT_RECEIVED] type=governance_report response=[Service temporarily unavailable — BadRequestError]
+
+## REGIS Scan 2026-04-07 04:14 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Emp Money
+[2026-04-07 04:16 UTC] [TASK_COMPLETE] Task 'Research top 10 Solana validators by uptime, stake' complete. Paid 4 agent(s) 13.8867 USDC total. Peer payments: 1 transfers.
+[2026-04-07 04:16 UTC] [TREASURY_CLOSE] SOL/USDC rate 79.76 (via CoinGecko (Meteora pool reference)) · treasury $23.90 USDC ≈ 0.299624 SOL
+[2026-04-07 04:17 UTC] [TASK_COMPLETE] Task 'Scan Magic Eden floor price movements for 5 blue-c' complete. Paid 3 agent(s) 15.6213 USDC total. 
+[2026-04-07 04:17 UTC] [TREASURY_CLOSE] SOL/USDC rate 79.76 (via CoinGecko (Meteora pool reference)) · treasury $23.90 USDC ≈ 0.299624 SOL
+
+## REGIS Scan 2026-04-07 04:19 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Emp Money
+
+## REGIS Scan 2026-04-07 04:24 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Emp Money
+
+## REGIS Scan 2026-04-07 04:29 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Emp Money
+
+## REGIS Scan 2026-04-07 04:41 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Solana (SOL) Price Prediction 2026-2030 | DigitalCoinPrice
+
+## REGIS Scan 2026-04-07 04:51 UTC
+- Query: Solana DeFi yield
+- Signal: high yield opportunity
+- Source: Raydium Price Today | RAY to USD Live Price, Market Cap & Ch
+
+## REGIS Scan 2026-04-07 05:01 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Solana (SOL) Price Prediction 2026-2030 | DigitalCoinPrice
+
+## REGIS Scan 2026-04-07 05:07 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Solana (SOL) Price Prediction 2026-2030 | DigitalCoinPrice
+
+## REGIS Scan 2026-04-07 05:17 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Solana (SOL) Price Prediction 2026-2030 | DigitalCoinPrice
+
+## REGIS Scan 2026-04-07 05:28 UTC
+- Query: Solana DeFi yield
+- Signal: high yield opportunity
+- Source: Raydium Price Today | RAY to USD Live Price, Market Cap & Ch
+
+## REGIS Scan 2026-04-07 05:38 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Solana (SOL) Price Prediction 2026-2030 | DigitalCoinPrice
+
+## REGIS Scan 2026-04-07 05:48 UTC
+- Query: Solana DeFi yield
+- Signal: high yield opportunity
+- Source: Raydium Price Today | RAY Price Chart & Market Cap | Phemex
+
+## REGIS Scan 2026-04-07 05:58 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Solana (SOL) Price Prediction 2026-2030 | DigitalCoinPrice
+
+## REGIS Scan 2026-04-07 06:08 UTC
+- Query: Solana DeFi yield
+- Signal: medium yield
+- Source: Solana (SOL) Price Prediction 2026-2030 | DigitalCoinPrice
+[2026-04-08 04:27 UTC] [TASK_COMPLETE] Task 'Score last 20 token launches on pump.fun by holder' complete. Paid 4 agent(s) 260.6614 USDC total. Peer payments: 1 transfers.
+[2026-04-08 04:27 UTC] [TREASURY_CLOSE] SOL/USDC rate 84.78 (via CoinGecko (Meteora pool reference)) · treasury $423.95 USDC ≈ 5.00059 SOL
+[2026-04-08 04:32 UTC] [TASK_COMPLETE] Task 'Scan Magic Eden floor price movements for 5 blue-c' complete. Paid 3 agent(s) 14.3660 USDC total. 
+[2026-04-08 04:32 UTC] [TREASURY_CLOSE] SOL/USDC rate 84.85 (via CoinGecko (Meteora pool reference)) · treasury $25.44 USDC ≈ 0.299788 SOL

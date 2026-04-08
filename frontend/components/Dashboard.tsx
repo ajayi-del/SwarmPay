@@ -54,7 +54,7 @@ export default function Dashboard() {
 
   if (!taskId || !taskState) return null;
 
-  const { task, coordinator_wallet, sub_tasks, payments, reputations = {} } = taskState;
+  const { task, coordinator_wallet, sub_tasks, payments, reputations = {}, x402_calls = [] } = taskState;
 
   const ALL_AGENTS = ["ATLAS", "CIPHER", "FORGE", "BISHOP", "SØN"];
   const activeAgentIds = new Set(sub_tasks.map((st) => st.agent_id));
@@ -192,7 +192,7 @@ export default function Dashboard() {
       {/* ── 4. x402 Payment Rail (proof of Solana) ── */}
       {payments.length > 0 && (
         <ErrorBoundary>
-          <X402Panel payments={payments} subTasks={sub_tasks} />
+          <X402Panel payments={payments} subTasks={sub_tasks} x402Calls={x402_calls} />
         </ErrorBoundary>
       )}
 

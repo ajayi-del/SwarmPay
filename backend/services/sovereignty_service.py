@@ -39,8 +39,9 @@ class SovereigntyService:
     @property
     def _pb(self):
         if self.__pb is None:
-            from services.pocketbase import PocketBaseService
+            from services.pocketbase import PocketBaseService, _safe_filter
             self.__pb = PocketBaseService()
+            self._safe_filter = _safe_filter
         return self.__pb
 
     # ── Upsert helpers ────────────────────────────────────────────────────────
@@ -49,7 +50,7 @@ class SovereigntyService:
         """Return the sovereignty record for agent, creating it on first sight."""
         try:
             records = self._pb.list("sovereignty",
-                                    filter_params=f"agent_id='{agent_id}'", limit=1)
+                                    filter_params=self._safe_filter("agent_id", agent_id), limit=1)
             if records:
                 return records[0]
             # First time — seed defaults

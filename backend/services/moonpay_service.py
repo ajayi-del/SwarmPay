@@ -14,7 +14,50 @@ MOONPAY_API_KEY = os.environ.get("MOONPAY_API_KEY", "")
 
 # Sandbox works without a real key — shows the full widget UI in test mode
 _MOONPAY_SANDBOX = "https://buy-sandbox.moonpay.com"
+_MOONPAY_SANDBOX = "https://buy-sandbox.moonpay.com"
 _MOONPAY_LIVE    = "https://buy.moonpay.com"
+
+import asyncio
+import httpx
+import time
+import logging
+
+logger = logging.getLogger("swarmpay.moonpay")
+
+_RATE_CACHE: dict = {"rate": None, "ts": 0.0}
+_RATE_LOCK = asyncio.Lock()
+_RATE_TTL = 30  # seconds
+
+async def get_live_sol_usdc_rate() -> float:
+    """Live SOL/USD rate from MoonPay pricing API. 30s TTL cache."""
+    async with _RATE_LOCK:
+        if time.time() - _RATE_CACHE["ts"] < _RATE_TTL and _RATE_CACHE["rate"]:
+            return _RATE_CACHE["rate"]
+        try:
+            async with httpx.AsyncClient() as client:
+                r = await client.get(
+                    "https://api.moonpay.com/v3/currencies/sol/ask_price",
+                    params={"apiKey": MOONPAY_API_KEY or "pk_test_key"},
+                    timeout=5.0
+                )
+                r.raise_for_status()
+                rate = float(r.json()["USD"])
+                _RATE_CACHE.update({"rate": rate, "ts": time.time()})
+                return rate
+        except Exception as e:
+            logger.warning("MoonPay rate failed: %s — trying Meteora", e)
+            try:
+                from services.meteora_service import get_sol_usdc_rate
+                rate_data = await asyncio.to_thread(get_sol_usdc_rate)
+                if rate_data and rate_data.get("rate"):
+                    rate = float(rate_data["rate"])
+                    _RATE_CACHE.update({"rate": rate, "ts": time.time()})
+                    return rate
+            except Exception as e2:
+                logger.warning("Meteora rate failed: %s", e2)
+            
+            # Absolute fallback
+            return 79.0
 
 
 def get_onramp_url(

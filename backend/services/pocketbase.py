@@ -17,9 +17,16 @@ logger = logging.getLogger("swarmpay.pocketbase")
 _RECORD_ID_RE = re.compile(r'^[a-z0-9]{10,20}$', re.IGNORECASE)
 # Allowed collections
 _ALLOWED_COLLECTIONS = {
-    "tasks", "sub_tasks", "wallets", "payments", "audit_log", "agent_reputation", "sovereignty"
+    "tasks", "sub_tasks", "wallets", "payments", "audit_log", "agent_reputation", "sovereignty", "x402_calls", "swarm_loans"
 }
+# Filter value allowed characters
+_FILTER_VALUE_RE = re.compile(r'^[a-zA-Z0-9_\-\.@]+$')
 
+def _safe_filter(field: str, value: str) -> str:
+    """Parameterized-style PocketBase filter — prevents injection."""
+    if not _FILTER_VALUE_RE.match(str(value)):
+        raise ValueError(f"Invalid filter value for field {field!r}: {value!r}")
+    return f"{field}='{value}'"
 
 def _validate_record_id(record_id: str) -> str:
     """Validate PocketBase record ID to prevent filter injection."""
@@ -116,7 +123,7 @@ class PocketBaseService:
         """Return current reputation score, initialising from defaults if absent."""
         try:
             records = self.list("agent_reputation",
-                                filter_params=f"agent_id='{agent_id}'", limit=1)
+                                filter_params=_safe_filter("agent_id", agent_id), limit=1)
             if records:
                 return float(records[0]["current_reputation"])
             # First time seen — seed from persona defaults
@@ -136,11 +143,11 @@ class PocketBaseService:
         """Apply delta to reputation, clamp to [1.0, 5.0]. Returns new value."""
         try:
             records = self.list("agent_reputation",
-                                filter_params=f"agent_id='{agent_id}'", limit=1)
+                                filter_params=_safe_filter("agent_id", agent_id), limit=1)
             if not records:
                 self.get_reputation(agent_id)
                 records = self.list("agent_reputation",
-                                    filter_params=f"agent_id='{agent_id}'", limit=1)
+                                    filter_params=_safe_filter("agent_id", agent_id), limit=1)
             rec = records[0]
             old_rep = float(rec["current_reputation"])
             new_rep = round(max(1.0, min(5.0, old_rep + delta)), 2)
@@ -170,7 +177,7 @@ class PocketBaseService:
         try:
             task = self.get("tasks", task_id)
             coordinator_wallet = self.get("wallets", task["coordinator_wallet_id"])
-            sub_tasks = self.list("sub_tasks", filter_params=f"task_id='{task_id}'",
+            sub_tasks = self.list("sub_tasks", filter_params=_safe_filter("task_id", task_id),
                                   sort="created")
 
             wallet_ids = [st["wallet_id"] for st in sub_tasks if st.get("wallet_id")]
@@ -180,11 +187,14 @@ class PocketBaseService:
                 payments = self.list("payments", filter_params=payment_filter,
                                      sort="created")
 
+            x402_calls = self.list("x402_calls", filter_params=_safe_filter("task_id", task_id), sort="created")
+
             return {
                 "task": task,
                 "coordinator_wallet": coordinator_wallet,
                 "sub_tasks": sub_tasks,
                 "payments": payments,
+                "x402_calls": x402_calls,
                 "reputations": self.get_all_reputations(),
             }
         except Exception as e:

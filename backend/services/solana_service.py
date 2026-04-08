@@ -14,7 +14,7 @@ import hashlib
 import os
 import struct
 import time
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 
 import httpx
 
@@ -249,6 +249,20 @@ class SolanaService:
             return [s["signature"] for s in sigs if isinstance(s, dict) and "signature" in s]
         except Exception:
             return []
+
+    async def get_transaction(self, tx_hash: str) -> Optional[Dict[str, Any]]:
+        """Fetch full transaction data from Solana RPC."""
+        try:
+            import asyncio
+            res = await asyncio.to_thread(
+                self._rpc,
+                "getTransaction",
+                [tx_hash, {"maxSupportedTransactionVersion": 0}]
+            )
+            return res.get("result")
+        except Exception as e:
+            print(f"[solana get_transaction] {e}")
+            return None
 
     def explorer_url(self, sig: str) -> str:
         return f"{EXPLORER_BASE}/{sig}?cluster=devnet"

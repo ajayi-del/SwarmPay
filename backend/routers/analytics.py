@@ -25,13 +25,12 @@ async def get_token_usage(task_id: str = Query(default="")):
         }
     summary = get_session_summary(task_id)
 
-    # Convert USD cost → SOL (use live rate or fallback)
+    # Convert USD cost → SOL (use live rate)
     try:
-        from services.meteora_service import get_sol_usdc_rate
-        rate_data = get_sol_usdc_rate()
-        rate = rate_data["rate"] if rate_data else _FALLBACK_SOL_USDC_RATE
+        from services.moonpay_service import get_live_sol_usdc_rate
+        rate = await get_live_sol_usdc_rate()
     except Exception:
-        rate = _FALLBACK_SOL_USDC_RATE
+        rate = 79.0
 
     cost_sol = summary["total_cost_usd"] / rate if rate else 0.0
     summary["total_cost_sol"] = round(cost_sol, 9)

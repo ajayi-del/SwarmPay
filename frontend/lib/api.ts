@@ -44,11 +44,24 @@ export interface Task {
   created: string;
 }
 
+export interface X402Call {
+  id: string;
+  task_id: string;
+  agent_id: string;
+  service_name: string;
+  tx_hash: string;
+  status: "pending" | "confirmed" | "failed" | "not_found" | "invalid";
+  amount_sol: number;
+  created: string;
+  verified_at?: string;
+}
+
 export interface TaskState {
   task: Task;
   coordinator_wallet: Wallet;
   sub_tasks: SubTask[];
   payments: Payment[];
+  x402_calls: X402Call[];
   reputations: Record<string, number>;
 }
 

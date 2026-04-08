@@ -8,12 +8,13 @@
  */
 
 import { motion } from "framer-motion";
-import type { Payment, SubTask } from "@/lib/api";
+import type { Payment, SubTask, X402Call } from "@/lib/api";
 import { useSolRate } from "@/lib/useSolRate";
 
 interface Props {
   payments: Payment[];
   subTasks: SubTask[];
+  x402Calls?: X402Call[];
 }
 
 const SOLSCAN_BASE = "https://solscan.io/tx";
@@ -44,14 +45,15 @@ function relativeTime(isoDate: string): string {
   return `${Math.floor(m / 60)}h ago`;
 }
 
-export default function X402Panel({ payments, subTasks }: Props) {
+export default function X402Panel({ payments, subTasks, x402Calls = [] }: Props) {
   const { toSol } = useSolRate();
 
+  // Filter ONLY true on-chain signatures (no mocks)
   const x402Payments = payments.filter(
     (p) =>
       p.status === "signed" &&
-      (p.policy_reason?.toLowerCase().includes("x402") ||
-        p.tx_hash?.length > 10),
+      p.tx_hash &&
+      p.tx_hash.length >= 80 // Base58 solana signatures are ~87-88 chars
   );
 
   if (x402Payments.length === 0) return null;
@@ -119,10 +121,27 @@ export default function X402Panel({ payments, subTasks }: Props) {
         {x402Payments.map((p, i) => {
           const agent = agentName(p.to_wallet_id, subTasks);
           const service = inferService(p.policy_reason ?? "");
-          const hasTxHash = p.tx_hash && p.tx_hash.length > 10;
-          const solscanUrl = hasTxHash
-            ? `${SOLSCAN_BASE}/${p.tx_hash}?cluster=devnet`
-            : null;
+          const solscanUrl = `${SOLSCAN_BASE}/${p.tx_hash}?cluster=devnet`;
+          
+          // Check verification status
+          const xCall = x402Calls.find((x) => x.tx_hash === p.tx_hash);
+          const verifyStatus = xCall?.status || "pending";
+          let badgeColor = "#555";
+          let badgeBg = "rgba(85,85,85,0.08)";
+          let badgeBorder = "rgba(85,85,85,0.2)";
+          let badgeLabel = "PENDING";
+          
+          if (verifyStatus === "confirmed") {
+            badgeColor = "#22c55e";
+            badgeBg = "rgba(34,197,94,0.08)";
+            badgeBorder = "rgba(34,197,94,0.2)";
+            badgeLabel = "VERIFIED";
+          } else if (verifyStatus === "failed" || verifyStatus === "invalid") {
+            badgeColor = "#ef4444";
+            badgeBg = "rgba(239,68,68,0.08)";
+            badgeBorder = "rgba(239,68,68,0.2)";
+            badgeLabel = verifyStatus.toUpperCase();
+          }
 
           return (
             <motion.div
@@ -165,33 +184,27 @@ export default function X402Panel({ payments, subTasks }: Props) {
                 >
                   {service}
                 </span>
-                {solscanUrl ? (
-                  <a
-                    href={solscanUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{
-                      fontFamily: "monospace",
-                      fontSize: 8,
-                      color: "#9945FF",
-                      textDecoration: "underline",
-                      textDecorationColor: "rgba(153,69,255,0.35)",
-                      letterSpacing: "0.02em",
-                      display: "block",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                      opacity: 0.85,
-                    }}
-                    title={`View on Solscan devnet: ${p.tx_hash}`}
-                  >
-                    {p.tx_hash.slice(0, 8)}…{p.tx_hash.slice(-6)} ↗
-                  </a>
-                ) : (
-                  <span style={{ fontFamily: "monospace", fontSize: 8, color: "#2a2a3a" }}>
-                    mock tx
-                  </span>
-                )}
+                <a
+                  href={solscanUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    fontFamily: "monospace",
+                    fontSize: 8,
+                    color: "#9945FF",
+                    textDecoration: "underline",
+                    textDecorationColor: "rgba(153,69,255,0.35)",
+                    letterSpacing: "0.02em",
+                    display: "block",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                    opacity: 0.85,
+                  }}
+                  title={`View on Solscan devnet: ${p.tx_hash}`}
+                >
+                  {p.tx_hash.slice(0, 8)}…{p.tx_hash.slice(-6)} ↗
+                </a>
               </span>
 
               {/* Amount */}
@@ -212,17 +225,17 @@ export default function X402Panel({ payments, subTasks }: Props) {
               <span
                 style={{
                   fontFamily: "monospace",
-                  fontSize: 8,
-                  color: "#22c55e",
-                  background: "rgba(34,197,94,0.08)",
-                  border: "1px solid rgba(34,197,94,0.2)",
+                  fontSize: 7,
+                  color: badgeColor,
+                  background: badgeBg,
+                  border: `1px solid ${badgeBorder}`,
                   borderRadius: 4,
-                  padding: "2px 5px",
+                  padding: "2px 4px",
                   textAlign: "center",
                   letterSpacing: "0.06em",
                 }}
               >
-                SIGNED
+                {badgeLabel}
               </span>
 
               {/* Time */}
