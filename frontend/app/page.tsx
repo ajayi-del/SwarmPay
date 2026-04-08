@@ -15,7 +15,7 @@ import { useSwarmStore } from "@/lib/store";
 import { useModeStore } from "@/lib/modeStore";
 import { useSolRate } from "@/lib/useSolRate";
 import { useQuery } from "@tanstack/react-query";
-import { getTaskStatus, type TaskState } from "@/lib/api";
+import { getTaskStatus, type TaskState, API_BASE } from "@/lib/api";
 import { motion, AnimatePresence } from "framer-motion";
 
 // ── CSS star field for right panel bg (pure box-shadow, no canvas) ─────────────
@@ -99,8 +99,7 @@ function TokenTicker({ taskId }: { taskId: string }) {
   const { data } = useQuery({
     queryKey: ["token-ticker", taskId],
     queryFn: async () => {
-      const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-      const r = await fetch(`${API}/analytics/tokens?task_id=${taskId}`);
+      const r = await fetch(`${API_BASE}/analytics/tokens?task_id=${taskId}`);
       if (!r.ok) return null;
       return r.json();
     },

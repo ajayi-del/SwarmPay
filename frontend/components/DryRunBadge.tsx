@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+import { API_BASE } from "@/lib/api";
 
 interface ModeInfo {
   mode: "dry_run" | "live";
@@ -17,7 +17,7 @@ export default function DryRunBadge() {
 
   const fetchMode = useCallback(async () => {
     try {
-      const r = await fetch(`${API}/mode`);
+      const r = await fetch(`${API_BASE}/mode`);
       if (r.ok) setModeInfo(await r.json());
     } catch {
       // Backend may not be running — show nothing
@@ -34,7 +34,7 @@ export default function DryRunBadge() {
     if (toggling) return;
     setToggling(true);
     try {
-      const r = await fetch(`${API}/mode/toggle`, { method: "POST" });
+      const r = await fetch(`${API_BASE}/mode/toggle`, { method: "POST" });
       if (r.ok) setModeInfo(await r.json());
     } catch {
       // ignore

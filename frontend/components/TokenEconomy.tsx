@@ -9,7 +9,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useSwarmStore } from "@/lib/store";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+import { API_BASE } from "@/lib/api";
 
 // Provider display config
 const PROVIDER_CONFIG: Record<string, { label: string; color: string; free: boolean }> = {
@@ -116,7 +116,7 @@ export default function TokenEconomy() {
   const { data } = useQuery<TokenSummary>({
     queryKey: ["token-economy", taskId],
     queryFn: async () => {
-      const r = await fetch(`${API}/analytics/tokens?task_id=${taskId ?? ""}`);
+      const r = await fetch(`${API_BASE}/analytics/tokens?task_id=${taskId ?? ""}`);
       if (!r.ok) throw new Error("token analytics unavailable");
       return r.json();
     },

@@ -3,13 +3,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { AGENT_PERSONAS } from "@/lib/personas";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+import { API_BASE } from "@/lib/api";
 
 export default function AgentLeaderboard() {
   const { data: reputations } = useQuery<Record<string, number>>({
     queryKey: ["reputations"],
     queryFn: async () => {
-      const r = await fetch(`${API}/analytics/reputation`);
+      const r = await fetch(`${API_BASE}/analytics/reputation`);
       if (!r.ok) return {};
       return r.json();
     },

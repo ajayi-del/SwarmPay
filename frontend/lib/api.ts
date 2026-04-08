@@ -1,9 +1,21 @@
-const isProd = process.env.NODE_ENV === "production";
-const API = process.env.NEXT_PUBLIC_API_URL || (isProd ? "" : "http://localhost:8000");
+// ── Single source of truth for API base URL ──────────────────────────────────
+// Every component MUST import API_BASE from here. No inline definitions.
 
-if (isProd && !process.env.NEXT_PUBLIC_API_URL && typeof window !== "undefined") {
-  console.error("CRITICAL: NEXT_PUBLIC_API_URL is missing in production environment. Backend calls will fail.");
+const isProd = typeof window !== "undefined" && window.location.protocol === "https:";
+export const API_BASE = process.env.NEXT_PUBLIC_API_URL || (isProd ? "" : "http://localhost:8000");
+
+// ── Safe fetch wrapper — returns null instead of throwing on network errors ──
+async function safeFetch<T>(url: string, init?: RequestInit): Promise<T | null> {
+  try {
+    const res = await fetch(url, init);
+    if (!res.ok) return null;
+    return res.json();
+  } catch {
+    return null;
+  }
 }
+
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface Wallet {
   id: string;
@@ -79,8 +91,10 @@ export interface AuditEntry {
   created: string;
 }
 
+// ── API Functions ─────────────────────────────────────────────────────────────
+
 export async function submitTask(description: string, budget: number) {
-  const res = await fetch(`${API}/task/submit`, {
+  const res = await fetch(`${API_BASE}/task/submit`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ description, budget }),
@@ -90,7 +104,7 @@ export async function submitTask(description: string, budget: number) {
 }
 
 export async function decomposeTask(task_id: string) {
-  const res = await fetch(`${API}/task/decompose`, {
+  const res = await fetch(`${API_BASE}/task/decompose`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ task_id }),
@@ -100,7 +114,7 @@ export async function decomposeTask(task_id: string) {
 }
 
 export async function executeTask(task_id: string) {
-  const res = await fetch(`${API}/task/execute`, {
+  const res = await fetch(`${API_BASE}/task/execute`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ task_id }),
@@ -110,15 +124,14 @@ export async function executeTask(task_id: string) {
 }
 
 export async function getTaskStatus(task_id: string): Promise<TaskState> {
-  const res = await fetch(`${API}/task/${task_id}/status`);
+  const res = await fetch(`${API_BASE}/task/${task_id}/status`);
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
 
 export async function getAuditLogs(): Promise<{ logs: AuditEntry[] }> {
-  const res = await fetch(`${API}/audit`);
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
+  const result = await safeFetch<{ logs: AuditEntry[] }>(`${API_BASE}/audit`);
+  return result ?? { logs: [] };
 }
 
 export interface SwarmStats {
@@ -135,16 +148,19 @@ export interface SwarmStats {
 }
 
 export async function getSwarmStats(): Promise<SwarmStats> {
-  const res = await fetch(`${API}/swarm/stats`);
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
+  const result = await safeFetch<SwarmStats>(`${API_BASE}/swarm/stats`);
+  return result ?? {
+    health_score: 0, total_tasks: 0, total_signed: 0, total_blocked: 0,
+    eth_processed: 0, eth_held: 0, peer_count: 0, eth_peer: 0,
+    avg_reputation: 0, agent_rankings: [],
+  };
 }
 
 // ── REGIS ─────────────────────────────────────────────────────────────────
 
 export interface ProbeResponse {
   response: string;
-  audio_b64?: string | null;  // base64 MP3 from ElevenLabs — null when key not set
+  audio_b64?: string | null;
 }
 
 export interface AuditResult {
@@ -164,7 +180,7 @@ export interface PunishResult {
 }
 
 export async function probeRegis(question: string): Promise<ProbeResponse> {
-  const res = await fetch(`${API}/regis/probe`, {
+  const res = await fetch(`${API_BASE}/regis/probe`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ question }),
@@ -174,7 +190,7 @@ export async function probeRegis(question: string): Promise<ProbeResponse> {
 }
 
 export async function auditRegis(): Promise<AuditResult> {
-  const res = await fetch(`${API}/regis/audit`, {
+  const res = await fetch(`${API_BASE}/regis/audit`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({}),
@@ -187,7 +203,7 @@ export async function punishRegis(
   punishment_type: string,
   coordinator_wallet_id?: string
 ): Promise<PunishResult> {
-  const res = await fetch(`${API}/regis/punish`, {
+  const res = await fetch(`${API_BASE}/regis/punish`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ punishment_type, coordinator_wallet_id }),
@@ -197,9 +213,8 @@ export async function punishRegis(
 }
 
 export async function getRegisBrain(): Promise<{ content: string; last_updated: string | null }> {
-  const res = await fetch(`${API}/regis/brain`);
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
+  const result = await safeFetch<{ content: string; last_updated: string | null }>(`${API_BASE}/regis/brain`);
+  return result ?? { content: "", last_updated: null };
 }
 
 export interface MeteoraRate {
@@ -211,9 +226,8 @@ export interface MeteoraRate {
 }
 
 export async function getMeteoraRate(): Promise<MeteoraRate> {
-  const res = await fetch(`${API}/regis/meteora`);
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
+  const result = await safeFetch<MeteoraRate>(`${API_BASE}/regis/meteora`);
+  return result ?? { rate: null, source: "unavailable", pair_name: "", tvl: 0, available: false };
 }
 
 export interface MoonpayOnramp {
@@ -226,9 +240,8 @@ export interface MoonpayOnramp {
 }
 
 export async function getMoonpayOnramp(walletAddress: string): Promise<MoonpayOnramp> {
-  const res = await fetch(`${API}/regis/moonpay?wallet=${encodeURIComponent(walletAddress)}`);
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
+  const result = await safeFetch<MoonpayOnramp>(`${API_BASE}/regis/moonpay?wallet=${encodeURIComponent(walletAddress)}`);
+  return result ?? { url: null, currency: "SOL", fiat: "USD", suggested_amount: 25, note: "unavailable", wallet: walletAddress };
 }
 
 export interface ClarifyResponse {
@@ -238,11 +251,10 @@ export interface ClarifyResponse {
 }
 
 export async function clarifyTask(description: string): Promise<ClarifyResponse> {
-  const res = await fetch(`${API}/task/clarify`, {
+  const result = await safeFetch<ClarifyResponse>(`${API_BASE}/task/clarify`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ description }),
   });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
+  return result ?? { questions: [], needs_clarification: false, suggested_budget: 0 };
 }

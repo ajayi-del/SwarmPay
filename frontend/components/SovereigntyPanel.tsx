@@ -15,7 +15,7 @@ import { useQuery } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSolRate } from "@/lib/useSolRate";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+import { API_BASE } from "@/lib/api";
 
 interface SovereigntyEntry {
   agent_id: string;
@@ -63,7 +63,7 @@ export default function SovereigntyPanel() {
   const { data } = useQuery<LeaderboardResponse>({
     queryKey: ["sovereignty-leaderboard"],
     queryFn: async () => {
-      const r = await fetch(`${API}/sovereignty/leaderboard`);
+      const r = await fetch(`${API_BASE}/sovereignty/leaderboard`);
       if (!r.ok) throw new Error("leaderboard unavailable");
       return r.json();
     },

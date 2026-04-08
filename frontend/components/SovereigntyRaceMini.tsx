@@ -9,7 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { useSolRate } from "@/lib/useSolRate";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+import { API_BASE } from "@/lib/api";
 
 interface LeaderboardEntry {
   agent_id: string;
@@ -30,7 +30,7 @@ const AGENT_COLORS: Record<string, string> = {
 };
 
 async function fetchLeaderboard(): Promise<{ leaderboard: LeaderboardEntry[] }> {
-  const r = await fetch(`${API}/sovereignty/leaderboard`, { cache: "no-store" });
+  const r = await fetch(`${API_BASE}/sovereignty/leaderboard`, { cache: "no-store" });
   if (!r.ok) throw new Error("leaderboard unavailable");
   return r.json();
 }

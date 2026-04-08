@@ -10,7 +10,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+import { API_BASE } from "@/lib/api";
 
 interface Bet {
   agent: string;
@@ -153,7 +153,7 @@ export default function BetsPanel() {
   const { data, isLoading } = useQuery({
     queryKey: ["myriad-markets"],
     queryFn: async (): Promise<{ markets: Market[]; total: number; mode: string }> => {
-      const r = await fetch(`${API}/integrations/myriad/markets`);
+      const r = await fetch(`${API_BASE}/integrations/myriad/markets`);
       if (!r.ok) return { markets: [], total: 0, mode: "mock" };
       return r.json();
     },
