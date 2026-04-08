@@ -1,8 +1,18 @@
 // ── Single source of truth for API base URL ──────────────────────────────────
-// Every component MUST import API_BASE from here. No inline definitions.
+// NEXT_PUBLIC_API_URL must be set in Railway to the backend service URL.
+// Locally defaults to http://localhost:8000.
+export const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
-const isProd = typeof window !== "undefined" && window.location.protocol === "https:";
-export const API_BASE = process.env.NEXT_PUBLIC_API_URL || (isProd ? "" : "http://localhost:8000");
+// Log a warning if missing in production (build-time check)
+if (typeof window !== "undefined" && !process.env.NEXT_PUBLIC_API_URL) {
+  if (window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1") {
+    console.error(
+      "[SwarmPay] NEXT_PUBLIC_API_URL is not set. " +
+      "All API calls will target localhost:8000 and fail in production. " +
+      "Set this variable in Railway to point to your backend service."
+    );
+  }
+}
 
 // ── Safe fetch wrapper — returns null instead of throwing on network errors ──
 async function safeFetch<T>(url: string, init?: RequestInit): Promise<T | null> {
