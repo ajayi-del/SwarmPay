@@ -4,7 +4,7 @@ WORKDIR /app
 
 # Build tools: gcc/g++ for native extensions; curl + rustup for solders if no wheel
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc g++ curl && \
+    gcc g++ curl nodejs npm && \
     curl https://sh.rustup.rs -sSf | sh -s -- -y --profile minimal && \
     rm -rf /var/lib/apt/lists/*
 
@@ -14,6 +14,9 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
+
+# Install Lit Protocol js requirements for the orchestrator
+RUN cd contracts && npm install
 
 EXPOSE 8000
 

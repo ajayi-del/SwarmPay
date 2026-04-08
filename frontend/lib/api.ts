@@ -1,4 +1,9 @@
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+const isProd = process.env.NODE_ENV === "production";
+const API = process.env.NEXT_PUBLIC_API_URL || (isProd ? "" : "http://localhost:8000");
+
+if (isProd && !process.env.NEXT_PUBLIC_API_URL && typeof window !== "undefined") {
+  console.error("CRITICAL: NEXT_PUBLIC_API_URL is missing in production environment. Backend calls will fail.");
+}
 
 export interface Wallet {
   id: string;
